@@ -76,6 +76,31 @@ def fig_val_ppl(phase, runs):
     return path
 
 
+def fig_relative_to_a(phase, runs):
+    """Val-PPL of every run relative to the mean of the A seeds at the same token count."""
+    a = [r["metrics"].set_index("tokens").val_ppl for r in runs if r["model"] == "A"]
+    if not a:
+        return None
+    a_mean = pd.concat(a, axis=1).mean(axis=1)
+    fig, ax = plt.subplots(figsize=(7.5, 4.0))
+    for r in runs:
+        v = r["metrics"].set_index("tokens").val_ppl
+        rel = 100 * (v / a_mean - 1)
+        rel = rel[rel.index >= 8e6]                     # the first few evals are dominated by warm-up
+        ax.plot(rel.index / 1e6, rel.values, color=COLOR[r["model"]], ls=STYLE.get(r["seed"], ":"),
+                label=f"{LABEL[r['model']]} (Seed {r['seed']})")
+    ax.axhline(0, color=INK2, lw=1)
+    ax.set_xlabel("Trainings-Tokens (Mio.)")
+    ax.set_ylabel("Val-PPL relativ zu Mittel(A) (%)")
+    ax.set_title(f"Abstand zur Baseline über das Training – {phase}", color=INK, loc="left")
+    ax.legend(fontsize=8)
+    fig.tight_layout()
+    path = os.path.join(OUT, f"{phase}_relative_to_A.png")
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+    return path
+
+
 def fig_train_vs_val(phase, runs):
     models = sorted({r["model"] for r in runs})
     fig, axes = plt.subplots(1, len(models), figsize=(4 * len(models), 3.6), sharey=True)
@@ -241,7 +266,7 @@ def main():
         if not runs:
             print(f"{phase}: no finished runs")
             continue
-        outs = [fig_val_ppl(phase, runs), fig_train_vs_val(phase, runs), fig_memory_health(phase, runs),
+        outs = [fig_val_ppl(phase, runs), fig_relative_to_a(phase, runs), fig_train_vs_val(phase, runs), fig_memory_health(phase, runs),
                 fig_access_distribution(phase, runs), tables(phase, runs)]
         print(phase, [o for o in outs if o])
         print(open(os.path.join(OUT, f"{phase}_tables.md")).read())

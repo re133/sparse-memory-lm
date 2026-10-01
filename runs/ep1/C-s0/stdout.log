@@ -1,0 +1,85 @@
+{"model_name": "C", "params": {"total": 161342208, "embedding": 38633472, "non_embedding": 122708736, "memory_values": 0, "dense_body": 122708736, "active_non_embedding_per_token": 122708736, "bn_running_stats": 0}, "seeds": {"init_seed": 0, "data_seed": 1234}}
+steps=3600 warmup=180 eval_every=122 accum=8
+[eval] step 0 tokens 0.0M val_ppl 60366.771 train_loss  
+step 100/3600 loss 6.2232 tok/s 34481
+[eval] step 122 tokens 4.0M val_ppl 383.223 train_loss 7.253 
+step 200/3600 loss 5.5556 tok/s 34477
+[eval] step 244 tokens 8.0M val_ppl 193.483 train_loss 5.6352 
+step 300/3600 loss 5.1171 tok/s 34478
+[eval] step 366 tokens 12.0M val_ppl 130.887 train_loss 5.1071 
+step 400/3600 loss 4.8650 tok/s 34471
+[eval] step 488 tokens 16.0M val_ppl 101.836 train_loss 4.7942 
+step 500/3600 loss 4.6255 tok/s 34464
+step 600/3600 loss 4.5521 tok/s 34469
+[eval] step 610 tokens 20.0M val_ppl 84.010 train_loss 4.5919 
+step 700/3600 loss 4.3978 tok/s 34463
+[eval] step 732 tokens 24.0M val_ppl 73.037 train_loss 4.4236 
+step 800/3600 loss 4.2827 tok/s 34455
+[eval] step 854 tokens 28.0M val_ppl 63.041 train_loss 4.2872 
+step 900/3600 loss 4.1831 tok/s 34461
+[eval] step 976 tokens 32.0M val_ppl 56.061 train_loss 4.1415 
+step 1000/3600 loss 4.0783 tok/s 34459
+[eval] step 1098 tokens 36.0M val_ppl 51.162 train_loss 4.0395 
+step 1100/3600 loss 3.9691 tok/s 34440
+step 1200/3600 loss 4.0072 tok/s 34470
+[eval] step 1220 tokens 40.0M val_ppl 47.121 train_loss 3.9674 
+step 1300/3600 loss 3.8464 tok/s 34465
+[eval] step 1342 tokens 44.0M val_ppl 43.667 train_loss 3.8756 
+step 1400/3600 loss 3.7960 tok/s 34473
+[eval] step 1464 tokens 48.0M val_ppl 41.320 train_loss 3.8064 
+step 1500/3600 loss 3.7905 tok/s 34466
+[eval] step 1586 tokens 52.0M val_ppl 38.958 train_loss 3.757 
+step 1600/3600 loss 3.7533 tok/s 34465
+step 1700/3600 loss 3.6735 tok/s 34468
+[eval] step 1708 tokens 56.0M val_ppl 37.055 train_loss 3.6886 
+step 1800/3600 loss 3.6450 tok/s 34460
+[eval] step 1830 tokens 60.0M val_ppl 35.455 train_loss 3.6576 
+step 1900/3600 loss 3.6268 tok/s 34474
+[eval] step 1952 tokens 64.0M val_ppl 34.292 train_loss 3.6142 
+step 2000/3600 loss 3.5950 tok/s 34455
+[eval] step 2074 tokens 68.0M val_ppl 33.083 train_loss 3.581 
+step 2100/3600 loss 3.5538 tok/s 34463
+[eval] step 2196 tokens 72.0M val_ppl 31.992 train_loss 3.5406 
+step 2200/3600 loss 3.5550 tok/s 34451
+step 2300/3600 loss 3.4924 tok/s 34477
+[eval] step 2318 tokens 76.0M val_ppl 30.928 train_loss 3.5042 
+step 2400/3600 loss 3.4586 tok/s 34484
+[eval] step 2440 tokens 80.0M val_ppl 30.088 train_loss 3.4702 
+step 2500/3600 loss 3.4501 tok/s 34478
+[eval] step 2562 tokens 84.0M val_ppl 29.339 train_loss 3.4562 
+step 2600/3600 loss 3.4225 tok/s 34477
+[eval] step 2684 tokens 87.9M val_ppl 28.633 train_loss 3.4185 
+step 2700/3600 loss 3.4072 tok/s 34480
+step 2800/3600 loss 3.3569 tok/s 34467
+[eval] step 2806 tokens 91.9M val_ppl 28.031 train_loss 3.3957 
+step 2900/3600 loss 3.4041 tok/s 34467
+[eval] step 2928 tokens 95.9M val_ppl 27.496 train_loss 3.3732 
+step 3000/3600 loss 3.3740 tok/s 34462
+[eval] step 3050 tokens 99.9M val_ppl 27.041 train_loss 3.3658 
+step 3100/3600 loss 3.3320 tok/s 34467
+[eval] step 3172 tokens 103.9M val_ppl 26.712 train_loss 3.3438 
+step 3200/3600 loss 3.3597 tok/s 34467
+[eval] step 3294 tokens 107.9M val_ppl 26.383 train_loss 3.3363 
+step 3300/3600 loss 3.3148 tok/s 34465
+step 3400/3600 loss 3.3270 tok/s 34465
+[eval] step 3416 tokens 111.9M val_ppl 26.095 train_loss 3.3256 
+step 3500/3600 loss 3.3215 tok/s 34472
+[eval] step 3538 tokens 115.9M val_ppl 25.881 train_loss 3.3166 
+step 3600/3600 loss 3.3465 tok/s 34480
+[eval] step 3600 tokens 118.0M val_ppl 25.802 train_loss 3.311 
+{
+ "val_loss": 3.250469900840399,
+ "val_ppl": 25.80246166738158,
+ "val_word_ppl": 40.24858511570483,
+ "test_loss": 3.258737518581239,
+ "test_ppl": 26.01667083682406,
+ "test_word_ppl": 42.99593581676142,
+ "train_tok_s_mean": 34468.40832969956,
+ "train_tok_s_median": 34467.663094956166,
+ "peak_train_vram_gib": 7.9125075340271,
+ "weights_gib_fp32": 0.6010465621948242,
+ "decode_b1_tok_s": 164.93992593765094,
+ "decode_peak_vram_gib": 1.4626259803771973,
+ "prefill_tok_s": 130975.94957313615,
+ "prefill_peak_vram_gib": 3.1080422401428223
+}

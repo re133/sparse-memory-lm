@@ -113,7 +113,92 @@ n² Keys (Scores und Index-Mengen exakt); Gradient der Wertetabelle ist genau au
 
 ### 1 Epoche: 118 M Tokens (A, B je 2 Seeds; C 1 Seed)
 
-_(läuft)_
+| Lauf | Val-PPL | Test-PPL | Val-PPL (Wort) | Train tok/s | Decode b=1 tok/s | Prefill tok/s | VRAM Train | Trainzeit | Key-Nutzung Val | Top-1 %-Anteil | KL |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| A-s0 | 35,26 | 35,24 | 57,4 | 91.705 | 217 | 383.407 | 7,89 GiB | 21 min | – | – | – |
+| A-s1 | 34,93 | 34,77 | 56,8 | 91.640 | 218 | 384.460 | 7,89 GiB | 21 min | – | – | – |
+| B-s0 | 34,63 | 34,56 | 56,2 | 72.445 | 199 | 264.882 | 9,47 GiB | 27 min | 99,2 % | 18,4 % | 1,08 |
+| B-s1 | 34,12 | 34,05 | 55,3 | 72.241 | 203 | 264.573 | 9,47 GiB | 27 min | 99,7 % | 15,5 % | 0,91 |
+| C-s0 | 25,80 | 26,02 | 40,3 | 34.468 | 165 | 130.976 | 7,91 GiB | 57 min | – | – | – |
+
+**Auswertung gegen die vorab festgelegten Kriterien:**
+
+| Größe | Wert |
+|---|---|
+| PPL A (Mittel; Seeds) | 35,09 (35,26 / 34,93) |
+| PPL B (Mittel; Seeds) | 34,38 (34,63 / 34,12) |
+| PPL C | 25,80 |
+| Seed-Spanne s | 0,51 (aus B; A: 0,32) → Schwelle 2·s = 1,02 |
+| PPL_A − PPL_B | +0,72 (**innerhalb** 2·s) |
+| Lückenschluss G | **0,08** |
+| Key-Nutzung (min.) / Top-1 %-Anteil (max.) | 99,2 % / 18,4 % → **Tabelle gesund** |
+| **Urteil** | **lohnt sich nicht** (B auf A-Niveau, trotz gesunder Tabelle) |
+
+![Val-PPL 1 Epoche](report/ep1_val_ppl.png)
+
+![Abstand zu A, 1 Epoche](report/ep1_relative_to_A.png)
+
+**Was die Zahlen sagen, ohne Schönfärberei:**
+
+- B ist in allen vier A/B-Paarungen besser als A, und das gleichmäßig ab etwa 30 M Tokens um ≈ 2 %
+  (Val wie Test). Das spricht für einen echten, aber kleinen Effekt. Nach dem vorab festgelegten
+  Kriterium reicht er nicht: 0,72 PPL liegen unter 2·s = 1,02, und mit zwei Seeds je Modell ist auch
+  „B schlägt A in allen Paarungen“ nicht belastbar (bei Zufall träte das in 1 von 6 Fällen auf).
+- **Selbst wenn der Effekt echt ist, ist er viel zu klein.** B schließt 8 % der Lücke zu C, gefordert
+  waren 50 %. Der Vorsprung wächst über die Epoche auch nicht, er bleibt bei ≈ 2 % (siehe Grafik).
+  Die 100 M zusätzlichen Parameter von B bringen also bei weitem nicht, was dieselbe Zahl dichter
+  Parameter in C bringt (−26,5 % PPL), allerdings bei 3,8× so vielen MACs pro Token für C.
+- **C ist bei 1 Epoche deutlich untertrainiert** (≈ 1 Token je Parameter statt ≈ 20). Die Lücke A↔C
+  wäre bei einem ausgereizten C eher noch größer; der Vergleich ist für B damit eher günstig.
+- **Kosten von B:** gleiche FLOPs wie A, aber 21 % weniger Trainingsdurchsatz, 31 % weniger
+  Prefill-Durchsatz, 7 % langsameres Batch-1-Decoding und 1,6 GiB mehr VRAM (Wertetabelle mit
+  Gradient und Adam-Zuständen: 100,7 M × 16 Byte).
+
+**Tabellengesundheit und Implementierung** (Pflichtprüfung, bevor ein Urteil zählt):
+
+![Tabellengesundheit 1 Epoche](report/ep1_memory_health.png)
+
+- Nutzung 99,2 / 99,7 %, KL 1,08 / 0,91, das meistgelesene 1 % der Einträge bekommt 18 / 16 % der
+  Zugriffe, nur 0,3–0,8 % der Einträge werden auf dem Val-Set nie gelesen. Im Training wurde jeder
+  Eintrag gelesen (seltenster ≈ 2.400×). Der Einbruch am Anfang (s. Probelauf) erholt sich nach
+  ≈ 20 M Tokens vollständig.
+- **Die Speicherschicht trägt tatsächlich etwas bei** (`scripts/diagnose_memory.py`, 8.192 Val-Tokens,
+  `runs/ep1/B-*/diagnostics.json`): Setzt man ihre Ausgabe auf null, steigt die PPL von 25,3 auf 29,2
+  (s0) bzw. 25,0 auf 29,4 (s1). Liest man statt der gefundenen zufällige Einträge, steigt sie auf 29,6
+  bzw. 30,0. Es kommt also darauf an, *welche* Einträge die Suche findet. Die Ausgabenorm der Schicht
+  (2,5–2,8) liegt über der der benachbarten dichten FFNs (1,2–2,2). Die 4 Köpfe lesen pro Token fast
+  immer 128 verschiedene Einträge.
+- Die Unit-Tests (exakte Top-k, Gradient nur in gelesene Werte, Kausalität, KV-Cache) sind grün.
+  Einen Implementierungsfehler habe ich nicht gefunden.
+- **Auffälligkeit: Die Gewichtung innerhalb der Top-32 ist fast flach.** Effektiv mischt jeder Kopf
+  30,5 von 32 Einträgen (exp(Entropie)), das Top-1-Gewicht liegt bei 0,066 (gleichverteilt: 0,031).
+  Die Score-Skala ist seit der Initialisierung kaum gewachsen (Key-Norm 0,41 → 0,48, BatchNorm-γ ≈ 1,09).
+  Die Schicht ruft also nicht gezielt wenige Einträge ab, sondern mittelt grob über 128. Das passt zum
+  Befund „ersetzt ein FFN und etwas mehr, aber nicht viel mehr“: Ohne Speicher fehlt dem Modell eine
+  ganze Schicht (+17 % PPL), mit Speicher ist es nur 2 % besser als A.
+
+**Zugriffsmuster (für Stufe 3, `report/ep1_access_stats.json`):**
+
+![Zugriffsverteilung 1 Epoche](report/ep1_access_distribution.png)
+
+| | B-s0 | B-s1 |
+|---|---|---|
+| Anteil der Zugriffe auf die Top 1 / 10 / 20 / 50 % (Val) | 18 / 55 / 71 / 91 % | 16 / 50 / 66 / 89 % |
+| Val-Zugriffe, die die Top 20 % aus dem **Training** abdecken | 68 % | 63 % |
+| Rangkorrelation der Zugriffszahlen Training ↔ Val (Spearman) | 0,89 | 0,89 |
+| Zugriffe, die schon in den letzten 1 / 16 / 256 Tokens gelesen wurden | 0,7 / 11,7 / 52,5 % | 0,9 / 11,5 / 50,2 % |
+
+Die Verteilung ist deutlich schief, aber kein extremer Zipf: Ein Cache mit den 20 % meistgelesenen
+Einträgen (im Training ermittelt; hier 52 k Einträge × 384 × 2 Byte ≈ 40 MB in bf16) fängt ≈ 65 % der
+Lesezugriffe auf dem Val-Set ab. Aufeinanderfolgende Tokens lesen
+fast disjunkte Einträge (< 1 % Wiederholung zum direkten Vorgänger); über ein Fenster von 256 Tokens
+wiederholt sich aber die Hälfte. Für die SSD-Auslagerung heißt das: ≈ 35 % der 128 Lesezugriffe pro
+Token müssten auch mit einem Hot-Set-Cache noch zufällig von der SSD kommen.
+
+![Train- vs. Val-Loss 1 Epoche](report/ep1_train_vs_val.png)
+
+Bei 1 Epoche gibt es erwartungsgemäß kein Auswendiglernen (jedes Fenster wird genau einmal gesehen);
+dass Train über Val liegt, ist der nachlaufende Intervall-Mittelwert, s. Grenzen.
 
 ### 3 Epochen: 354 M Tokens, eigener Cosine-Plan (A, B je 2 Seeds; C 1 Seed)
 

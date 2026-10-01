@@ -1,0 +1,137 @@
+{
+  "status": "done",
+  "model_name": "C",
+  "started": "2026-10-01T20:52:46",
+  "git": {
+    "commit": "221480c973b415066bdee002a6a428f521e48dcf",
+    "dirty": false,
+    "dirty_files": []
+  },
+  "hardware": {
+    "gpu": "AMD Radeon RX 9070",
+    "gpu_arch": "gfx1201",
+    "gpu_mem_gib": 15.92,
+    "torch": "2.14.0",
+    "hip": "7.2.53211",
+    "python": "3.14.7",
+    "kernel": "7.2.8-1-cachyos",
+    "cpu": "AMD Ryzen 9 5900XT 16-Core Processor",
+    "ram_gib": 125.7,
+    "gpu_state_at_start": [
+      "GPU[0]\t\t: GPU use (%): 3",
+      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 8"
+    ]
+  },
+  "seeds": {
+    "init_seed": 0,
+    "data_seed": 1234
+  },
+  "train_config": {
+    "model": "C",
+    "out_dir": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep1/C-s0",
+    "tokens": null,
+    "epochs": 1.0,
+    "seed": 0,
+    "data_seed": 1234,
+    "seq_len": 1024,
+    "batch_seqs": 32,
+    "micro_bs": 4,
+    "lr": 0.0006,
+    "value_lr": 0.001,
+    "weight_decay": 0.1,
+    "warmup_frac": 0.05,
+    "min_lr_ratio": 0.1,
+    "clip": 1.0,
+    "eval_every_tokens": 4000000.0,
+    "log_every": 10,
+    "sample_windows": 64,
+    "mem_query_norm": "batchnorm",
+    "total_steps": 3600,
+    "warmup_steps": 180,
+    "tokens_per_step": 32768,
+    "grad_accum": 8,
+    "total_tokens": 117964800,
+    "eval_every_steps": 122,
+    "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip",
+    "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
+    "precision": "bf16 autocast, fp32 weights / optimizer state"
+  },
+  "model_config": {
+    "vocab_size": 50304,
+    "d_model": 768,
+    "n_layers": 16,
+    "n_heads": 12,
+    "ffn_hidden": 2304,
+    "max_seq_len": 1024,
+    "rope_theta": 10000.0,
+    "norm_eps": 1e-05,
+    "init_std": 0.02,
+    "mem_layers": [],
+    "mem_n_keys": 512,
+    "mem_heads": 4,
+    "mem_knn": 32,
+    "mem_k_dim": 256,
+    "mem_v_dim": -1,
+    "mem_query_norm": "batchnorm",
+    "mem_swilu": true,
+    "mem_value_impl": "embedding_bag"
+  },
+  "params": {
+    "total": 161342208,
+    "embedding": 38633472,
+    "non_embedding": 122708736,
+    "memory_values": 0,
+    "dense_body": 122708736,
+    "active_non_embedding_per_token": 122708736,
+    "bn_running_stats": 0
+  },
+  "macs_per_token": {
+    "attn_proj": 37748736,
+    "attn_scores": 12582912.0,
+    "ffn": 84934656,
+    "memory": 0,
+    "lm_head": 38633472,
+    "total": 173899776.0
+  },
+  "data": {
+    "dataset": "WikiText-103 raw (Salesforce/wikitext)",
+    "tokenizer": "tiktoken/gpt2",
+    "vocab_size": 50257,
+    "splits": {
+      "train": {
+        "n_tokens": 117980476,
+        "n_words": 103227021,
+        "n_lines": 1801350
+      },
+      "validation": {
+        "n_tokens": 247417,
+        "n_words": 217646,
+        "n_lines": 3760
+      },
+      "test": {
+        "n_tokens": 283427,
+        "n_words": 245569,
+        "n_lines": 4358
+      }
+    }
+  },
+  "finished": "2026-10-01T21:51:08",
+  "duration_s": 3503.6,
+  "train_time_s": 3422.6,
+  "results": {
+    "val_loss": 3.250469900840399,
+    "val_ppl": 25.80246166738158,
+    "val_word_ppl": 40.24858511570483,
+    "test_loss": 3.258737518581239,
+    "test_ppl": 26.01667083682406,
+    "test_word_ppl": 42.99593581676142,
+    "train_tok_s_mean": 34468.40832969956,
+    "train_tok_s_median": 34467.663094956166,
+    "peak_train_vram_gib": 7.9125075340271,
+    "weights_gib_fp32": 0.6010465621948242,
+    "decode_b1_tok_s": 164.93992593765094,
+    "decode_peak_vram_gib": 1.4626259803771973,
+    "prefill_tok_s": 130975.94957313615,
+    "prefill_peak_vram_gib": 3.1080422401428223
+  }
+}
