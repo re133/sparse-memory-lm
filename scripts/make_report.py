@@ -47,13 +47,21 @@ def load_runs(phase):
 
 
 def fig_val_ppl(phase, runs):
-    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    fig, ax = plt.subplots(figsize=(8.5, 4.5))
+    ends = []
     for r in runs:
         m = r["metrics"][r["metrics"].step > 0]
         ax.plot(m.tokens / 1e6, m.val_ppl, color=COLOR[r["model"]], ls=STYLE.get(r["seed"], ":"),
                 label=f"{LABEL[r['model']]} (Seed {r['seed']})")
-        ax.annotate(f"{m.val_ppl.iloc[-1]:.1f}", (m.tokens.iloc[-1] / 1e6, m.val_ppl.iloc[-1]),
-                    xytext=(4, 0), textcoords="offset points", color=INK2, fontsize=8, va="center")
+        ends.append((m.val_ppl.iloc[-1], m.tokens.iloc[-1] / 1e6, f"{r['model']}-s{r['seed']} {m.val_ppl.iloc[-1]:.1f}"))
+    # end labels, spread vertically (log axis) so they do not collide
+    ends.sort()
+    placed = []
+    for y, x, txt in ends:
+        y_lab = y if not placed else max(y, placed[-1] * 1.09)
+        placed.append(y_lab)
+        ax.annotate(txt, (x, y), xytext=(x * 1.01 + 0.2, y_lab), textcoords="data", color=INK2, fontsize=8,
+                    va="center", annotation_clip=False)
     ax.set_yscale("log")
     ax.set_xlabel("Trainings-Tokens (Mio.)")
     ax.set_ylabel("Validierungs-Perplexity (BPE, log)")
@@ -112,7 +120,7 @@ def fig_memory_health(phase, runs):
     axes[0].set_title("Key-Nutzung", color=INK, loc="left")
     axes[1].set_ylim(0, 100)
     axes[1].set_ylabel("Anteil aller Zugriffe (%)")
-    axes[1].set_title("Zugriffe auf das meistgelesene 1 % der Einträge (Val)", color=INK, loc="left")
+    axes[1].set_title("Anteil der Zugriffe auf das Top-1 % (Val)", color=INK, loc="left")
     for ax in axes:
         ax.set_xlabel("Tokens (Mio.)")
         ax.legend(fontsize=8)
@@ -185,6 +193,7 @@ def tables(phase, runs):
     if A and B and C:
         pa, pb, pc = np.mean(A), np.mean(B), np.mean(C)
         spread = max(abs(A[0] - A[-1]), abs(B[0] - B[-1]))     # 0 if only one seed
+        single_seed = len(A) < 2 or len(B) < 2
         G = (pa - pb) / (pa - pc) if pa != pc else float("nan")
         usage = [r["info"]["results"]["mem_val"]["usage"] for r in runs if r["model"] == "B"]
         top1 = [r["info"]["results"]["mem_val"]["top1pct_share"] for r in runs if r["model"] == "B"]
@@ -215,6 +224,8 @@ def tables(phase, runs):
                   f"| Anteil Top-1 % der Einträge (max. über Seeds) | {100 * max(top1):.1f} % |",
                   f"| Tabelle gesund (≥ 60 % und Top-1 % ≤ 50 %) | {'ja' if healthy else 'nein'} |",
                   f"| **Urteil** | **{verdict}** |"]
+        if single_seed:
+            lines.append("\n_Nur ein Seed je Modell: das Seed-Rauschen ist hier nicht messbar, das Urteil ist nur vorläufig._")
     path = os.path.join(OUT, f"{phase}_tables.md")
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")

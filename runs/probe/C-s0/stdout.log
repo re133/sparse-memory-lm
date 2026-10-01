@@ -1,0 +1,35 @@
+{"model_name": "C", "params": {"total": 161342208, "embedding": 38633472, "non_embedding": 122708736, "memory_values": 0, "dense_body": 122708736, "active_non_embedding_per_token": 122708736, "bn_running_stats": 0}, "seeds": {"init_seed": 0, "data_seed": 1234}}
+steps=610 warmup=30 eval_every=61 accum=8
+[eval] step 0 tokens 0.0M val_ppl 60366.771 train_loss  
+[eval] step 61 tokens 2.0M val_ppl 771.657 train_loss 7.5608 
+step 100/610 loss 6.2631 tok/s 34434
+[eval] step 122 tokens 4.0M val_ppl 397.543 train_loss 6.3354 
+[eval] step 183 tokens 6.0M val_ppl 271.814 train_loss 5.8321 
+step 200/610 loss 5.6092 tok/s 34432
+[eval] step 244 tokens 8.0M val_ppl 211.441 train_loss 5.5438 
+step 300/610 loss 5.2280 tok/s 34427
+[eval] step 305 tokens 10.0M val_ppl 171.111 train_loss 5.3004 
+[eval] step 366 tokens 12.0M val_ppl 146.868 train_loss 5.1289 
+step 400/610 loss 4.9955 tok/s 34445
+[eval] step 427 tokens 14.0M val_ppl 130.227 train_loss 4.9942 
+[eval] step 488 tokens 16.0M val_ppl 119.407 train_loss 4.8849 
+step 500/610 loss 4.8036 tok/s 34442
+[eval] step 549 tokens 18.0M val_ppl 112.307 train_loss 4.8207 
+step 600/610 loss 4.7753 tok/s 34456
+[eval] step 610 tokens 20.0M val_ppl 107.748 train_loss 4.774 
+{
+ "val_loss": 4.679797634443356,
+ "val_ppl": 107.74826582721643,
+ "val_word_ppl": 204.36518748155063,
+ "test_loss": 4.701592242455372,
+ "test_ppl": 110.12237445296701,
+ "test_word_ppl": 227.32740494486686,
+ "train_tok_s_mean": 34429.03015446341,
+ "train_tok_s_median": 34440.93325114031,
+ "peak_train_vram_gib": 7.9125075340271,
+ "weights_gib_fp32": 0.6010465621948242,
+ "decode_b1_tok_s": 165.05760677793373,
+ "decode_peak_vram_gib": 1.4626259803771973,
+ "prefill_tok_s": 131093.31304595625,
+ "prefill_peak_vram_gib": 3.1080422401428223
+}

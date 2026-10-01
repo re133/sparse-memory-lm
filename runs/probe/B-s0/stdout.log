@@ -1,0 +1,41 @@
+{"model_name": "B", "params": {"total": 141259904, "embedding": 19316736, "non_embedding": 121943168, "memory_values": 100663296, "dense_body": 21279872, "active_non_embedding_per_token": 21329024, "bn_running_stats": 2048}, "seeds": {"init_seed": 0, "data_seed": 1234}}
+steps=610 warmup=30 eval_every=61 accum=4
+[eval] step 0 tokens 0.0M val_ppl 54821.852 train_loss  usage 0.993 kl 0.844
+[eval] step 61 tokens 2.0M val_ppl 731.301 train_loss 8.0499 usage 0.089 kl 4.519
+step 100/610 loss 6.2404 tok/s 73579
+[eval] step 122 tokens 4.0M val_ppl 407.920 train_loss 6.3081 usage 0.224 kl 3.781
+[eval] step 183 tokens 6.0M val_ppl 298.303 train_loss 5.8806 usage 0.337 kl 3.311
+step 200/610 loss 5.6885 tok/s 73374
+[eval] step 244 tokens 8.0M val_ppl 234.839 train_loss 5.6319 usage 0.474 kl 2.913
+step 300/610 loss 5.3574 tok/s 73072
+[eval] step 305 tokens 10.0M val_ppl 197.032 train_loss 5.4204 usage 0.566 kl 2.671
+[eval] step 366 tokens 12.0M val_ppl 172.976 train_loss 5.2767 usage 0.668 kl 2.392
+step 400/610 loss 5.1673 tok/s 72923
+[eval] step 427 tokens 14.0M val_ppl 156.801 train_loss 5.1659 usage 0.720 kl 2.274
+[eval] step 488 tokens 16.0M val_ppl 146.549 train_loss 5.0734 usage 0.776 kl 2.140
+step 500/610 loss 5.0053 tok/s 72883
+[eval] step 549 tokens 18.0M val_ppl 140.063 train_loss 5.0262 usage 0.798 kl 2.087
+step 600/610 loss 4.9906 tok/s 72812
+[eval] step 610 tokens 20.0M val_ppl 135.683 train_loss 4.9896 usage 0.818 kl 2.029
+{
+ "val_loss": 4.910319466300558,
+ "val_ppl": 135.68275355272553,
+ "val_word_ppl": 265.59206430934586,
+ "test_loss": 4.924641484041194,
+ "test_ppl": 137.63998666432454,
+ "test_word_ppl": 294.07236570399823,
+ "train_tok_s_mean": 73090.49932135615,
+ "train_tok_s_median": 73043.41526665447,
+ "peak_train_vram_gib": 9.469082355499268,
+ "weights_gib_fp32": 0.5262341499328613,
+ "decode_b1_tok_s": 197.481855935988,
+ "decode_peak_vram_gib": 1.5436086654663086,
+ "prefill_tok_s": 269315.15591926785,
+ "prefill_peak_vram_gib": 3.1272268295288086,
+ "mem_val": {
+  "usage": 0.8175430297851562,
+  "kl": 2.0289120743172617,
+  "top1pct_share": 0.3299189169253403
+ },
+ "mem_train_usage_total": 1.0
+}
