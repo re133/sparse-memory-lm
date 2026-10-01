@@ -5,6 +5,7 @@ Memory values follow the papers: Lample et al. 2019 learn them with a higher Ada
 value_fixed_lr=0.001 and scales it with the same LambdaLR multiplier as the rest. We do the same,
 without weight decay on the values (XLM's separate value optimizer had none; decay would also shrink
 rarely-read rows every step) and with a separate gradient-norm clip (Meta reference, train.py).
+Parameters tagged `no_weight_decay` (v2a: product-key sub-keys) go to the no-decay group.
 """
 import math
 
@@ -18,7 +19,7 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
             continue
         if getattr(p, "pk_value_param", False):
             values.append(p)
-        elif p.dim() >= 2:
+        elif p.dim() >= 2 and not getattr(p, "no_weight_decay", False):
             decay.append(p)
         else:
             no_decay.append(p)

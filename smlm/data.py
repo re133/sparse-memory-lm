@@ -12,7 +12,8 @@ import os
 import numpy as np
 import torch
 
-DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "wikitext103_gpt2")
+DATA_DIR = os.environ.get("SMLM_DATA_DIR") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "wikitext103_gpt2")
 
 
 def load_meta():

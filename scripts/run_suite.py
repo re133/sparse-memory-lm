@@ -3,6 +3,8 @@
   probe : A, B, C (init seed 0), 20M tokens
   ep1   : A s0/s1, B s0/s1, C s0, one epoch of WikiText-103 (3600 steps)
   ep3   : same five runs, three epochs, own cosine schedule over the full length
+  v2    : B-v2a (no weight decay on sub-keys) and B-v2b (v2a + learned per-head score scale), seeds 0/1,
+          one epoch with exactly the ep1 settings -> compared against runs/ep1/{A,B,C}-*
 """
 import json
 import os
@@ -11,13 +13,15 @@ import sys
 import time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PY = os.path.join(ROOT, ".venv", "bin", "python")
+PY = sys.executable          # the interpreter running this script (works from any worktree)
 
 FIVE = [("A", 0), ("B", 0), ("C", 0), ("A", 1), ("B", 1)]
 PHASES = {
     "probe": dict(runs=[("A", 0), ("B", 0), ("C", 0)], args=["--tokens", "20e6", "--eval_every_tokens", "2e6"]),
     "ep1": dict(runs=FIVE, args=["--epochs", "1", "--eval_every_tokens", "4e6"]),
     "ep3": dict(runs=FIVE, args=["--epochs", "3", "--eval_every_tokens", "8e6"]),
+    "v2": dict(runs=[("B-v2a", 0), ("B-v2b", 0), ("B-v2a", 1), ("B-v2b", 1)],
+               args=["--epochs", "1", "--eval_every_tokens", "4e6"]),
 }
 
 
