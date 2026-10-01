@@ -52,7 +52,8 @@ def git_info():
             return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
         except Exception:
             return None
-    status = run("status", "--porcelain")
+    # run outputs (runs/, report/) are not code and do not make the tree "dirty"
+    status = run("status", "--porcelain", "--", ".", ":!runs", ":!report")
     return {"commit": run("rev-parse", "HEAD"), "dirty": bool(status), "dirty_files": status.splitlines() if status else []}
 
 
