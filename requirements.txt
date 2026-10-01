@@ -1,0 +1,9 @@
+# PyTorch with ROCm comes from the system (Arch/CachyOS python-pytorch-rocm, torch 2.14 / HIP 7.2);
+# the venv is created with --system-site-packages.
+torch>=2.4
+numpy
+tiktoken
+pyarrow
+matplotlib
+pandas
+pytest
