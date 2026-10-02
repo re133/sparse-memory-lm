@@ -256,7 +256,7 @@ def tables(phase, runs):
         lines.append("| " + " | ".join([
             f"{r['model']}-s{r['seed']}", fmt_m(p["total"]), fmt_m(p["non_embedding"]),
             fmt_m(p["active_non_embedding_per_token"]), fmt_m(i["macs_per_token"]["total"]),
-            f"{res['val_ppl']:.2f}", f"{res['test_ppl']:.2f}", f"{res['val_word_ppl']:.2f}",
+            f"{res['val_ppl']:.2f}", f"{res['test_ppl']:.2f}" if "test_ppl" in res else "–", f"{res['val_word_ppl']:.2f}",
             f"{res['train_tok_s_median']:,.0f}", f"{res['decode_b1_tok_s']:.0f}", f"{res['prefill_tok_s']:,.0f}",
             f"{res['peak_train_vram_gib']:.2f}", f"{i['train_time_s'] / 60:.0f} min",
             f"{100 * mem['usage']:.1f} %" if mem else "–", f"{100 * mem['top1pct_share']:.1f} %" if mem else "–",

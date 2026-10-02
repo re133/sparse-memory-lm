@@ -1,0 +1,4 @@
+12:52:51 start /mnt/sandisk/Sparse-Memory-LM/AngryAnt/.venv/bin/python -m smlm.train --model B-1M --seed 0 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/s1b/B-1M-s0 --data wikipedia --extra_val wikitext103 --tokens 500e6 --eval_every_tokens 10e6 --value_lr 2.4e-3
+17:15:27 end s1b/B-1M-s0 rc=0
+17:15:27 start /mnt/sandisk/Sparse-Memory-LM/AngryAnt/.venv/bin/python -m smlm.train --model A --seed 0 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/s1b/A-s0 --data wikipedia --extra_val wikitext103 --tokens 500e6 --eval_every_tokens 10e6
+18:52:30 end s1b/A-s0 rc=0

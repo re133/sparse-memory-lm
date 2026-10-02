@@ -1,0 +1,27 @@
+{
+  "B-1M-s0": {
+    "reads_share_train": {
+      "top1%": 11.8,
+      "top10%": 39.3,
+      "top20%": 54.7,
+      "top50%": 81.3
+    },
+    "reads_share_val": {
+      "top1%": 11.8,
+      "top10%": 39.4,
+      "top20%": 55.2,
+      "top50%": 82.2
+    },
+    "val_reads_served_by_train_hot_set": {
+      "train_top10%": 37.8,
+      "train_top20%": 53.4
+    },
+    "spearman_train_vs_val_counts": 0.924,
+    "val_entries_never_read_pct": 0.0,
+    "window_cache_hit_rate_pct_first16k_val_tokens": {
+      "w=1": 1.6,
+      "w=16": 11.3,
+      "w=256": 41.5
+    }
+  }
+}
