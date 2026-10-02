@@ -1,13 +1,11 @@
 {
   "status": "done",
-  "model_name": "A",
-  "started": "2026-10-01T22:41:16",
+  "model_name": "B",
+  "started": "2026-10-02T05:07:14",
   "git": {
-    "commit": "221480c973b415066bdee002a6a428f521e48dcf",
-    "dirty": true,
-    "dirty_files": [
-      "?? scripts/diagnose_memory.py"
-    ]
+    "commit": "1a43e0dcd860aebfe012f2f05a97fdb7b00e34c0",
+    "dirty": false,
+    "dirty_files": []
   },
   "hardware": {
     "gpu": "AMD Radeon RX 9070",
@@ -21,19 +19,19 @@
     "ram_gib": 125.7,
     "gpu_state_at_start": [
       "GPU[0]\t\t: GPU use (%): 3",
-      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 5"
+      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 8"
     ]
   },
   "seeds": {
-    "init_seed": 0,
+    "init_seed": 1,
     "data_seed": 1234
   },
   "train_config": {
-    "model": "A",
-    "out_dir": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep3/A-s0",
+    "model": "B",
+    "out_dir": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep3/B-s1",
     "tokens": null,
     "epochs": 3.0,
-    "seed": 0,
+    "seed": 1,
     "data_seed": 1234,
     "seq_len": 1024,
     "batch_seqs": 32,
@@ -68,7 +66,9 @@
     "rope_theta": 10000.0,
     "norm_eps": 1e-05,
     "init_std": 0.02,
-    "mem_layers": [],
+    "mem_layers": [
+      6
+    ],
     "mem_n_keys": 512,
     "mem_heads": 4,
     "mem_knn": 32,
@@ -79,21 +79,21 @@
     "mem_value_impl": "embedding_bag"
   },
   "params": {
-    "total": 40560000,
+    "total": 141259904,
     "embedding": 19316736,
-    "non_embedding": 21243264,
-    "memory_values": 0,
-    "dense_body": 21243264,
-    "active_non_embedding_per_token": 21243264,
-    "bn_running_stats": 0
+    "non_embedding": 121943168,
+    "memory_values": 100663296,
+    "dense_body": 21279872,
+    "active_non_embedding_per_token": 21329024,
+    "bn_running_stats": 2048
   },
   "macs_per_token": {
     "attn_proj": 7077888,
     "attn_scores": 4718592.0,
-    "ffn": 14155776,
-    "memory": 0,
+    "ffn": 12976128,
+    "memory": 1261952,
     "lm_head": 19316736,
-    "total": 45268992.0
+    "total": 45351296.0
   },
   "data": {
     "dataset": "WikiText-103 raw (Salesforce/wikitext)",
@@ -117,23 +117,29 @@
       }
     }
   },
-  "finished": "2026-10-01T23:46:27",
-  "duration_s": 3912.1,
-  "train_time_s": 3861.2,
+  "finished": "2026-10-02T06:30:33",
+  "duration_s": 4999.8,
+  "train_time_s": 4932.3,
   "results": {
-    "val_loss": 3.2112558742119486,
-    "val_ppl": 24.81022518919137,
-    "val_word_ppl": 38.49379506506108,
-    "test_loss": 3.2185425339611355,
-    "test_ppl": 24.99166911570448,
-    "test_word_ppl": 41.04685168470026,
-    "train_tok_s_mean": 91660.31593556183,
-    "train_tok_s_median": 91659.08696111919,
-    "peak_train_vram_gib": 7.892161846160889,
-    "weights_gib_fp32": 0.15109777450561523,
-    "decode_b1_tok_s": 219.4598355510132,
-    "decode_peak_vram_gib": 1.1627626419067383,
-    "prefill_tok_s": 383219.8273032738,
-    "prefill_peak_vram_gib": 2.7463808059692383
+    "val_loss": 3.1555527986092375,
+    "val_ppl": 23.466005481841403,
+    "val_word_ppl": 36.13185266508454,
+    "test_loss": 3.1679234434139665,
+    "test_ppl": 23.758098062454945,
+    "test_word_ppl": 38.71749602969972,
+    "train_tok_s_mean": 71756.80174527645,
+    "train_tok_s_median": 71639.9838415772,
+    "peak_train_vram_gib": 9.469082355499268,
+    "weights_gib_fp32": 0.5262341499328613,
+    "decode_b1_tok_s": 205.55731062501494,
+    "decode_peak_vram_gib": 1.5436086654663086,
+    "prefill_tok_s": 265278.3129260792,
+    "prefill_peak_vram_gib": 3.1272268295288086,
+    "mem_val": {
+      "usage": 0.9998855590820312,
+      "kl": 0.5940769074764294,
+      "top1pct_share": 0.1097434331247777
+    },
+    "mem_train_usage_total": 1.0
   }
 }
