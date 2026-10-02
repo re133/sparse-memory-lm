@@ -26,7 +26,8 @@ LABEL = {"A": "A Baseline", "B": "B Speicher", "C": "C groß dicht",
          "B-v2a": "B-v2a ohne WD Keys", "B-v2b": "B-v2b + Temperatur"}
 MEMORY_MODELS = ["B", "B-v2a", "B-v2b"]
 # phases that are compared against the runs of another phase (same budget and schedule)
-COMPARE_WITH = {"v2": ["ep1"]}
+COMPARE_WITH = {"v2": ["ep1"], "v2b_ep3": ["ep3"]}
+FULLVAL_DIAG = "diagnostics_fullval.json"     # scripts/diagnose_memory.py --windows 241 --out ...
 
 plt.rcParams.update({
     "font.size": 10, "axes.edgecolor": INK2, "axes.labelcolor": INK, "xtick.color": INK2, "ytick.color": INK2,
@@ -298,12 +299,62 @@ def tables(phase, runs):
                   f"| **Urteil** | **{verdict}** |"]
         if single_seed:
             lines.append("\n_Nur ein Seed je Modell: das Seed-Rauschen ist hier nicht messbar, das Urteil ist nur vorläufig._")
+    lines += paired_vs_b(runs)
     path = os.path.join(OUT, f"{phase}_tables.md")
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
     with open(os.path.join(OUT, f"{phase}_summary.json"), "w") as f:
         json.dump(summary, f, indent=2, default=float)
     return path
+
+
+def paired_vs_b(runs):
+    """Variant vs. B at the same init seed (identical initial weights and token stream), plus softmax
+    sharpness on the full validation set (diagnostics_fullval.json, same script for all runs).
+    Gates fixed before the v2b_ep3 runs (V2_SHARPNESS.md):
+      fix greift   : effective mixed entries per head <= 0.9 x B, for both seeds
+      klar besser  : variant better than B at both seeds and mean improvement > 2*s,
+                     s = max seed spread (val PPL) of B and of the variant"""
+    out = []
+    by = {(r["model"], r["seed"]): r for r in runs}
+    for v in [m for m in MEMORY_MODELS if m != "B"]:
+        seeds = sorted(sd for (m, sd) in by if m == v and ("B", sd) in by)
+        if not seeds:
+            continue
+        out += ["", f"### Paarweiser Vergleich {v} gegen B (gleicher Seed = gleiche Startgewichte, gleiche Daten)", "",
+                "| Seed | Val-PPL B | Val-PPL " + v + " | Δ Val | Δ Val % | Test-PPL B | Test-PPL " + v + " | Δ Test % "
+                "| eff. Einträge B | eff. Einträge " + v + " | Top-1-Gewicht B | Top-1-Gewicht " + v + " | Skala je Kopf |",
+                "|---|---|---|---|---|---|---|---|---|---|---|---|---|"]
+        deltas, eff_ok = [], []
+        for sd in seeds:
+            rb, rv = by[("B", sd)]["info"]["results"], by[(v, sd)]["info"]["results"]
+            db = os.path.join(by[("B", sd)]["dir"], FULLVAL_DIAG)
+            dv = os.path.join(by[(v, sd)]["dir"], FULLVAL_DIAG)
+            gb = json.load(open(db)) if os.path.exists(db) else {}
+            gv = json.load(open(dv)) if os.path.exists(dv) else {}
+            eb, ev = gb.get("softmax_eff_entries_per_head_mean"), gv.get("softmax_eff_entries_per_head_mean")
+            tb, tv = gb.get("softmax_top1_weight_mean"), gv.get("softmax_top1_weight_mean")
+            d = rv["val_ppl"] - rb["val_ppl"]
+            deltas.append(d)
+            eff_ok.append(eb is not None and ev is not None and ev <= 0.9 * eb)
+            scale = rv.get("mem_score_scale_per_head")
+            f = lambda x, n=2: "–" if x is None else f"{x:.{n}f}"   # noqa: E731
+            out.append("| " + " | ".join([
+                str(sd), f"{rb['val_ppl']:.2f}", f"{rv['val_ppl']:.2f}", f"{d:+.3f}",
+                f"{100 * d / rb['val_ppl']:+.2f} %", f"{rb['test_ppl']:.2f}", f"{rv['test_ppl']:.2f}",
+                f"{100 * (rv['test_ppl'] / rb['test_ppl'] - 1):+.2f} %", f(eb), f(ev), f(tb, 4), f(tv, 4),
+                ", ".join(f"{x:.2f}" for x in scale) if scale else "–"]) + " |")
+        vb = [by[("B", sd)]["info"]["results"]["val_ppl"] for sd in seeds]
+        vv = [by[(v, sd)]["info"]["results"]["val_ppl"] for sd in seeds]
+        s_ = max(abs(vb[0] - vb[-1]), abs(vv[0] - vv[-1]))
+        mean_d = float(np.mean(deltas))
+        better = all(x < 0 for x in deltas) and -mean_d > 2 * s_ and len(seeds) > 1
+        out += ["", "| Gate | Wert |", "|---|---|",
+                f"| mittlere Differenz {v} − B (Val-PPL) | {mean_d:+.3f} |",
+                f"| s = max. Seed-Spanne (B, {v}) | {s_:.3f} → 2·s = {2 * s_:.3f} |",
+                f"| **{v} klar besser als B** (beide Seeds besser und Mittel > 2·s) | **{'ja' if better else 'nein'}** |",
+                f"| **Fix greift** (eff. Einträge ≤ 0,9 × B bei beiden Seeds) | **{'ja' if eff_ok and all(eff_ok) else 'nein'}** |"]
+    return out
 
 
 def main():

@@ -5,6 +5,7 @@
   ep3   : same five runs, three epochs, own cosine schedule over the full length
   v2    : B-v2a (no weight decay on sub-keys) and B-v2b (v2a + learned per-head score scale), seeds 0/1,
           one epoch with exactly the ep1 settings -> compared against runs/ep1/{A,B,C}-*
+  v2b_ep3: B-v2b only, seeds 0/1, three epochs with exactly the ep3 settings -> against runs/ep3/*
 """
 import json
 import os
@@ -22,6 +23,8 @@ PHASES = {
     "ep3": dict(runs=FIVE, args=["--epochs", "3", "--eval_every_tokens", "8e6"]),
     "v2": dict(runs=[("B-v2a", 0), ("B-v2b", 0), ("B-v2a", 1), ("B-v2b", 1)],
                args=["--epochs", "1", "--eval_every_tokens", "4e6"]),
+    # v2b only, exactly the ep3 settings and the B seeds -> paired comparison with runs/ep3/B-s{0,1}
+    "v2b_ep3": dict(runs=[("B-v2b", 0), ("B-v2b", 1)], args=["--epochs", "3", "--eval_every_tokens", "8e6"]),
 }
 
 

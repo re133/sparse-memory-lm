@@ -1,0 +1,69 @@
+{
+  "run": "runs/ep3/B-s0",
+  "windows": 241,
+  "tokens": 246784,
+  "loss_normal": 3.169399063616867,
+  "ppl_normal": 23.793181870760446,
+  "loss_zero": 3.5330215509501732,
+  "ppl_zero": 34.227230850524364,
+  "loss_random": 3.6245597249739396,
+  "ppl_random": 37.50820559753585,
+  "softmax_eff_entries_per_head_mean": 28.5107479095459,
+  "softmax_top1_weight_mean": 0.0949251726269722,
+  "score_spread_top1_minus_topk_mean": 1.551068902015686,
+  "unique_entries_per_token_of_128": 127.988525390625,
+  "mem_out_norm_mean": 7.424451851453937,
+  "resid_norm_at_mem_mean": 14.479483620065157,
+  "dense_ffn_out_norm_per_layer": [
+    5.6369,
+    2.1588,
+    2.1913,
+    2.5735,
+    2.8011,
+    3.2633,
+    4.8004,
+    6.0631,
+    8.2276,
+    11.8261,
+    18.3448
+  ],
+  "value_norm_by_train_reads": {
+    "never": {
+      "n": 0,
+      "mean_norm": null,
+      "mean_reads": null
+    },
+    "<=p10": {
+      "n": 26215,
+      "mean_norm": 1.589661717414856,
+      "mean_reads": 22023.275338546635
+    },
+    "p10-p50": {
+      "n": 104857,
+      "mean_norm": 1.64240300655365,
+      "mean_reads": 62192.62280057602
+    },
+    "p50-p90": {
+      "n": 104858,
+      "mean_norm": 1.643703579902649,
+      "mean_reads": 177807.91547616778
+    },
+    "p90-p99": {
+      "n": 23592,
+      "mean_norm": 1.6105366945266724,
+      "mean_reads": 596106.0993981011
+    },
+    ">p99": {
+      "n": 2622,
+      "mean_norm": 1.5497487783432007,
+      "mean_reads": 2094543.7414187642
+    }
+  },
+  "value_norm_init_expected": 1.0,
+  "train_reads_quantiles_p10_p50_p90_p99": [
+    31536.300000000003,
+    97419.0,
+    355884.0,
+    1296810.810000001
+  ]
+}

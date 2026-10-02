@@ -2,7 +2,7 @@
 
   python scripts/diagnose_memory.py runs/ep1/B-s0 [--windows 32] [--device cpu] [--threads 4]
 
-Reports (written to <run>/diagnostics.json):
+Reports (written to <run>/<--out, default diagnostics.json>):
   * val NLL on the first --windows validation windows under three conditions:
       normal | memory output zeroed | memory reads uniformly random entries (same softmax weights)
     -> how much the model relies on the memory, and on *which* entries it reads
@@ -32,6 +32,7 @@ def main():
     ap.add_argument("--windows", type=int, default=32)
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--out", default="diagnostics.json", help="file name inside run_dir")
     args = ap.parse_args()
     torch.set_num_threads(args.threads)
     dev = args.device
@@ -120,7 +121,7 @@ def main():
                                         for k, m in bins.items()}
     res["value_norm_init_expected"] = 1.0
     res["train_reads_quantiles_p10_p50_p90_p99"] = [float(v) for v in q]
-    with open(os.path.join(args.run_dir, "diagnostics.json"), "w") as f:
+    with open(os.path.join(args.run_dir, args.out), "w") as f:
         json.dump(res, f, indent=2)
     print(json.dumps(res, indent=1))
 

@@ -59,3 +59,35 @@ G = (PPL_A − PPL_v)/(PPL_A − PPL_C) ≥ 0,5 und Unterschied zu A > 2·s, Tab
 berichtet: paarweise Differenz zu B bei gleichem Seed, effektiv gemischte Einträge je Kopf und die
 gelernte Skala. Eine Variante gilt nur dann als „schärfer“, wenn die effektiv gemischten Einträge
 deutlich unter den 30,5 von v1 liegen.
+
+## Lauf `v2b_ep3` (festgelegt am 2026-10-02, vor dem Start)
+
+Auf Wunsch nur **B-v2b**, **3 Epochen**, Seeds **0 und 1** (= die Seeds von B), Einstellungen exakt wie
+`runs/ep3` (10.800 Schritte, Warmup 540, Cosine, Eval alle 8 M Tokens). Vergleichsbasis: `runs/ep3/{A,B,C}-*`
+aus Stufe 1. Gleicher Seed heißt bei B und B-v2b: identische Startgewichte und identischer Token-Strom
+(per Test geprüft), Unterschiede also nur durch die Änderung und nicht-deterministische GPU-Kernels.
+
+```bash
+.venv/bin/python scripts/run_suite.py v2b_ep3      # 2 × ≈ 82 min
+for s in 0 1; do .venv/bin/python scripts/diagnose_memory.py runs/v2b_ep3/B-v2b-s$s --windows 241 --device cuda --out diagnostics_fullval.json; done
+.venv/bin/python scripts/make_report.py v2b_ep3
+```
+
+**Berichtet und bewertet:**
+
+1. **Stufe-1-Kriterien** gegen A und C aus `runs/ep3` (unverändert: G ≥ 0,5, Unterschied zu A > 2·s,
+   Tabelle gesund).
+2. **Paarweiser Vergleich mit B beim gleichen Seed:** Δ Val-PPL und Δ Test-PPL je Seed.
+   **„B-v2b klar besser als B“** heißt: bei **beiden** Seeds besser **und** die mittlere Verbesserung
+   ist größer als 2·s, mit s = größte Seed-Spanne der Val-PPL von B (0,33) bzw. B-v2b. (Meine
+   Operationalisierung; sie ist streng, weil s die Streuung über *verschiedene* Startgewichte misst,
+   während der paarweise Vergleich gleiche Startgewichte hat.)
+3. **Greift der Fix?** Softmax-Schärfe auf dem kompletten Val-Set (246.784 Tokens, gleiches Skript
+   `diagnose_memory.py --windows 241` für B und B-v2b): effektive Zahl gemischter Einträge je Kopf
+   (exp(Entropie)) und Top-1-Gewicht, dazu die gelernte Skala je Kopf und der Verlauf über das Training.
+   Referenz B: **28,51 / 28,28** Einträge, Top-1-Gewicht **0,095 / 0,097** (Seed 0 / 1).
+   **„Fix greift“** heißt: effektive Einträge bei beiden Seeds **≤ 0,9 × B** (≤ 25,7 / ≤ 25,5).
+
+**Entscheidungsregel (Vorgabe):** v2a wird erst gestartet, wenn B-v2b *klar besser* als B ist. Da v2b
+zwei Dinge gleichzeitig ändert (kein Weight Decay auf den Keys **und** lernbare Skala), würde v2a dann
+klären, welcher Teil wirkt.
