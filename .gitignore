@@ -1,5 +1,6 @@
-.venv/
-data/
+# no trailing slash: also matches the symlinks used in extra worktrees
+/.venv
+/data
 __pycache__/
 .pytest_cache/
 # large run artefacts (kept on disk, not in git)

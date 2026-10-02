@@ -8,6 +8,14 @@ Follows the Meta reference implementation (facebookresearch/memory, lingua/produ
   * initialisation: keys U(+-1/sqrt(k_dim)), values N(0, v_dim^-0.5), query xavier_uniform
 Additionally (Lample et al. 2019, sec. 4.5, and He 2024): optional BatchNorm on the query, which the
 papers report as the main lever against unused keys for memories >= 147k slots.
+
+v2 "sharpness" switches (stage-1 finding: the softmax over the top-k stayed almost flat, ~30.5 of 32
+entries effectively mixed per head, with the score scale barely growing from its initialisation):
+  * keys_weight_decay=False (v2a): the sub-keys are tagged `no_weight_decay`, so the optimizer does not
+    pull their norm (and with it the score scale) towards zero.
+  * score_scale="learned" (v2b): a learnable per-head scale s_h = exp(log_s_h) multiplies the k selected
+    scores before the softmax: w = softmax(s_h * scores). s_h > 0 never changes which entries are
+    selected, only how sharply they are weighted. Initialised to score_scale_init (1.0 = v1 behaviour).
 """
 import math
 
@@ -18,7 +26,8 @@ from torch import nn
 
 class ProductKeyMemory(nn.Module):
     def __init__(self, d_in, d_out, n_keys=512, heads=4, knn=32, k_dim=256, v_dim=-1,
-                 query_norm="batchnorm", swilu=True, value_impl="embedding_bag"):
+                 query_norm="batchnorm", swilu=True, value_impl="embedding_bag",
+                 keys_weight_decay=True, score_scale="none", score_scale_init=1.0):
         super().__init__()
         assert k_dim % 2 == 0 and knn <= n_keys
         self.d_in, self.d_out = d_in, d_out
@@ -27,8 +36,18 @@ class ProductKeyMemory(nn.Module):
         self.v_dim = v_dim if v_dim > 0 else d_out
         self.swilu = swilu
         self.value_impl = value_impl
+        self.score_scale_init = score_scale_init
 
         self.keys = nn.Parameter(torch.empty(heads, 2, n_keys, k_dim // 2))
+        if not keys_weight_decay:
+            self.keys.no_weight_decay = True                              # read by optim.build_optimizer
+        if score_scale == "learned":
+            assert score_scale_init > 0
+            self.log_score_scale = nn.Parameter(torch.empty(heads))       # per-head softmax sharpness
+        elif score_scale == "none":
+            self.log_score_scale = None
+        else:
+            raise ValueError(score_scale)
         self.query_proj = nn.Linear(d_in, heads * k_dim, bias=True)
         if query_norm == "batchnorm":
             self.query_norm = nn.BatchNorm1d(heads * k_dim)
@@ -46,6 +65,7 @@ class ProductKeyMemory(nn.Module):
         self.record = False
         self.last_indices = None
         self.last_scores = None
+        self.last_weights = None
         self.reset_parameters()
 
     @torch.no_grad()
@@ -60,8 +80,16 @@ class ProductKeyMemory(nn.Module):
             nn.init.normal_(self.value_proj.weight, mean=0.0, std=self.d_out ** -0.5)
             nn.init.zeros_(self.swilu_proj.bias)
             nn.init.zeros_(self.value_proj.bias)
+        if self.log_score_scale is not None:
+            nn.init.constant_(self.log_score_scale, math.log(self.score_scale_init))
         # tag for the optimizer: own learning rate, no weight decay, separate grad clipping
         self.values.weight.pk_value_param = True
+
+    def score_scale(self):
+        """Per-head multiplier applied to the top-k scores before the softmax (ones if disabled)."""
+        if self.log_score_scale is None:
+            return torch.ones(self.heads, device=self.keys.device)
+        return self.log_score_scale.exp()
 
     def get_indices(self, query):
         """query: (N, heads, k_dim) -> scores, indices: (N, heads, knn), exact top-k over all n_keys^2 keys."""
@@ -97,10 +125,14 @@ class ProductKeyMemory(nn.Module):
             q = self.query_norm(q.to(self.query_norm.weight.dtype))   # BN in fp32 under autocast
         q = q.view(N, self.heads, self.k_dim)
         scores, indices = self.get_indices(q)
+        logits = scores.float()
+        if self.log_score_scale is not None:
+            logits = logits * self.log_score_scale.float().exp().view(1, self.heads, 1)
+        weights = F.softmax(logits, dim=-1)                             # softmax over each head's knn
         if self.record:
             self.last_indices = indices.detach()
             self.last_scores = scores.detach()
-        weights = F.softmax(scores.float(), dim=-1)                     # softmax over each head's knn
+            self.last_weights = weights.detach()
         out = self.read_values(indices.view(N, -1), weights.view(N, -1))
         if self.swilu:
             out = self.value_proj(out * F.silu(self.swilu_proj(x)).to(out.dtype))

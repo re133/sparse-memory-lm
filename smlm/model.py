@@ -30,6 +30,10 @@ class ModelConfig:
     mem_query_norm: str = "batchnorm"
     mem_swilu: bool = True
     mem_value_impl: str = "embedding_bag"
+    # v2 "sharpness" switches (defaults = stage-1 / v1 behaviour)
+    mem_keys_weight_decay: bool = True   # v2a: False -> no weight decay on the sub-keys
+    mem_score_scale: str = "none"        # v2b: "learned" -> per-head learnable scale on top-k scores
+    mem_score_scale_init: float = 1.0
 
     def to_dict(self):
         return asdict(self)
@@ -98,7 +102,9 @@ class Block(nn.Module):
             self.ffn = ProductKeyMemory(
                 cfg.d_model, cfg.d_model, n_keys=cfg.mem_n_keys, heads=cfg.mem_heads,
                 knn=cfg.mem_knn, k_dim=cfg.mem_k_dim, v_dim=cfg.mem_v_dim,
-                query_norm=cfg.mem_query_norm, swilu=cfg.mem_swilu, value_impl=cfg.mem_value_impl)
+                query_norm=cfg.mem_query_norm, swilu=cfg.mem_swilu, value_impl=cfg.mem_value_impl,
+                keys_weight_decay=cfg.mem_keys_weight_decay, score_scale=cfg.mem_score_scale,
+                score_scale_init=cfg.mem_score_scale_init)
         else:
             self.ffn = SwiGLU(cfg.d_model, cfg.ffn_hidden)
 

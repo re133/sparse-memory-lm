@@ -34,14 +34,18 @@ MODELS = {
     "A": dict(),
     "B": dict(mem_layers=[6]),
     "C": dict(d_model=768, n_layers=16, n_heads=12, ffn_hidden=2304),
+    # v2 "sharpness" variants of B (everything else identical to B)
+    "B-v2a": dict(mem_layers=[6], mem_keys_weight_decay=False),
+    "B-v2b": dict(mem_layers=[6], mem_keys_weight_decay=False, mem_score_scale="learned"),
 }
 # micro-batch (sequences) per forward pass; gradient accumulation fills up --batch_seqs
-MICRO_BS = {"A": 8, "B": 8, "C": 4}
+MICRO_BS = {"A": 8, "B": 8, "C": 4, "B-v2a": 8, "B-v2b": 8}
 
 METRIC_FIELDS = [
     "step", "tokens", "epoch", "lr_mult", "train_loss", "val_loss", "val_ppl", "val_word_ppl",
     "train_tok_s", "train_time_s", "wall_time_s", "peak_vram_gib",
     "mem_val_usage", "mem_val_kl", "mem_val_top1pct_share", "mem_train_usage_interval", "mem_train_usage_cum",
+    "mem_val_eff_entries", "mem_val_top1_weight", "mem_score_scale_mean", "mem_key_norm_mean",
 ]
 LOG_FIELDS = ["step", "tokens", "lr_mult", "loss", "grad_norm", "value_grad_norm", "tok_s"]
 
@@ -81,18 +85,26 @@ def hardware_info():
 
 
 class MemoryStats:
-    """Lample et al. 2019 usage metrics: usage = fraction of slots with z_i != 0, KL(z || uniform)."""
+    """Lample et al. 2019 usage metrics: usage = fraction of slots with z_i != 0, KL(z || uniform).
+    Plus softmax sharpness over the top-k: effective number of mixed entries per head = exp(entropy),
+    and the mean weight of the best entry (uniform over k=32 would be 1/32)."""
 
     def __init__(self, size, device):
         self.size = size
         self.counts = torch.zeros(size, dtype=torch.int64, device=device)
         self.z = torch.zeros(size, dtype=torch.float64, device=device)
+        self.eff_sum, self.top1_sum, self.n_rows = 0.0, 0.0, 0
 
     def add(self, mem):
         idx = mem.last_indices.reshape(-1)
-        w = F.softmax(mem.last_scores.float(), dim=-1).reshape(-1)
+        weights = mem.last_weights.float()                          # (N, heads, knn), as used in forward
+        w = weights.reshape(-1)
         self.counts += torch.bincount(idx, minlength=self.size)
         self.z += torch.bincount(idx, weights=w.double(), minlength=self.size)
+        ent = -(weights * weights.clamp_min(1e-12).log()).sum(-1)
+        self.eff_sum += float(ent.exp().sum())
+        self.top1_sum += float(weights.max(-1).values.sum())
+        self.n_rows += ent.numel()
 
     def summary(self):
         p = self.z / self.z.sum()
@@ -101,7 +113,9 @@ class MemoryStats:
         c = self.counts.sort(descending=True).values.double()
         top = max(1, self.size // 100)
         return {"usage": float((self.counts > 0).double().mean()), "kl": kl,
-                "top1pct_share": float(c[:top].sum() / c.sum())}
+                "top1pct_share": float(c[:top].sum() / c.sum()),
+                "eff_entries_per_head": self.eff_sum / max(1, self.n_rows),
+                "top1_weight": self.top1_sum / max(1, self.n_rows)}
 
 
 @torch.no_grad()
@@ -207,6 +221,7 @@ def main():
     ap.add_argument("--log_every", type=int, default=10)
     ap.add_argument("--sample_windows", type=int, default=64, help="B: val windows whose indices are saved")
     ap.add_argument("--mem_query_norm", default="batchnorm")
+    ap.add_argument("--mem_score_scale_init", type=float, default=None, help="v2b: initial per-head score scale")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -228,6 +243,8 @@ def main():
     mcfg = ModelConfig(max_seq_len=args.seq_len, **MODELS[args.model])
     if mcfg.mem_layers:
         mcfg.mem_query_norm = args.mem_query_norm
+        if args.mem_score_scale_init is not None:
+            mcfg.mem_score_scale_init = args.mem_score_scale_init
     model = Transformer(mcfg).cuda()
     opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay)
     mems = model.memory_layers()
@@ -301,7 +318,11 @@ def main():
         }
         if mems:
             row.update({"mem_val_usage": ev["mem"]["usage"], "mem_val_kl": ev["mem"]["kl"],
-                        "mem_val_top1pct_share": ev["mem"]["top1pct_share"]})
+                        "mem_val_top1pct_share": ev["mem"]["top1pct_share"],
+                        "mem_val_eff_entries": ev["mem"]["eff_entries_per_head"],
+                        "mem_val_top1_weight": ev["mem"]["top1_weight"],
+                        "mem_score_scale_mean": float(mems[0].score_scale().mean()),
+                        "mem_key_norm_mean": float(mems[0].keys.detach().norm(dim=-1).mean())})
             if step:
                 row["mem_train_usage_interval"] = float((acc_interval > 0).double().mean())
                 row["mem_train_usage_cum"] = float((acc_total > 0).double().mean())
@@ -405,7 +426,9 @@ def main():
             "weights_gib_fp32": sum(p.numel() for p in model.parameters()) * 4 / 2**30,
             **infer,
             **({"mem_val": final_val["mem"],
-                "mem_train_usage_total": float((acc_total > 0).double().mean())} if mems else {}),
+                "mem_train_usage_total": float((acc_total > 0).double().mean()),
+                "mem_score_scale_per_head": mems[0].score_scale().tolist(),
+                "mem_key_norm_mean": float(mems[0].keys.detach().norm(dim=-1).mean())} if mems else {}),
         },
     })
     write_info()

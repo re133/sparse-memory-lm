@@ -1,0 +1,4 @@
+07:36:14 start /mnt/sandisk/Sparse-Memory-LM/AngryAnt-v2-sharpness/.venv/bin/python -m smlm.train --model B-v2b --seed 0 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt-v2-sharpness/runs/v2b_ep3/B-v2b-s0 --epochs 3 --eval_every_tokens 8e6
+08:59:24 end v2b_ep3/B-v2b-s0 rc=0
+08:59:24 start /mnt/sandisk/Sparse-Memory-LM/AngryAnt-v2-sharpness/.venv/bin/python -m smlm.train --model B-v2b --seed 1 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt-v2-sharpness/runs/v2b_ep3/B-v2b-s1 --epochs 3 --eval_every_tokens 8e6
+10:22:37 end v2b_ep3/B-v2b-s1 rc=0

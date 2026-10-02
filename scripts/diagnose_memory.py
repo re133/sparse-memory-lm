@@ -2,11 +2,12 @@
 
   python scripts/diagnose_memory.py runs/ep1/B-s0 [--windows 32] [--device cpu] [--threads 4]
 
-Reports (written to <run>/diagnostics.json):
+Reports (written to <run>/<--out, default diagnostics.json>):
   * val NLL on the first --windows validation windows under three conditions:
       normal | memory output zeroed | memory reads uniformly random entries (same softmax weights)
     -> how much the model relies on the memory, and on *which* entries it reads
-  * softmax weights over the k selected entries: entropy -> effective number of entries per head
+  * softmax weights over the k selected entries (as used in the forward pass, i.e. after a learned
+    score scale): entropy -> effective number of entries per head
   * how often the 4 heads pick the same entry for a token
   * size of the memory output relative to the residual stream and to the dense FFN outputs
   * value-row norms vs. how often a row was read in training (init norm ~ 1.0)
@@ -32,6 +33,7 @@ def main():
     ap.add_argument("--windows", type=int, default=32)
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--threads", type=int, default=4)
+    ap.add_argument("--out", default="diagnostics.json", help="file name inside run_dir")
     args = ap.parse_args()
     torch.set_num_threads(args.threads)
     dev = args.device
@@ -80,6 +82,8 @@ def main():
                 n += y[i:i + 4].numel()
                 if mode == "normal":
                     cap.setdefault("scores", []).append(mem.last_scores.float().cpu())
+                    # the weights actually used in the forward pass (include a learned score scale, v2b)
+                    cap.setdefault("weights", []).append(mem.last_weights.float().cpu())
                     cap.setdefault("indices", []).append(mem.last_indices.cpu())
                     cap.setdefault("mem_out_norm", []).append(cap["mem_out"].float().norm(dim=-1).mean().item())
                     cap.setdefault("resid_norm", []).append(resid["x"].float().norm(dim=-1).mean().item())
@@ -96,11 +100,12 @@ def main():
 
     scores = torch.cat(cap["scores"])                     # (N, heads, knn)
     idx = torch.cat(cap["indices"])
-    w = F.softmax(scores, dim=-1)
+    w = torch.cat(cap["weights"])                         # (N, heads, knn), sums to 1 over knn
     ent = -(w * w.clamp_min(1e-12).log()).sum(-1)          # (N, heads)
     res["softmax_eff_entries_per_head_mean"] = float(ent.exp().mean())
     res["softmax_top1_weight_mean"] = float(w.max(-1).values.mean())
     res["score_spread_top1_minus_topk_mean"] = float((scores[..., 0] - scores[..., -1]).mean())
+    res["score_scale_per_head"] = [float(v) for v in mem.score_scale().detach().cpu()]
     flat = idx.reshape(idx.shape[0], -1)
     uniq = torch.tensor([row.unique().numel() for row in flat[:4096]], dtype=torch.float)
     res["unique_entries_per_token_of_128"] = float(uniq.mean())
@@ -120,7 +125,7 @@ def main():
                                         for k, m in bins.items()}
     res["value_norm_init_expected"] = 1.0
     res["train_reads_quantiles_p10_p50_p90_p99"] = [float(v) for v in q]
-    with open(os.path.join(args.run_dir, "diagnostics.json"), "w") as f:
+    with open(os.path.join(args.run_dir, args.out), "w") as f:
         json.dump(res, f, indent=2)
     print(json.dumps(res, indent=1))
 
