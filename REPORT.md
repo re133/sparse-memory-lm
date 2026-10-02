@@ -498,3 +498,37 @@ Schichten). Die Index-Stichprobe hat jetzt die Form [Token, Schicht, Kopf, k].
   pro Token?“.
 - **Ein Seed je Modell**, ein Datensatz, ein Zeitpunkt (500 M Tokens).
 
+
+
+## Zusatztest: Quantisierung der Wertetabelle von B-1M (ohne Training, 2026-10-02)
+
+Nur die Wertetabelle von `runs/s1b/B-1M-s0` wird nachträglich quantisiert (im Speicher, Checkpoint nur gelesen:
+SHA-256 vor und nach dem Test identisch); alle anderen Gewichte bleiben fp32. Gemessen auf dem kompletten
+Wikipedia-Validierungsset (1,484,009 Tokens), gleicher Auswertungscode wie im Training.
+Skript: `scripts/quantize_table_eval.py`, Rohdaten: `report/quant_B-1M-s0.json`.
+
+**Verfahren** (ein fp16-Skalierungsfaktor pro Zeile, also pro Eintrag mit 384 Werten; 2,1 MB für alle Faktoren):
+8/4/3/2 Bit wie llama.cpp `Q_0`, aber pro Zeile: Codes von −2^(b−1) bis 2^(b−1)−1, der betragsgrößte Wert der
+Zeile wird exakt getroffen. Ternär wie BitNet b1.58: Skala = mittlerer Betrag der Zeile, Werte −1/0/+1.
+
+| Bits pro Wert | Tabelle (MB) | Val-PPL Wikipedia | Verlust gegenüber unquantisiert | rel. Fehler der Tabelle |
+|---|---|---|---|---|
+| 32 (fp32, Referenz) | 1.610,6 | 21,801 | – | 0,000 |
+| 16 (bf16) | 805,3 | 21,800 | −0,001 (−0,00 %) | 0,002 |
+| 8 | 404,8 | 21,799 | −0,002 (−0,01 %) | 0,007 |
+| 4 | 203,4 | 21,828 | +0,027 (+0,12 %) | 0,115 |
+| 3 | 153,1 | 21,911 | +0,110 (+0,50 %) | 0,231 |
+| 2 | 102,8 | 22,281 | +0,480 (+2,20 %) | 0,467 |
+| 1,6 (ternär, 1,58 Bit Information) | 82,6 | 25,237 | +3,436 (+15,76 %) | 0,512 |
+
+**Einordnung:**
+
+- Bis 4 Bit kostet die Quantisierung praktisch nichts: +0,12 % PPL bei einem Achtel der fp32-Größe
+  (203 statt 1.611 MB). 8 Bit und bf16 sind nicht von fp32 zu unterscheiden. 3 Bit kostet 0,5 %, 2 Bit 2,2 %.
+- Ternär bricht ein (+15,8 %, PPL 25,24): Damit ist fast der ganze Vorsprung vor A (25,67) weg. Bemerkenswert,
+  weil der relative Fehler der Tabelle bei 2 Bit (0,47) und ternär (0,51) ähnlich ist; die vierte Stufe und die
+  Absmax-Skala von 2 Bit erhalten offenbar die großen Werte, auf die es ankommt.
+- Für Stufe 3 (SSD): Bei 4 Bit ist ein Eintrag 194 Byte groß (384 × 0,5 + 2). Pro Token und Speicherschicht
+  werden 128 Einträge gelesen, also ≈ 25 KB; die ganze Tabelle passt mit 203 MB problemlos in den RAM.
+- Einschränkungen: nur nachträgliche Quantisierung (quantisierungsbewusstes Training könnte 2 Bit und ternär
+  verbessern), ein Modell, ein Seed, nur die Tabelle (der Rest bleibt fp32), je Stufe ein Verfahren.

@@ -1,0 +1,99 @@
+{
+  "run": "runs/s1b/B-1M-s0",
+  "data": "wikipedia",
+  "rows": 1048576,
+  "dim": 384,
+  "checkpoint": {
+    "sha256_before": "bb4303d8461f0d32a77dc4d4971dd0f881cf4eef76cdfa666ab3683f405f0a58",
+    "sha256_after": "bb4303d8461f0d32a77dc4d4971dd0f881cf4eef76cdfa666ab3683f405f0a58",
+    "unchanged": true,
+    "mtime": 1790954123.1301258
+  },
+  "scale": "one fp16 scale per row (entry of 384 values)",
+  "results": [
+    {
+      "scheme": "fp32",
+      "bits_per_value": 32,
+      "table_mb": 1610.612736,
+      "val_loss": 3.081959117905293,
+      "val_ppl": 21.801071455133226,
+      "rel_l2_error": 0.0,
+      "eval_tokens": 1484009,
+      "seconds": 12.2,
+      "ppl_delta": 0.0,
+      "ppl_delta_pct": 0.0
+    },
+    {
+      "scheme": "bf16",
+      "bits_per_value": 16,
+      "table_mb": 805.306368,
+      "val_loss": 3.081930503242913,
+      "val_ppl": 21.800447633759273,
+      "rel_l2_error": 0.0016554013127461076,
+      "eval_tokens": 1484009,
+      "seconds": 11.6,
+      "ppl_delta": -0.0006238213739528931,
+      "ppl_delta_pct": -0.002861425298461562
+    },
+    {
+      "scheme": "int8",
+      "bits_per_value": 8,
+      "table_mb": 404.750336,
+      "val_loss": 3.0818823018020387,
+      "val_ppl": 21.799396846096567,
+      "rel_l2_error": 0.007171411998569965,
+      "eval_tokens": 1484009,
+      "seconds": 11.7,
+      "ppl_delta": -0.0016746090366588362,
+      "ppl_delta_pct": -0.007681315297303204
+    },
+    {
+      "scheme": "int4",
+      "bits_per_value": 4,
+      "table_mb": 203.423744,
+      "val_loss": 3.083190576971842,
+      "val_ppl": 21.827935119593835,
+      "rel_l2_error": 0.11499020457267761,
+      "eval_tokens": 1484009,
+      "seconds": 11.6,
+      "ppl_delta": 0.026863664460609726,
+      "ppl_delta_pct": 0.12322176236105875
+    },
+    {
+      "scheme": "int3",
+      "bits_per_value": 3,
+      "table_mb": 153.092096,
+      "val_loss": 3.0869956429770116,
+      "val_ppl": 21.911150072271756,
+      "rel_l2_error": 0.23077142238616943,
+      "eval_tokens": 1484009,
+      "seconds": 11.6,
+      "ppl_delta": 0.11007861713853018,
+      "ppl_delta_pct": 0.5049229684195744
+    },
+    {
+      "scheme": "int2",
+      "bits_per_value": 2,
+      "table_mb": 102.760448,
+      "val_loss": 3.1037389579451413,
+      "val_ppl": 22.281103842844928,
+      "rel_l2_error": 0.4665350615978241,
+      "eval_tokens": 1484009,
+      "seconds": 11.7,
+      "ppl_delta": 0.4800323877117023,
+      "ppl_delta_pct": 2.2018752092052507
+    },
+    {
+      "scheme": "ternary",
+      "bits_per_value": 1.6,
+      "table_mb": 82.6277888,
+      "val_loss": 3.228306515175318,
+      "val_ppl": 25.23688248470379,
+      "rel_l2_error": 0.5123352408409119,
+      "eval_tokens": 1484009,
+      "seconds": 11.7,
+      "ppl_delta": 3.4358110295705657,
+      "ppl_delta_pct": 15.759826468352678
+    }
+  ]
+}
