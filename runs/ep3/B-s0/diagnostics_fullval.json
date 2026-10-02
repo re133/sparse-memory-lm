@@ -11,6 +11,12 @@
   "softmax_eff_entries_per_head_mean": 28.5107479095459,
   "softmax_top1_weight_mean": 0.0949251726269722,
   "score_spread_top1_minus_topk_mean": 1.551068902015686,
+  "score_scale_per_head": [
+    1.0,
+    1.0,
+    1.0,
+    1.0
+  ],
   "unique_entries_per_token_of_128": 127.988525390625,
   "mem_out_norm_mean": 7.424451851453937,
   "resid_norm_at_mem_mean": 14.479483620065157,
