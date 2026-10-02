@@ -66,12 +66,18 @@ def fig_sharpness(phase, runs):
         lab = f"{r['model']} (Seed {r['seed']})"
         axes[0].plot(m.tokens / 1e6, m.mem_val_eff_entries, color=COLOR[r["model"]], ls=ls, label=lab)
         axes[1].plot(m.tokens / 1e6, m.mem_score_scale_mean, color=COLOR[r["model"]], ls=ls, label=lab)
-    for r in runs:
-        diag = os.path.join(r["dir"], "diagnostics.json")
+    refs = []
+    for r in sorted(runs, key=lambda r: r["seed"]):
+        diag = os.path.join(r["dir"], FULLVAL_DIAG)
+        if not os.path.exists(diag):
+            diag = os.path.join(r["dir"], "diagnostics.json")
         if r["model"] == "B" and os.path.exists(diag):
             v = json.load(open(diag))["softmax_eff_entries_per_head_mean"]
             axes[0].axhline(v, color=COLOR["B"], ls=STYLE.get(r["seed"], ":"), lw=1)
-            axes[0].text(0, v + 0.3, f"B Seed {r['seed']} (v1, Ende)", color=INK2, fontsize=8)
+            refs.append(f"{v:.1f}".replace(".", ","))
+    if refs:
+        axes[0].text(0, max(float(x.replace(",", ".")) for x in refs) + 0.6,
+                     f"B am Ende (Seeds {' / '.join(refs)})", color=INK2, fontsize=8)
     k = logged[0]["info"]["model_config"]["mem_knn"]
     axes[0].set_ylim(0, k + 1)
     axes[0].set_ylabel(f"effektiv gemischte Einträge je Kopf (von {k})")

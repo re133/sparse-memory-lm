@@ -1,0 +1,158 @@
+{
+  "status": "done",
+  "model_name": "B-v2b",
+  "started": "2026-10-02T07:36:16",
+  "git": {
+    "commit": "867b252fc71f42c75d1775c0ae474817c9177654",
+    "dirty": false,
+    "dirty_files": []
+  },
+  "hardware": {
+    "gpu": "AMD Radeon RX 9070",
+    "gpu_arch": "gfx1201",
+    "gpu_mem_gib": 15.92,
+    "torch": "2.14.0",
+    "hip": "7.2.53211",
+    "python": "3.14.7",
+    "kernel": "7.2.8-1-cachyos",
+    "cpu": "AMD Ryzen 9 5900XT 16-Core Processor",
+    "ram_gib": 125.7,
+    "gpu_state_at_start": [
+      "GPU[0]\t\t: GPU use (%): 3",
+      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 8"
+    ]
+  },
+  "seeds": {
+    "init_seed": 0,
+    "data_seed": 1234
+  },
+  "train_config": {
+    "model": "B-v2b",
+    "out_dir": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt-v2-sharpness/runs/v2b_ep3/B-v2b-s0",
+    "tokens": null,
+    "epochs": 3.0,
+    "seed": 0,
+    "data_seed": 1234,
+    "seq_len": 1024,
+    "batch_seqs": 32,
+    "micro_bs": 8,
+    "lr": 0.0006,
+    "value_lr": 0.001,
+    "weight_decay": 0.1,
+    "warmup_frac": 0.05,
+    "min_lr_ratio": 0.1,
+    "clip": 1.0,
+    "eval_every_tokens": 8000000.0,
+    "log_every": 10,
+    "sample_windows": 64,
+    "mem_query_norm": "batchnorm",
+    "mem_score_scale_init": null,
+    "total_steps": 10800,
+    "warmup_steps": 540,
+    "tokens_per_step": 32768,
+    "grad_accum": 4,
+    "total_tokens": 353894400,
+    "eval_every_steps": 244,
+    "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip",
+    "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
+    "precision": "bf16 autocast, fp32 weights / optimizer state"
+  },
+  "model_config": {
+    "vocab_size": 50304,
+    "d_model": 384,
+    "n_layers": 12,
+    "n_heads": 6,
+    "ffn_hidden": 1024,
+    "max_seq_len": 1024,
+    "rope_theta": 10000.0,
+    "norm_eps": 1e-05,
+    "init_std": 0.02,
+    "mem_layers": [
+      6
+    ],
+    "mem_n_keys": 512,
+    "mem_heads": 4,
+    "mem_knn": 32,
+    "mem_k_dim": 256,
+    "mem_v_dim": -1,
+    "mem_query_norm": "batchnorm",
+    "mem_swilu": true,
+    "mem_value_impl": "embedding_bag",
+    "mem_keys_weight_decay": false,
+    "mem_score_scale": "learned",
+    "mem_score_scale_init": 1.0
+  },
+  "params": {
+    "total": 141259908,
+    "embedding": 19316736,
+    "non_embedding": 121943172,
+    "memory_values": 100663296,
+    "dense_body": 21279876,
+    "active_non_embedding_per_token": 21329028,
+    "bn_running_stats": 2048
+  },
+  "macs_per_token": {
+    "attn_proj": 7077888,
+    "attn_scores": 4718592.0,
+    "ffn": 12976128,
+    "memory": 1261952,
+    "lm_head": 19316736,
+    "total": 45351296.0
+  },
+  "data": {
+    "dataset": "WikiText-103 raw (Salesforce/wikitext)",
+    "tokenizer": "tiktoken/gpt2",
+    "vocab_size": 50257,
+    "splits": {
+      "train": {
+        "n_tokens": 117980476,
+        "n_words": 103227021,
+        "n_lines": 1801350
+      },
+      "validation": {
+        "n_tokens": 247417,
+        "n_words": 217646,
+        "n_lines": 3760
+      },
+      "test": {
+        "n_tokens": 283427,
+        "n_words": 245569,
+        "n_lines": 4358
+      }
+    }
+  },
+  "finished": "2026-10-02T08:59:23",
+  "duration_s": 4988.4,
+  "train_time_s": 4920.7,
+  "results": {
+    "val_loss": 3.1672066157443965,
+    "val_ppl": 23.741073702882403,
+    "val_word_ppl": 36.61370662277881,
+    "test_loss": 3.1776773078417073,
+    "test_ppl": 23.990965160867155,
+    "test_word_ppl": 39.15582175159168,
+    "train_tok_s_mean": 71923.7485021661,
+    "train_tok_s_median": 71856.660807604,
+    "peak_train_vram_gib": 9.472991466522217,
+    "weights_gib_fp32": 0.5262341648340225,
+    "decode_b1_tok_s": 204.8947523485578,
+    "decode_peak_vram_gib": 1.5439105033874512,
+    "prefill_tok_s": 264525.28369097546,
+    "prefill_peak_vram_gib": 3.127528667449951,
+    "mem_val": {
+      "usage": 0.9998855590820312,
+      "kl": 0.7003549041598358,
+      "top1pct_share": 0.12062787218692404,
+      "eff_entries_per_head": 25.453395771348912,
+      "top1_weight": 0.13608349843188178
+    },
+    "mem_train_usage_total": 1.0,
+    "mem_score_scale_per_head": [
+      1.7363224029541016,
+      1.7179862260818481,
+      1.733795404434204,
+      1.733150601387024
+    ],
+    "mem_key_norm_mean": 0.6572897434234619
+  }
+}

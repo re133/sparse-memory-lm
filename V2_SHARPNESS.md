@@ -91,3 +91,57 @@ for s in 0 1; do .venv/bin/python scripts/diagnose_memory.py runs/v2b_ep3/B-v2b-
 **Entscheidungsregel (Vorgabe):** v2a wird erst gestartet, wenn B-v2b *klar besser* als B ist. Da v2b
 zwei Dinge gleichzeitig ändert (kein Weight Decay auf den Keys **und** lernbare Skala), würde v2a dann
 klären, welcher Teil wirkt.
+
+## Ergebnis `v2b_ep3` (2026-10-02)
+
+Beide Läufe auf `867b252`, nicht dirty, Laufzeit je 82 min, Durchsatz wie B (71,9 / 71,8 k tok/s).
+Tabellen und Grafiken: `report/v2b_ep3_*`.
+
+**1. Stufe-1-Kriterien (gegen A und C aus `runs/ep3`):**
+
+| | PPL (Mittel; Seeds) | PPL_A − PPL | G | Urteil |
+|---|---|---|---|---|
+| B | 23,63 (23,80 / 23,47) | +1,10 (> 2·s = 0,67) | 0,20 | unklar |
+| B-v2b | 23,59 (23,74 / 23,44) | +1,14 (> 2·s = 0,61) | 0,20 | unklar |
+
+**2. Paarweiser Vergleich mit B (gleiche Startgewichte, gleiche Daten):**
+
+| Seed | Val-PPL B → B-v2b | Δ Val | Test-PPL B → B-v2b | Δ Test |
+|---|---|---|---|---|
+| 0 | 23,80 → 23,74 | −0,059 (−0,25 %) | 24,02 → 23,99 | −0,11 % |
+| 1 | 23,47 → 23,44 | −0,030 (−0,13 %) | 23,76 → 23,74 | −0,07 % |
+
+Mittlere Differenz −0,044 PPL. Zum Vergleich: B ist 1,10 PPL besser als A; v2b legt also ≈ 4 % dieses
+Abstands drauf. Über das Training schwankt der paarweise Unterschied zwischen −0,7 % und +0,2 %.
+**Gate „B-v2b klar besser als B“: nein** (beide Seeds besser, aber 0,044 ≪ 2·s = 0,67).
+
+**3. Greift der Fix? (komplettes Val-Set, `diagnostics_fullval.json`)**
+
+| | eff. gemischte Einträge je Kopf (von 32) | Top-1-Gewicht | gelernte Skala je Kopf | Key-Norm |
+|---|---|---|---|---|
+| B-s0 / B-s1 | 28,51 / 28,28 | 0,095 / 0,097 | 1 (fest) | 0,59 / 0,61 |
+| B-v2b-s0 / -s1 | 25,46 / 25,64 | 0,136 / 0,132 | 1,72–1,74 / 1,74–1,75 | 0,66 / 0,66 |
+| Verhältnis v2b / B | 0,893 / 0,907 | 1,43 / 1,35 | | |
+
+**Gate „Fix greift“ (≤ 0,9 × B bei beiden Seeds): nein**, knapp (Seed 0 erfüllt, Seed 1 verfehlt um
+0,7 %). Die während des Trainings protokollierten Werte (bf16) stimmen mit der Messung (fp32) überein
+(25,453 vs. 25,456; 25,636 vs. 25,640), die Messung misst also, was sie soll.
+
+![Schärfe v2b](report/v2b_ep3_sharpness.png)
+
+**Was das bedeutet:**
+
+- Die Gewichtung wird schärfer (≈ 3 Einträge weniger gemischt, Top-1-Gewicht +35–43 %), aber die
+  Perplexity ändert sich praktisch nicht (−0,2 %).
+- **Die Skala ist nicht durch die Lernrate begrenzt.** Sie steigt bis ≈ 80 M Tokens auf 1,82 / 1,87,
+  fällt dann wieder und bleibt ab ≈ 250 M Tokens bei ≈ 1,73. Das Modell *wählt* diese Schärfe. Zugleich
+  schrumpft der rohe Score-Abstand zwischen bestem und 32. Eintrag (1,55 / 1,60 bei B → 1,24 / 1,21),
+  das Modell gleicht die Skala also teilweise wieder aus. Effektiv: 1,24 × 1,73 ≈ 2,1 statt 1,55.
+- Das Modell stützt sich mit v2b etwas stärker auf *bestimmte* Einträge: Speicher auf null → PPL 36,3 /
+  36,3 (B: 34,2 / 35,8), zufällige Einträge → 41,2 / 42,4 (B: 37,5 / 40,8). Nutzung (≈ 100 %) und
+  Zugriffsverteilung bleiben wie bei B (Top 20 % der Einträge → 57 / 54 % der Zugriffe).
+- **Die Hypothese „flache Softmax bremst den Speicher“ ist damit weitgehend widerlegt.** Mit freier
+  Temperatur wird das Modell nur mäßig schärfer und gewinnt dadurch fast nichts. Der Engpass liegt
+  woanders (Kandidaten aus REPORT.md: Datenregime, Werte-LR, Zahl der Speicherschichten).
+
+**Entscheidung nach Vorgabe:** v2b ist nicht klar besser als B → **v2a wird nicht gestartet.**
