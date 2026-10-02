@@ -11,11 +11,17 @@ import math
 
 import torch
 
+from .sparse_values import LazyRowAdam, OptimizerSet, clip_row_sparse, row_sparse_tables
+
 
 def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e-8):
+    """AdamW for everything; value tables with row-sparse gradients get a LazyRowAdam instead
+    (same lr / betas / eps, no weight decay) and the two are returned as one OptimizerSet."""
+    sparse_tables = row_sparse_tables(model)
+    sparse_ids = {id(t) for t in sparse_tables}
     decay, no_decay, values = [], [], []
     for n, p in model.named_parameters():
-        if not p.requires_grad:
+        if not p.requires_grad or id(p) in sparse_ids:
             continue
         if getattr(p, "pk_value_param", False):
             values.append(p)
@@ -32,6 +38,8 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
     for g in groups:
         g["lr"] = g["base_lr"]
     opt = torch.optim.AdamW(groups, betas=betas, eps=eps, fused=True)
+    if sparse_tables:
+        return OptimizerSet(opt, LazyRowAdam(sparse_tables, lr=value_lr, betas=betas, eps=eps))
     return opt
 
 
@@ -53,5 +61,8 @@ def clip_grads(model, max_norm):
     values = [p for p in model.parameters() if getattr(p, "pk_value_param", False) and p.grad is not None]
     rest = [p for p in model.parameters() if not getattr(p, "pk_value_param", False) and p.grad is not None]
     vnorm = torch.nn.utils.clip_grad_norm_(values, max_norm, foreach=True) if values else None
+    sparse_tables = row_sparse_tables(model)
+    if sparse_tables:
+        vnorm = clip_row_sparse(sparse_tables, max_norm)
     norm = torch.nn.utils.clip_grad_norm_(rest, max_norm, foreach=True)
     return norm, vnorm

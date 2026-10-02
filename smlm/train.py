@@ -39,9 +39,11 @@ MODELS = {
     "B-v2b": dict(mem_layers=[6], mem_keys_weight_decay=False, mem_score_scale="learned"),
     # stage 1b: 3 memory layers (centred, stride 4) sharing one 1024^2 = 1M-entry value table
     "B-1M": dict(mem_layers=[2, 6, 10], mem_n_keys=1024, mem_share_values=True),
+    # Hampter: B-1M with row-sparse table gradients and lazy Adam on the table
+    "B-1M-sparse": dict(mem_layers=[2, 6, 10], mem_n_keys=1024, mem_share_values=True, mem_value_grad="row_sparse"),
 }
 # micro-batch (sequences) per forward pass; gradient accumulation fills up --batch_seqs
-MICRO_BS = {"A": 8, "B": 8, "C": 4, "B-v2a": 8, "B-v2b": 8, "B-1M": 4}
+MICRO_BS = {"A": 8, "B": 8, "C": 4, "B-v2a": 8, "B-v2b": 8, "B-1M": 4, "B-1M-sparse": 4}
 
 METRIC_FIELDS = [
     "step", "tokens", "epoch", "lr_mult", "train_loss", "val_loss", "val_ppl", "val_word_ppl",
@@ -278,7 +280,10 @@ def main():
                          "tokens_per_step": stream.tokens_per_step, "micro_bs": micro_bs, "grad_accum": accum,
                          "total_tokens": total_steps * stream.tokens_per_step,
                          "epochs": total_steps / stream.steps_per_epoch, "eval_every_steps": eval_every,
-                         "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip",
+                         "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip"
+                                      + ("; value table: row-sparse gradients + LazyRowAdam (only rows read in the step "
+                                         "are updated, values and Adam state of unread rows unchanged)"
+                                         if mcfg.mem_value_grad == "row_sparse" else ""),
                          "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
                          "precision": "bf16 autocast, fp32 weights / optimizer state"},
         "model_config": mcfg.to_dict(),
@@ -429,6 +434,7 @@ def main():
         np.save(os.path.join(args.out_dir, "mem_access_train.npy"), acc_total.cpu().numpy())
         np.savez_compressed(os.path.join(args.out_dir, "mem_access_val.npz"),
                             counts=final_val["mem_counts"], z=final_val["mem_z"])
+    if mems and "sample" in final_val:
         s = final_val["sample"]
         np.savez(os.path.join(args.out_dir, "mem_index_sample.npz"), indices=s["indices"], scores=s["scores"],
                  layer_ids=np.array(mcfg.mem_layers),
@@ -439,6 +445,8 @@ def main():
     del opt
     for p in model.parameters():
         p.grad = None
+        if hasattr(p, "row_store"):
+            del p.row_store                     # row-sparse gradient accumulator (training only)
     torch.cuda.empty_cache()
     infer = inference_benchmark(model, args.seq_len, dataset=args.data)
     tok_s_mean = float(np.mean(tok_s_hist)) if tok_s_hist else None

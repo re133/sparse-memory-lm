@@ -36,6 +36,8 @@ class ModelConfig:
     mem_score_scale_init: float = 1.0
     # stage 1b: one value table shared by all memory layers (keys / query / BN / swilu stay per layer)
     mem_share_values: bool = False
+    # Hampter: "row_sparse" = gradients only for read rows + lazy Adam on the table (smlm/sparse_values.py)
+    mem_value_grad: str = "dense"
 
     def to_dict(self):
         return asdict(self)
@@ -106,7 +108,8 @@ class Block(nn.Module):
                 knn=cfg.mem_knn, k_dim=cfg.mem_k_dim, v_dim=cfg.mem_v_dim,
                 query_norm=cfg.mem_query_norm, swilu=cfg.mem_swilu, value_impl=cfg.mem_value_impl,
                 keys_weight_decay=cfg.mem_keys_weight_decay, score_scale=cfg.mem_score_scale,
-                score_scale_init=cfg.mem_score_scale_init, shared_values=shared_values)
+                score_scale_init=cfg.mem_score_scale_init, shared_values=shared_values,
+                value_grad=cfg.mem_value_grad)
         else:
             self.ffn = SwiGLU(cfg.d_model, cfg.ffn_hidden)
 
