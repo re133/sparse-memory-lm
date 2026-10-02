@@ -61,9 +61,18 @@ def git_info():
             return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True, check=True).stdout.strip()
         except Exception:
             return None
-    # run outputs (runs/, report/) are not code and do not make the tree "dirty"
-    status = run("status", "--porcelain", "--", ".", ":!runs", ":!report")
+    # run outputs (runs/, report/) and the report text are not code and do not make the tree "dirty"
+    status = run("status", "--porcelain", "--", ".", ":!runs", ":!report", ":!REPORT.md")
     return {"commit": run("rev-parse", "HEAD"), "dirty": bool(status), "dirty_files": status.splitlines() if status else []}
+
+
+def reference_ppl(metrics_csv, tokens):
+    """Val PPL of a reference run at `tokens` (its metrics.csv; log-PPL interpolated between evaluations)."""
+    with open(metrics_csv) as f:
+        rows = list(csv.DictReader(f))
+    t = np.array([float(r["tokens"]) for r in rows])
+    loss = np.array([float(r["val_loss"]) for r in rows])
+    return math.exp(float(np.interp(tokens, t, loss)))
 
 
 def hardware_info():
@@ -240,6 +249,11 @@ def main():
     ap.add_argument("--data", default=None, choices=list(DATASETS), help="training / primary val dataset "
                     "(default: wikitext103, or SMLM_DATA_DIR)")
     ap.add_argument("--extra_val", default=None, choices=list(DATASETS), help="second validation set (val2_*)")
+    ap.add_argument("--abort_ref", default=None, help="metrics.csv of a reference run: stop with exit code 3 if "
+                    "the val PPL at the evaluation nearest --abort_at_tokens is more than --abort_max_rel worse "
+                    "than the reference's val PPL at the same token count")
+    ap.add_argument("--abort_at_tokens", type=float, default=100e6)
+    ap.add_argument("--abort_max_rel", type=float, default=0.05)
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -252,6 +266,8 @@ def main():
         total_steps = int(args.tokens) // stream.tokens_per_step
     warmup_steps = max(1, int(round(args.warmup_frac * total_steps)))
     eval_every = max(1, int(round(args.eval_every_tokens / stream.tokens_per_step)))
+    abort_step = (int(round(args.abort_at_tokens / stream.tokens_per_step / eval_every)) * eval_every
+                  if args.abort_ref else None)
     micro_bs = args.micro_bs or MICRO_BS[args.model]
     assert args.batch_seqs % micro_bs == 0
     accum = args.batch_seqs // micro_bs
@@ -357,6 +373,22 @@ def main():
                 acc_interval.zero_()
         mcsv.writerow(row)
         mfile.flush()
+        if abort_step is not None and step == abort_step:
+            ref = reference_ppl(args.abort_ref, row["tokens"])
+            rel = ev["ppl"] / ref - 1
+            info["abort_check"] = {"step": step, "tokens": row["tokens"], "val_ppl": ev["ppl"], "ref_val_ppl": ref,
+                                   "rel_diff": rel, "max_rel": args.abort_max_rel, "ref": args.abort_ref,
+                                   "aborted": rel > args.abort_max_rel}
+            print(f"[abort check] tokens {row['tokens']/1e6:.2f}M val_ppl {ev['ppl']:.3f} vs reference {ref:.3f} "
+                  f"({100 * rel:+.2f} %, limit {100 * args.abort_max_rel:+.1f} %)", flush=True)
+            if rel > args.abort_max_rel:
+                info.update({"status": "aborted", "finished": dt.datetime.now().isoformat(timespec="seconds"),
+                             "duration_s": round(time.time() - t_start, 1), "train_time_s": round(train_time, 1)})
+                write_info()
+                torch.save({"model_config": mcfg.to_dict(), "state_dict": model.state_dict()},
+                           os.path.join(args.out_dir, "model.pt"))
+                raise SystemExit(3)
+            write_info()
         interval_loss.zero_()
         interval_steps = 0
         torch.cuda.reset_peak_memory_stats()

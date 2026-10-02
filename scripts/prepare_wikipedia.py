@@ -1,8 +1,9 @@
 """Build a fresh-token stream from English Wikipedia (wikimedia/wikipedia, dump 20231101.en) for stage 1b.
 
   python scripts/prepare_wikipedia.py      (reads data/raw_wikipedia/*.parquet)
+  python scripts/prepare_wikipedia.py --train_frac 0.35 --train_tokens 1.5e9 --out wikipedia_en_gpt2_1500m
 
-Writes data/wikipedia_en_gpt2/{train,validation}.bin (uint16 GPT-2 BPE ids) and meta.json.
+Writes data/<out>/{train,validation}.bin (uint16 GPT-2 BPE ids) and meta.json (default out: wikipedia_en_gpt2).
 
   * Every article gets a deterministic pseudo-random number u from (seed, article id). u < VAL_FRAC ->
     validation, a disjoint band of width TRAIN_FRAC -> training candidates, the rest is unused.
@@ -11,7 +12,11 @@ Writes data/wikipedia_en_gpt2/{train,validation}.bin (uint16 GPT-2 BPE ids) and 
   * Article text = title + blank line + text, followed by <|endoftext|> (50256).
   * Training articles are concatenated in order of u (= random order) and cut after TRAIN_TOKENS tokens,
     so every token of a 500 M-token run is seen exactly once.
+  * A wider training band (--train_frac) keeps the same validation set, and because the training articles
+    are sorted by u, the first TRAIN_TOKENS of the default band are an exact prefix of the larger stream
+    (Hampter: A at equal compute time needs ~1.2 B tokens).
 """
+import argparse
 import glob
 import json
 import os
@@ -28,7 +33,6 @@ from smlm.textprep import assign_split, normalize_title, unit_hash, wikitext_art
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 RAW = os.path.join(ROOT, "data", "raw_wikipedia")
 WT_RAW = os.path.join(ROOT, "data", "raw")
-OUT = os.path.join(ROOT, "data", "wikipedia_en_gpt2")
 
 SEED = 20231101
 VAL_FRAC = 0.0003            # ~1.9 k articles, ~1 M tokens
@@ -46,6 +50,14 @@ def wikitext_exclusions():
 
 
 def main():
+    global TRAIN_FRAC, TRAIN_TOKENS
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--train_frac", type=float, default=TRAIN_FRAC)
+    ap.add_argument("--train_tokens", type=float, default=TRAIN_TOKENS)
+    ap.add_argument("--out", default="wikipedia_en_gpt2", help="directory name under data/")
+    args = ap.parse_args()
+    TRAIN_FRAC, TRAIN_TOKENS = args.train_frac, int(args.train_tokens)
+    OUT = os.path.join(ROOT, "data", args.out)
     t0 = time.time()
     os.makedirs(OUT, exist_ok=True)
     enc = tiktoken.get_encoding("gpt2")

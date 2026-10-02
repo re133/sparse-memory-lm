@@ -1,0 +1,45 @@
+{
+  "runs": {
+    "ref_B": {
+      "status": "done",
+      "total_tokens": 499974144,
+      "git": "d89a00b",
+      "thermal": null,
+      "last_eval_tokens": 499974144.0,
+      "last_eval_ppl": 21.801071907043173,
+      "tok_s_median": 33383.0,
+      "tok_s_p5": 33345.0,
+      "val_ppl": 21.801071907043173,
+      "val2_ppl": 66.27811302288839,
+      "train_time_s": 14942.4,
+      "peak_train_vram_gib": 11.697994709014893
+    },
+    "ref_A": {
+      "status": "done",
+      "total_tokens": 499974144,
+      "git": "d89a00b",
+      "thermal": null,
+      "last_eval_tokens": 499974144.0,
+      "last_eval_ppl": 25.66509359812887,
+      "tok_s_median": 91563.0,
+      "tok_s_p5": 91488.15,
+      "val_ppl": 25.66509359812887,
+      "val2_ppl": 78.37926946171167,
+      "train_time_s": 5460.1,
+      "peak_train_vram_gib": 7.892161846160889
+    },
+    "B0": {
+      "status": "ausstehend"
+    },
+    "Aeq": {
+      "status": "ausstehend"
+    },
+    "A1": {
+      "status": "ausstehend"
+    },
+    "B1": {
+      "status": "ausstehend"
+    }
+  },
+  "criteria": {}
+}

@@ -73,6 +73,9 @@ class _RowSparseBag(torch.autograd.Function):
             contrib = g.index_select(0, offset2bag[a:a + CHUNK]).mul_(w[a:a + CHUNK, None].to(g.dtype))
             store.acc.index_put_((flat[a:a + CHUNK],), contrib, accumulate=True)
         store.touched[flat] = True
+        # the graph node outlives backward while the last loss tensor is alive; drop the RowStore reference
+        # so `del table.row_store` after training really frees the accumulator
+        ctx.table = ctx.store = None
         return gw.view(ctx.wshape).to(ctx.wdtype), None, None, None
 
 

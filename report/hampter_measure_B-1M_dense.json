@@ -1,0 +1,23 @@
+{
+  "model": "B-1M",
+  "rc": 0,
+  "scratch": "/tmp/claude-1000/-mnt-sandisk-Sparse-Memory-LM-AngryAnt/3a19d722-9432-465c-971f-23911606361a/scratchpad/measure/measure_B-1M_ln01s_7e",
+  "extra_args": [
+    "--value_lr",
+    "2.4e-3"
+  ],
+  "steps": 122,
+  "micro_bs": 4,
+  "tok_s_median": 35374.0,
+  "peak_train_vram_gib": 11.697994709014893,
+  "gpu_use_pct_median": 100.0,
+  "gpu_use_pct_min": 100,
+  "vram_pct_median": 91.0,
+  "proc_cpu_pct_median": 471.15342306596796,
+  "proc_rss_gib_median": 3.1946144104003906,
+  "sys_ram_used_gib_median": 14.668033599853516,
+  "n_samples_training": 85,
+  "data_path_ms_per_step": 0.17954800568986684,
+  "step_ms": 926.3300729349239,
+  "data_share_of_step_pct": 0.01938272446677658
+}

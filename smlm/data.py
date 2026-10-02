@@ -16,6 +16,8 @@ DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 DATASETS = {
     "wikitext103": "wikitext103_gpt2",      # stage 1 (scripts/prepare_data.py)
     "wikipedia": "wikipedia_en_gpt2",       # stage 1b, fresh tokens (scripts/prepare_wikipedia.py)
+    # Hampter: 1.5 B training tokens (wider article band), same validation set, first 505 M = "wikipedia"
+    "wikipedia_1500m": "wikipedia_en_gpt2_1500m",
 }
 # default dataset directory (stage 1); SMLM_DATA_DIR overrides it
 DATA_DIR = os.environ.get("SMLM_DATA_DIR") or os.path.join(DATA_ROOT, DATASETS["wikitext103"])
