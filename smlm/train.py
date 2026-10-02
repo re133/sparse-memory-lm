@@ -24,7 +24,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-from .data import TrainStream, load_meta, load_split
+from .data import DATASETS, TrainStream, data_dir, has_split, load_meta, load_split
 from .model import ModelConfig, Transformer
 from .optim import build_optimizer, clip_grads, lr_multiplier, set_lr
 
@@ -37,15 +37,18 @@ MODELS = {
     # v2 "sharpness" variants of B (everything else identical to B)
     "B-v2a": dict(mem_layers=[6], mem_keys_weight_decay=False),
     "B-v2b": dict(mem_layers=[6], mem_keys_weight_decay=False, mem_score_scale="learned"),
+    # stage 1b: 3 memory layers (centred, stride 4) sharing one 1024^2 = 1M-entry value table
+    "B-1M": dict(mem_layers=[2, 6, 10], mem_n_keys=1024, mem_share_values=True),
 }
 # micro-batch (sequences) per forward pass; gradient accumulation fills up --batch_seqs
-MICRO_BS = {"A": 8, "B": 8, "C": 4, "B-v2a": 8, "B-v2b": 8}
+MICRO_BS = {"A": 8, "B": 8, "C": 4, "B-v2a": 8, "B-v2b": 8, "B-1M": 4}
 
 METRIC_FIELDS = [
     "step", "tokens", "epoch", "lr_mult", "train_loss", "val_loss", "val_ppl", "val_word_ppl",
     "train_tok_s", "train_time_s", "wall_time_s", "peak_vram_gib",
     "mem_val_usage", "mem_val_kl", "mem_val_top1pct_share", "mem_train_usage_interval", "mem_train_usage_cum",
     "mem_val_eff_entries", "mem_val_top1_weight", "mem_score_scale_mean", "mem_key_norm_mean",
+    "val2_loss", "val2_ppl",
 ]
 LOG_FIELDS = ["step", "tokens", "lr_mult", "loss", "grad_norm", "value_grad_norm", "tok_s"]
 
@@ -119,15 +122,19 @@ class MemoryStats:
 
 
 @torch.no_grad()
-def evaluate(model, split, seq_len, n_words, batch=8, mem_stats=False, sample_windows=0):
-    """Token-level NLL over the whole split (non-overlapping windows, every token but the first)."""
+def evaluate(model, split, seq_len, n_words, batch=8, mem_stats=False, sample_windows=0, dataset=None):
+    """Token-level NLL over the whole split (non-overlapping windows, every token but the first).
+    Memory statistics: one MemoryStats per memory layer, plus a combined one over all layers (with a
+    shared value table this is the usage of the table itself). Index samples: (T, heads, knn) for one
+    memory layer, (T, layers, heads, knn) for several."""
     model.eval()
     mems = model.memory_layers()
     for m in mems:
-        m.record = mem_stats
+        m.record = mem_stats or bool(sample_windows)
     stats = [MemoryStats(m.size, "cuda") for m in mems] if mem_stats else []
+    combined = MemoryStats(mems[0].size, "cuda") if mem_stats and len(mems) > 1 else None
     sample = {"indices": [], "scores": [], "tokens": []}
-    tok = torch.from_numpy(np.asarray(load_split(split), dtype=np.int64)).cuda()
+    tok = torch.from_numpy(np.asarray(load_split(split, dataset), dtype=np.int64)).cuda()
     n = tok.numel() - 1
     full = n // seq_len
     x_all = tok[:full * seq_len].view(full, seq_len)
@@ -143,12 +150,16 @@ def evaluate(model, split, seq_len, n_words, batch=8, mem_stats=False, sample_wi
         count += y.numel()
         for s, m in zip(stats, mems):
             s.add(m)
+            if combined is not None:
+                combined.add(m)
         if sample_windows and seen_windows < sample_windows and mems:
             k = min(x.shape[0], sample_windows - seen_windows)
-            m = mems[0]
             L = x.shape[1]
-            sample["indices"].append(m.last_indices.view(x.shape[0], L, m.heads, m.knn)[:k].reshape(-1, m.heads, m.knn).int().cpu())
-            sample["scores"].append(m.last_scores.view(x.shape[0], L, m.heads, m.knn)[:k].reshape(-1, m.heads, m.knn).half().cpu())
+            per = lambda t, m: t.view(x.shape[0], L, m.heads, m.knn)[:k].reshape(-1, m.heads, m.knn)  # noqa: E731
+            idx = torch.stack([per(m.last_indices, m) for m in mems], 1).int().cpu()
+            sc = torch.stack([per(m.last_scores, m) for m in mems], 1).half().cpu()
+            sample["indices"].append(idx[:, 0] if len(mems) == 1 else idx)
+            sample["scores"].append(sc[:, 0] if len(mems) == 1 else sc)
             sample["tokens"].append(x[:k].reshape(-1).int().cpu())
         seen_windows += x.shape[0]
     for m in mems:
@@ -157,19 +168,21 @@ def evaluate(model, split, seq_len, n_words, batch=8, mem_stats=False, sample_wi
     loss = nll / count
     out = {"loss": loss, "ppl": math.exp(loss), "word_ppl": math.exp(nll / n_words), "n_tokens": count}
     if stats:
-        out["mem"] = stats[0].summary()
-        out["mem_counts"] = stats[0].counts.cpu().numpy()
-        out["mem_z"] = stats[0].z.float().cpu().numpy()
+        main_stats = combined if combined is not None else stats[0]
+        out["mem"] = main_stats.summary()
+        out["mem_layers"] = [s.summary() for s in stats]
+        out["mem_counts"] = main_stats.counts.cpu().numpy()
+        out["mem_z"] = main_stats.z.float().cpu().numpy()
     if sample_windows and sample["indices"]:
         out["sample"] = {k: torch.cat(v).numpy() for k, v in sample.items()}
     return out
 
 
 @torch.no_grad()
-def inference_benchmark(model, seq_len, prompt_len=128, new_tokens=256, prefill_batch=16):
+def inference_benchmark(model, seq_len, prompt_len=128, new_tokens=256, prefill_batch=16, dataset=None):
     """Batch-1 greedy decoding with KV cache, and batched full-sequence forward (prefill / scoring)."""
     model.eval()
-    val = torch.from_numpy(np.asarray(load_split("validation")[:prompt_len], dtype=np.int64)).cuda()[None]
+    val = torch.from_numpy(np.asarray(load_split("validation", dataset)[:prompt_len], dtype=np.int64)).cuda()[None]
     torch.cuda.reset_peak_memory_stats()
     res = {}
     with torch.autocast("cuda", dtype=torch.bfloat16):
@@ -222,12 +235,15 @@ def main():
     ap.add_argument("--sample_windows", type=int, default=64, help="B: val windows whose indices are saved")
     ap.add_argument("--mem_query_norm", default="batchnorm")
     ap.add_argument("--mem_score_scale_init", type=float, default=None, help="v2b: initial per-head score scale")
+    ap.add_argument("--data", default=None, choices=list(DATASETS), help="training / primary val dataset "
+                    "(default: wikitext103, or SMLM_DATA_DIR)")
+    ap.add_argument("--extra_val", default=None, choices=list(DATASETS), help="second validation set (val2_*)")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
     t_start = time.time()
-    meta = load_meta()
-    stream = TrainStream(args.seq_len, args.batch_seqs, args.data_seed)
+    meta = load_meta(args.data)
+    stream = TrainStream(args.seq_len, args.batch_seqs, args.data_seed, dataset=args.data)
     if args.epochs is not None:
         total_steps = int(round(args.epochs * stream.steps_per_epoch))
     else:
@@ -249,6 +265,7 @@ def main():
     opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay)
     mems = model.memory_layers()
     n_val_words = meta["splits"]["validation"]["n_words"]
+    n_val2_words = load_meta(args.extra_val)["splits"]["validation"]["n_words"] if args.extra_val else None
 
     info = {
         "status": "running",
@@ -267,7 +284,8 @@ def main():
         "model_config": mcfg.to_dict(),
         "params": model.param_counts(),
         "macs_per_token": model.macs_per_token(),
-        "data": {"dataset": "WikiText-103 raw (Salesforce/wikitext)", **meta},
+        "data": {"dataset": args.data or "wikitext103", "data_dir": data_dir(args.data), **meta,
+                 **({"extra_val": args.extra_val} if args.extra_val else {})},
     }
 
     def write_info():
@@ -304,7 +322,10 @@ def main():
         nonlocal interval_loss, interval_steps, peak_train_vram
         # training peak since the last evaluation (evaluation itself is not counted)
         peak_train_vram = max(peak_train_vram, torch.cuda.max_memory_allocated() / 2**30)
-        ev = evaluate(model, "validation", args.seq_len, n_val_words, mem_stats=bool(mems))
+        ev = evaluate(model, "validation", args.seq_len, n_val_words, batch=micro_bs, mem_stats=bool(mems),
+                      dataset=args.data)
+        ev2 = evaluate(model, "validation", args.seq_len, n_val2_words, batch=micro_bs,
+                       dataset=args.extra_val) if args.extra_val else None
         for m in mems:
             m.record = True
         row = {
@@ -315,14 +336,16 @@ def main():
             "train_tok_s": (np.mean(tok_s_hist[-max(1, eval_every // args.log_every):]) if tok_s_hist else ""),
             "train_time_s": round(train_time, 1), "wall_time_s": round(time.time() - t_start, 1),
             "peak_vram_gib": round(peak_train_vram, 3) if step else "",
+            **({"val2_loss": ev2["loss"], "val2_ppl": ev2["ppl"]} if ev2 else {}),
         }
         if mems:
             row.update({"mem_val_usage": ev["mem"]["usage"], "mem_val_kl": ev["mem"]["kl"],
                         "mem_val_top1pct_share": ev["mem"]["top1pct_share"],
                         "mem_val_eff_entries": ev["mem"]["eff_entries_per_head"],
                         "mem_val_top1_weight": ev["mem"]["top1_weight"],
-                        "mem_score_scale_mean": float(mems[0].score_scale().mean()),
-                        "mem_key_norm_mean": float(mems[0].keys.detach().norm(dim=-1).mean())})
+                        "mem_score_scale_mean": float(torch.stack([m.score_scale() for m in mems]).mean()),
+                        "mem_key_norm_mean": float(torch.stack(
+                            [m.keys.detach().norm(dim=-1).mean() for m in mems]).mean())})
             if step:
                 row["mem_train_usage_interval"] = float((acc_interval > 0).double().mean())
                 row["mem_train_usage_cum"] = float((acc_total > 0).double().mean())
@@ -352,9 +375,11 @@ def main():
             interval_loss += loss.detach() / accum
             log_loss += loss.detach() / accum
             if mems:
-                cnt = torch.bincount(mems[0].last_indices.reshape(-1), minlength=size)
-                acc_interval += cnt
-                acc_total += cnt
+                # reads per table entry; with several layers sharing one table the reads are summed
+                for m in mems:
+                    cnt = torch.bincount(m.last_indices.reshape(-1), minlength=size)
+                    acc_interval += cnt
+                    acc_total += cnt
         gn, vgn = clip_grads(model, args.clip)
         log_gn += gn
         if vgn is not None:
@@ -392,9 +417,12 @@ def main():
             torch.cuda.synchronize()
             last_log_t, steps_since_t = time.perf_counter(), 0   # evaluation excluded from throughput
 
-    final_val = evaluate(model, "validation", args.seq_len, n_val_words, mem_stats=bool(mems),
-                         sample_windows=args.sample_windows if mems else 0)
-    final_test = evaluate(model, "test", args.seq_len, meta["splits"]["test"]["n_words"])
+    final_val = evaluate(model, "validation", args.seq_len, n_val_words, batch=micro_bs, mem_stats=bool(mems),
+                         sample_windows=args.sample_windows if mems else 0, dataset=args.data)
+    final_test = (evaluate(model, "test", args.seq_len, meta["splits"]["test"]["n_words"], batch=micro_bs,
+                           dataset=args.data) if has_split("test", args.data) else None)
+    final_val2 = (evaluate(model, "validation", args.seq_len, n_val2_words, batch=micro_bs,
+                           dataset=args.extra_val) if args.extra_val else None)
     torch.save({"model_config": mcfg.to_dict(), "state_dict": model.state_dict()},
                os.path.join(args.out_dir, "model.pt"))
     if mems:
@@ -403,14 +431,16 @@ def main():
                             counts=final_val["mem_counts"], z=final_val["mem_z"])
         s = final_val["sample"]
         np.savez(os.path.join(args.out_dir, "mem_index_sample.npz"), indices=s["indices"], scores=s["scores"],
-                 tokens=s["tokens"], note="indices[t, head, j] read for val token t (text order, first "
-                 f"{args.sample_windows} windows of {args.seq_len}); scores = raw key scores before softmax")
+                 layer_ids=np.array(mcfg.mem_layers),
+                 tokens=s["tokens"], note="indices[t, (layer,) head, j] read for val token t (text order, first "
+                 f"{args.sample_windows} windows of {args.seq_len}); layer axis only with several memory "
+                 "layers (order = layer_ids); scores = raw key scores before softmax")
 
     del opt
     for p in model.parameters():
         p.grad = None
     torch.cuda.empty_cache()
-    infer = inference_benchmark(model, args.seq_len)
+    infer = inference_benchmark(model, args.seq_len, dataset=args.data)
     tok_s_mean = float(np.mean(tok_s_hist)) if tok_s_hist else None
     info.update({
         "status": "done",
@@ -419,16 +449,22 @@ def main():
         "train_time_s": round(train_time, 1),
         "results": {
             "val_loss": final_val["loss"], "val_ppl": final_val["ppl"], "val_word_ppl": final_val["word_ppl"],
-            "test_loss": final_test["loss"], "test_ppl": final_test["ppl"], "test_word_ppl": final_test["word_ppl"],
+            **({"test_loss": final_test["loss"], "test_ppl": final_test["ppl"],
+                "test_word_ppl": final_test["word_ppl"]} if final_test else {}),
+            **({"val2_dataset": args.extra_val, "val2_loss": final_val2["loss"], "val2_ppl": final_val2["ppl"],
+                "val2_word_ppl": final_val2["word_ppl"]} if final_val2 else {}),
             "train_tok_s_mean": tok_s_mean,
             "train_tok_s_median": float(np.median(tok_s_hist)) if tok_s_hist else None,
             "peak_train_vram_gib": peak_train_vram,
             "weights_gib_fp32": sum(p.numel() for p in model.parameters()) * 4 / 2**30,
             **infer,
             **({"mem_val": final_val["mem"],
+                "mem_val_per_layer": final_val["mem_layers"],
                 "mem_train_usage_total": float((acc_total > 0).double().mean()),
                 "mem_score_scale_per_head": mems[0].score_scale().tolist(),
-                "mem_key_norm_mean": float(mems[0].keys.detach().norm(dim=-1).mean())} if mems else {}),
+                "mem_score_scale_per_layer_head": [m.score_scale().tolist() for m in mems],
+                "mem_key_norm_mean": float(torch.stack(
+                    [m.keys.detach().norm(dim=-1).mean() for m in mems]).mean())} if mems else {}),
         },
     })
     write_info()

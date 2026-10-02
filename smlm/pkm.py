@@ -27,7 +27,7 @@ from torch import nn
 class ProductKeyMemory(nn.Module):
     def __init__(self, d_in, d_out, n_keys=512, heads=4, knn=32, k_dim=256, v_dim=-1,
                  query_norm="batchnorm", swilu=True, value_impl="embedding_bag",
-                 keys_weight_decay=True, score_scale="none", score_scale_init=1.0):
+                 keys_weight_decay=True, score_scale="none", score_scale_init=1.0, shared_values=None):
         super().__init__()
         assert k_dim % 2 == 0 and knn <= n_keys
         self.d_in, self.d_out = d_in, d_out
@@ -55,7 +55,14 @@ class ProductKeyMemory(nn.Module):
             self.query_norm = None
         else:
             raise ValueError(query_norm)
-        self.values = nn.Embedding(self.size, self.v_dim)
+        if shared_values is not None:
+            # one value table shared by several memory layers (Meta "Memory+"); keys / query stay per layer.
+            # Registering the same module in every layer is what the reference does; parameters() and the
+            # optimizer see it once, state_dict lists it under each layer (one storage when saved).
+            assert shared_values.weight.shape == (self.size, self.v_dim)
+            self.values = shared_values
+        else:
+            self.values = nn.Embedding(self.size, self.v_dim)
         if swilu:
             self.swilu_proj = nn.Linear(d_in, self.v_dim)
             self.value_proj = nn.Linear(self.v_dim, d_out)

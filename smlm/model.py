@@ -34,6 +34,8 @@ class ModelConfig:
     mem_keys_weight_decay: bool = True   # v2a: False -> no weight decay on the sub-keys
     mem_score_scale: str = "none"        # v2b: "learned" -> per-head learnable scale on top-k scores
     mem_score_scale_init: float = 1.0
+    # stage 1b: one value table shared by all memory layers (keys / query / BN / swilu stay per layer)
+    mem_share_values: bool = False
 
     def to_dict(self):
         return asdict(self)
@@ -92,7 +94,7 @@ class SwiGLU(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, cfg: ModelConfig, layer_id: int):
+    def __init__(self, cfg: ModelConfig, layer_id: int, shared_values=None):
         super().__init__()
         self.attn_norm = nn.RMSNorm(cfg.d_model, eps=cfg.norm_eps)
         self.attn = Attention(cfg)
@@ -104,7 +106,7 @@ class Block(nn.Module):
                 knn=cfg.mem_knn, k_dim=cfg.mem_k_dim, v_dim=cfg.mem_v_dim,
                 query_norm=cfg.mem_query_norm, swilu=cfg.mem_swilu, value_impl=cfg.mem_value_impl,
                 keys_weight_decay=cfg.mem_keys_weight_decay, score_scale=cfg.mem_score_scale,
-                score_scale_init=cfg.mem_score_scale_init)
+                score_scale_init=cfg.mem_score_scale_init, shared_values=shared_values)
         else:
             self.ffn = SwiGLU(cfg.d_model, cfg.ffn_hidden)
 
@@ -118,7 +120,11 @@ class Transformer(nn.Module):
         super().__init__()
         self.cfg = cfg
         self.tok_emb = nn.Embedding(cfg.vocab_size, cfg.d_model)
-        self.layers = nn.ModuleList([Block(cfg, i) for i in range(cfg.n_layers)])
+        shared = None
+        if cfg.mem_share_values and cfg.mem_layers:
+            v_dim = cfg.mem_v_dim if cfg.mem_v_dim > 0 else cfg.d_model
+            shared = nn.Embedding(cfg.mem_n_keys ** 2, v_dim)          # initialised by the memory layers
+        self.layers = nn.ModuleList([Block(cfg, i, shared) for i in range(cfg.n_layers)])
         self.norm = nn.RMSNorm(cfg.d_model, eps=cfg.norm_eps)
         self.lm_head = nn.Linear(cfg.d_model, cfg.vocab_size, bias=False)
         self.lm_head.weight = self.tok_emb.weight          # tied input / output embeddings
@@ -154,7 +160,8 @@ class Transformer(nn.Module):
         """Parameter counts. 'embedding' = tied token embedding / LM head matrix;
         'memory_values' = product-key value table; 'dense_body' = everything else."""
         emb = self.tok_emb.weight.numel()
-        values = sum(m.values.weight.numel() for m in self.memory_layers())
+        tables = {id(m.values.weight): m.values.weight.numel() for m in self.memory_layers()}
+        values = sum(tables.values())                                     # a shared table counts once
         total = sum(p.numel() for p in self.parameters())
         buffers = sum(b.numel() for n, b in self.named_buffers() if "running" in n)
         return {

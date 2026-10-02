@@ -394,7 +394,7 @@ weniger (20 % der Einträge → 53 % der Zugriffe).
 
 ## Stufe 1b: Schnelltest B-1M (Kriterium vor dem Lauf festgelegt, 2026-10-02)
 
-> Status: **geplant, wartet auf Freigabe.** Noch kein Lauf gestartet.
+> Status: **freigegeben, läuft** (B-1M zuerst, dann A). Kriterium unverändert seit `8bdf57a`.
 
 **Frage:** Bringt eine größere Speicherkonfiguration auf frischen (nicht wiederholten) Daten einen
 deutlichen Vorteil? Erst wenn ja, folgt ein großer Test.
@@ -418,6 +418,16 @@ Tabelle), aktiv pro Token 23,1 M. MACs/Token: A 45,3 M, B-1M 47,1 M (+4 %, weil 
 **Daten:** englische Wikipedia (`wikimedia/wikipedia`, Dump 20231101.en, GPT-2-BPE). Artikel werden per
 festem Seed gemischt; alle Artikel, deren Titel im WikiText-103-Validierungs- oder -Testset vorkommen,
 werden ausgeschlossen. Ein disjunkter Satz Wikipedia-Artikel (≈ 1 M Tokens) dient als Validierungsset.
+
+**Daten, tatsächlich** (`scripts/prepare_wikipedia.py`, `data/wikipedia_en_gpt2/meta.json`): 6.407.814
+Artikel im Dump; Training 505 M Tokens aus 689.951 zufällig gewählten Artikeln (davon werden 500 M genutzt),
+Validierung 1,48 M Tokens aus 1.917 disjunkten Artikeln. Von den 122 WikiText-103-Val/Test-Titeln lagen
+14 in den ausgewählten Artikeln und wurden entfernt (erwartet bei 12,5 % Auswahl: ≈ 15). Umbenannte
+Artikel können dem Titelabgleich entgehen.
+
+**Vorab gemessen** (79 Schritte, Mikro-Batch 4): B-1M 35,7 k tok/s und 11,7 GiB VRAM-Spitze im Training
+(geschätzt waren 40–55 k tok/s und 10,5–11,5 GiB; Abbruchgrenzen 30 k tok/s bzw. 15 GiB). Erwartete
+Laufzeit damit ≈ 4,1 h für B-1M und ≈ 1,6 h für A.
 
 **Kriterium (Vorgabe):** B-1M hat **mindestens 10 % niedrigere Val-PPL als A**, sonst kein großer Test.
 Operationalisierung: Token-Perplexity am Ende des Trainings auf dem zurückgehaltenen

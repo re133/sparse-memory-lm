@@ -12,22 +12,35 @@ import os
 import numpy as np
 import torch
 
-DATA_DIR = os.environ.get("SMLM_DATA_DIR") or os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data", "wikitext103_gpt2")
+DATA_ROOT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "data")
+DATASETS = {
+    "wikitext103": "wikitext103_gpt2",      # stage 1 (scripts/prepare_data.py)
+    "wikipedia": "wikipedia_en_gpt2",       # stage 1b, fresh tokens (scripts/prepare_wikipedia.py)
+}
+# default dataset directory (stage 1); SMLM_DATA_DIR overrides it
+DATA_DIR = os.environ.get("SMLM_DATA_DIR") or os.path.join(DATA_ROOT, DATASETS["wikitext103"])
 
 
-def load_meta():
-    with open(os.path.join(DATA_DIR, "meta.json")) as f:
+def data_dir(dataset=None):
+    return DATA_DIR if dataset is None else os.path.join(DATA_ROOT, DATASETS[dataset])
+
+
+def load_meta(dataset=None):
+    with open(os.path.join(data_dir(dataset), "meta.json")) as f:
         return json.load(f)
 
 
-def load_split(split):
-    return np.memmap(os.path.join(DATA_DIR, f"{split}.bin"), dtype=np.uint16, mode="r")
+def has_split(split, dataset=None):
+    return os.path.exists(os.path.join(data_dir(dataset), f"{split}.bin"))
+
+
+def load_split(split, dataset=None):
+    return np.memmap(os.path.join(data_dir(dataset), f"{split}.bin"), dtype=np.uint16, mode="r")
 
 
 class TrainStream:
-    def __init__(self, seq_len, batch_seqs, data_seed, split="train"):
-        self.tokens = load_split(split)
+    def __init__(self, seq_len, batch_seqs, data_seed, split="train", dataset=None):
+        self.tokens = load_split(split, dataset)
         self.seq_len, self.batch_seqs, self.data_seed = seq_len, batch_seqs, data_seed
         self.n_windows = (len(self.tokens) - 1) // seq_len
         self.steps_per_epoch = self.n_windows // batch_seqs

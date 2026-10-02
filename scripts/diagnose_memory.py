@@ -34,6 +34,7 @@ def main():
     ap.add_argument("--device", default="cpu")
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--out", default="diagnostics.json", help="file name inside run_dir")
+    ap.add_argument("--data", default=None, help="validation dataset (smlm.data.DATASETS); default = stage 1")
     args = ap.parse_args()
     torch.set_num_threads(args.threads)
     dev = args.device
@@ -43,10 +44,11 @@ def main():
     model = Transformer(cfg)
     model.load_state_dict(ck["state_dict"])
     model.to(dev).eval()
-    mem = model.memory_layers()[0]
+    mems = model.memory_layers()                          # ablations act on all memory layers at once
+    mem = mems[0]
     blk = next(b for b in model.layers if b.is_memory)
     T = cfg.max_seq_len
-    tok = torch.from_numpy(np.asarray(load_split("validation")[: args.windows * T + 1], dtype=np.int64))
+    tok = torch.from_numpy(np.asarray(load_split("validation", args.data)[: args.windows * T + 1], dtype=np.int64))
     x = tok[:-1].view(args.windows, T).to(dev)
     y = tok[1:].view(args.windows, T).to(dev)
 
@@ -54,41 +56,48 @@ def main():
     cap = {"ffn_out_norm": []}
 
     def mem_hook(mod, inp, out):
-        cap["mem_in"] = inp[0].detach()
-        cap["mem_out"] = out.detach()
+        cap.setdefault("mem_out_cur", []).append(out.detach().float().norm(dim=-1).mean().item())
 
     def ffn_hook(mod, inp, out):
         cap["ffn_out_norm"].append(out.detach().float().norm(dim=-1).mean().item())
 
-    hooks = [mem.register_forward_hook(mem_hook)]
+    hooks = [m.register_forward_hook(mem_hook) for m in mems]
     hooks += [b.ffn.register_forward_hook(ffn_hook) for b in model.layers if not b.is_memory]
     resid = {}
     hooks.append(blk.ffn_norm.register_forward_hook(lambda m, i, o: resid.__setitem__("x", i[0].detach())))
 
     def nll(mode):
-        orig_read = mem.read_values
-        if mode == "zero":
-            mem.read_values = lambda idx, w: torch.zeros(idx.shape[0], mem.v_dim, dtype=mem.values.weight.dtype, device=idx.device)
-        elif mode == "random":
-            g = torch.Generator(device="cpu").manual_seed(0)
-            mem.read_values = lambda idx, w: orig_read(
-                torch.randint(0, mem.size, idx.shape, generator=g).to(idx.device), w)
+        g = torch.Generator(device="cpu").manual_seed(0)
+        for m in mems:
+            orig = m.read_values
+            if mode == "zero":
+                m.read_values = (lambda m: lambda idx, w: torch.zeros(
+                    idx.shape[0], m.v_dim, dtype=m.values.weight.dtype, device=idx.device))(m)
+            elif mode == "random":
+                m.read_values = (lambda m, orig: lambda idx, w: orig(
+                    torch.randint(0, m.size, idx.shape, generator=g).to(idx.device), w))(m, orig)
         total, n = 0.0, 0
         with torch.no_grad():
             for i in range(0, args.windows, 4):
-                mem.record = mode == "normal"
+                for m in mems:
+                    m.record = mode == "normal"
+                cap["mem_out_cur"] = []
                 logits = model(x[i:i + 4])
                 total += F.cross_entropy(logits.float().reshape(-1, logits.size(-1)), y[i:i + 4].reshape(-1), reduction="sum").item()
                 n += y[i:i + 4].numel()
                 if mode == "normal":
-                    cap.setdefault("scores", []).append(mem.last_scores.float().cpu())
-                    # the weights actually used in the forward pass (include a learned score scale, v2b)
-                    cap.setdefault("weights", []).append(mem.last_weights.float().cpu())
-                    cap.setdefault("indices", []).append(mem.last_indices.cpu())
-                    cap.setdefault("mem_out_norm", []).append(cap["mem_out"].float().norm(dim=-1).mean().item())
+                    for li, m in enumerate(mems):
+                        c = cap.setdefault(li, {})
+                        c.setdefault("scores", []).append(m.last_scores.float().cpu())
+                        # the weights actually used in the forward pass (include a learned score scale, v2b)
+                        c.setdefault("weights", []).append(m.last_weights.float().cpu())
+                        c.setdefault("indices", []).append(m.last_indices.cpu())
+                    cap.setdefault("mem_out_norm", []).append(cap["mem_out_cur"])
                     cap.setdefault("resid_norm", []).append(resid["x"].float().norm(dim=-1).mean().item())
-        mem.read_values = orig_read
-        mem.record = False
+        for m in mems:
+            if "read_values" in m.__dict__:
+                del m.read_values                          # back to the class method
+            m.record = False
         return total / n
 
     res = {"run": args.run_dir, "windows": args.windows, "tokens": args.windows * T}
@@ -98,20 +107,32 @@ def main():
         res[f"ppl_{mode}"] = math.exp(loss)
         print(mode, round(loss, 4), round(math.exp(loss), 2), flush=True)
 
-    scores = torch.cat(cap["scores"])                     # (N, heads, knn)
-    idx = torch.cat(cap["indices"])
-    w = torch.cat(cap["weights"])                         # (N, heads, knn), sums to 1 over knn
-    ent = -(w * w.clamp_min(1e-12).log()).sum(-1)          # (N, heads)
-    res["softmax_eff_entries_per_head_mean"] = float(ent.exp().mean())
-    res["softmax_top1_weight_mean"] = float(w.max(-1).values.mean())
-    res["score_spread_top1_minus_topk_mean"] = float((scores[..., 0] - scores[..., -1]).mean())
+    def sharpness(li_list):
+        scores = torch.cat([torch.cat(cap[li]["scores"]) for li in li_list])     # (N*, heads, knn)
+        w = torch.cat([torch.cat(cap[li]["weights"]) for li in li_list])         # sums to 1 over knn
+        ent = -(w * w.clamp_min(1e-12).log()).sum(-1)
+        return {"eff": float(ent.exp().mean()), "top1": float(w.max(-1).values.mean()),
+                "spread": float((scores[..., 0] - scores[..., -1]).mean())}
+
+    allsh = sharpness(range(len(mems)))                    # pooled over all memory layers
+    res["softmax_eff_entries_per_head_mean"] = allsh["eff"]
+    res["softmax_top1_weight_mean"] = allsh["top1"]
+    res["score_spread_top1_minus_topk_mean"] = allsh["spread"]
     res["score_scale_per_head"] = [float(v) for v in mem.score_scale().detach().cpu()]
+    if len(mems) > 1:
+        res["memory_layers"] = cfg.mem_layers
+        res["per_layer"] = [{**sharpness([li]), "score_scale": [float(v) for v in m.score_scale().detach().cpu()]}
+                            for li, m in enumerate(mems)]
+    idx = torch.cat(cap[0]["indices"])
     flat = idx.reshape(idx.shape[0], -1)
     uniq = torch.tensor([row.unique().numel() for row in flat[:4096]], dtype=torch.float)
-    res["unique_entries_per_token_of_128"] = float(uniq.mean())
-    res["mem_out_norm_mean"] = float(np.mean(cap["mem_out_norm"]))
-    res["resid_norm_at_mem_mean"] = float(np.mean(cap["resid_norm"]))
-    ffn = np.array(cap["ffn_out_norm"]).reshape(-1, cfg.n_layers - 1).mean(0)
+    res["unique_entries_per_token_of_128"] = float(uniq.mean())            # first memory layer
+    mo = np.array(cap["mem_out_norm"])                                     # (batches, memory layers)
+    res["mem_out_norm_mean"] = float(mo.mean())
+    if len(mems) > 1:
+        res["mem_out_norm_per_layer"] = [round(float(v), 4) for v in mo.mean(0)]
+    res["resid_norm_at_mem_mean"] = float(np.mean(cap["resid_norm"]))       # input of the first memory layer
+    ffn = np.array(cap["ffn_out_norm"]).reshape(-1, cfg.n_layers - len(mems)).mean(0)
     res["dense_ffn_out_norm_per_layer"] = [round(float(v), 4) for v in ffn]
 
     vals = mem.values.weight.detach().float().cpu()

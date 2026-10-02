@@ -19,12 +19,13 @@ OUT = os.path.join(ROOT, "report")
 
 # validated categorical slots 1-3 (dataviz reference palette, light mode); seeds differ by line style
 # slots 4/5 (yellow, magenta) pass the adjacent-pair checks of the reference palette for line charts
-COLOR = {"A": "#2a78d6", "B": "#eb6834", "C": "#1baf7a", "B-v2a": "#eda100", "B-v2b": "#e87ba4"}
+COLOR = {"A": "#2a78d6", "B": "#eb6834", "C": "#1baf7a", "B-v2a": "#eda100", "B-v2b": "#e87ba4",
+         "B-1M": "#eb6834"}   # B-1M never appears together with B
 STYLE = {0: "-", 1: "--"}
 INK, INK2, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 LABEL = {"A": "A Baseline", "B": "B Speicher", "C": "C groß dicht",
-         "B-v2a": "B-v2a ohne WD Keys", "B-v2b": "B-v2b + Temperatur"}
-MEMORY_MODELS = ["B", "B-v2a", "B-v2b"]
+         "B-v2a": "B-v2a ohne WD Keys", "B-v2b": "B-v2b + Temperatur", "B-1M": "B-1M (3 Schichten, 1M)"}
+MEMORY_MODELS = ["B", "B-v2a", "B-v2b", "B-1M"]
 # phases that are compared against the runs of another phase (same budget and schedule)
 COMPARE_WITH = {"v2": ["ep1"], "v2b_ep3": ["ep3"]}
 FULLVAL_DIAG = "diagnostics_fullval.json"     # scripts/diagnose_memory.py --windows 241 --out ...
@@ -306,12 +307,37 @@ def tables(phase, runs):
         if single_seed:
             lines.append("\n_Nur ein Seed je Modell: das Seed-Rauschen ist hier nicht messbar, das Urteil ist nur vorläufig._")
     lines += paired_vs_b(runs)
+    lines += stage1b_quicktest(runs)
     path = os.path.join(OUT, f"{phase}_tables.md")
     with open(path, "w") as f:
         f.write("\n".join(lines) + "\n")
     with open(os.path.join(OUT, f"{phase}_summary.json"), "w") as f:
         json.dump(summary, f, indent=2, default=float)
     return path
+
+
+def stage1b_quicktest(runs):
+    """Criterion fixed before the run (REPORT.md, stage 1b): PPL(B-1M) <= 0.90 x PPL(A) on the held-out
+    Wikipedia validation set at the end of training; WikiText-103 validation only reported."""
+    by = {r["model"]: r for r in runs if r["seed"] == 0}
+    if "A" not in by or "B-1M" not in by:
+        return []
+    a, b = by["A"]["info"]["results"], by["B-1M"]["info"]["results"]
+    ratio = b["val_ppl"] / a["val_ppl"]
+    out = ["", "### Schnelltest Stufe 1b: A gegen B-1M (500 M frische Wikipedia-Tokens, je Seed 0)", "",
+           "| | Val-PPL Wikipedia | Val-PPL WikiText-103 | Train tok/s | VRAM Train (GiB) | Trainzeit |",
+           "|---|---|---|---|---|---|"]
+    for name in ("A", "B-1M"):
+        r = by[name]
+        res = r["info"]["results"]
+        out.append(f"| {name} | {res['val_ppl']:.2f} | {res.get('val2_ppl', float('nan')):.2f} | "
+                   f"{res['train_tok_s_median']:,.0f} | {res['peak_train_vram_gib']:.2f} | "
+                   f"{r['info']['train_time_s'] / 60:.0f} min |")
+    out += ["", "| Kriterium | Wert |", "|---|---|",
+            f"| PPL(B-1M) / PPL(A), Wikipedia-Val | {ratio:.4f} ({100 * (ratio - 1):+.2f} %) |",
+            f"| WikiText-103-Val (nur berichtet) | {100 * (b.get('val2_ppl', 0) / a.get('val2_ppl', 1) - 1):+.2f} % |",
+            f"| **≥ 10 % niedriger (Verhältnis ≤ 0,90)** | **{'ja → großer Test' if ratio <= 0.90 else 'nein → kein großer Test'}** |"]
+    return out
 
 
 def paired_vs_b(runs):
