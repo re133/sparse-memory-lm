@@ -391,3 +391,41 @@ weniger (20 % der Einträge → 53 % der Zugriffe).
   Softmax-Gewichte je Eintrag auf dem Val-Set) und `mem_index_sample.npz` (Index-Stichprobe für Stufe 3):
   nur auf der Platte (`.gitignore`, zu groß für Git).
 - Grafiken und Tabellen: `report/`, erzeugt mit `scripts/make_report.py probe ep1 ep3`.
+
+## Stufe 1b: Schnelltest B-1M (Kriterium vor dem Lauf festgelegt, 2026-10-02)
+
+> Status: **geplant, wartet auf Freigabe.** Noch kein Lauf gestartet.
+
+**Frage:** Bringt eine größere Speicherkonfiguration auf frischen (nicht wiederholten) Daten einen
+deutlichen Vorteil? Erst wenn ja, folgt ein großer Test.
+
+**Aufbau (je 1 Seed, Init-Seed 0, gleicher Daten-Seed):**
+
+| | A | B-1M |
+|---|---|---|
+| Rechenkern | wie Stufe 1 (d = 384, 12 Layer) | wie A |
+| Speicher | – | 3 Speicherschichten statt der FFNs in Layer 3, 7, 11 (Index 2, 6, 10; zentriert, Abstand 4 wie Meta „Memory+“) |
+| Tabelle | – | **eine geteilte** Wertetabelle mit 1024² = 1.048.576 Einträgen × 384 (402,7 M Parameter); Keys, Query-Netz, BatchNorm und swilu je Schicht eigen |
+| Suche | – | je Schicht 4 Köpfe, Top-32, Key-Dim 256 |
+| Werte-LR | – | **4 × Basis-LR** = 2,4e-3 (Lample-Verhältnis), gleicher Verlauf, kein Weight Decay |
+| Rest | Optimierung wie Stufe 1 (AdamW, LR 6e-4, Warmup 5 %, Cosine auf 10 %, 32.768 Tokens/Schritt) | wie A |
+| Daten | **500 M frische Tokens**, jede Sequenz genau einmal (15.258 Schritte) | gleicher Token-Strom |
+
+Parameter: A 40,6 M (21,2 M ohne Embeddings); B-1M 444,9 M (425,6 M ohne Embeddings, davon 402,7 M
+Tabelle), aktiv pro Token 23,1 M. MACs/Token: A 45,3 M, B-1M 47,1 M (+4 %, weil die Sub-Key-Suche über
+1024 statt 512 Keys pro Hälfte läuft).
+
+**Daten:** englische Wikipedia (`wikimedia/wikipedia`, Dump 20231101.en, GPT-2-BPE). Artikel werden per
+festem Seed gemischt; alle Artikel, deren Titel im WikiText-103-Validierungs- oder -Testset vorkommen,
+werden ausgeschlossen. Ein disjunkter Satz Wikipedia-Artikel (≈ 1 M Tokens) dient als Validierungsset.
+
+**Kriterium (Vorgabe):** B-1M hat **mindestens 10 % niedrigere Val-PPL als A**, sonst kein großer Test.
+Operationalisierung: Token-Perplexity am Ende des Trainings auf dem zurückgehaltenen
+Wikipedia-Validierungsset (gleiche Aufbereitung wie das Training), Eval-Modus;
+**erfüllt, wenn PPL(B-1M) ≤ 0,90 × PPL(A).** Das Seed-Rauschen lag in Stufe 1 bei ≈ 1–1,4 % der PPL und
+damit weit unter der 10-%-Schwelle; ein Seed je Modell reicht für diese Entscheidung.
+
+Zusätzlich berichtet, aber nicht entscheidend: WikiText-103-Val-PPL (anderes Textformat, daher nur
+A↔B-1M vergleichbar, nicht mit Stufe 1), Tabellengesundheit (Nutzung, Konzentration, KL), Schärfe der
+Softmax, Durchsatz, VRAM. Ist die Tabelle ungesund (< 60 % Nutzung), wird das als möglicher Grund
+genannt; die Entscheidungsregel bleibt trotzdem wie vorgegeben.
