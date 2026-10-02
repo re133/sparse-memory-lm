@@ -445,7 +445,7 @@ genannt; die Entscheidungsregel bleibt trotzdem wie vorgegeben.
 
 | | Val-PPL Wikipedia (entscheidend) | Val-PPL WikiText-103 (nur berichtet) | Train tok/s | VRAM Train | Trainzeit | Decode b=1 tok/s | Prefill tok/s |
 |---|---|---|---|---|---|---|---|
-| A | 25,67 | 78,38 | 91.563 | 7,89 GiB | 91 min | 219 | 388.162 |
+| A | 25,67 | 78,38 | 91.563 | 7,89 GiB | 91 min | 220 | 385.525 |
 | B-1M | **21,80** | 66,28 | 33.383 | 11,70 GiB | 249 min | 175 | 150.398 |
 | B-1M / A | **0,849 (−15,1 %)** | 0,846 (−15,4 %) | 0,36 | | 2,7× | 0,80 | 0,39 |
 
