@@ -181,3 +181,19 @@ def test_memory_stats_use_the_scaled_weights():
         assert 1.0 <= res[scale]["eff_entries_per_head"] <= mem.knn
     assert res[8.0]["eff_entries_per_head"] < res[1.0]["eff_entries_per_head"]
     assert res[8.0]["top1_weight"] > res[1.0]["top1_weight"]
+
+
+def test_same_seed_gives_identical_initial_weights_across_variants():
+    """B, B-v2a and B-v2b start from identical weights for the same init seed (paired comparison)."""
+    def init(name):
+        torch.manual_seed(0)
+        cfg = ModelConfig(vocab_size=128, d_model=32, n_layers=3, n_heads=4, ffn_hidden=64, max_seq_len=64,
+                          mem_n_keys=16, mem_heads=2, mem_knn=4, mem_k_dim=16,
+                          **{**MODELS[name], "mem_layers": [1]})
+        return Transformer(cfg).state_dict()
+    ref = init("B")
+    for name in ("B-v2a", "B-v2b"):
+        sd = init(name)
+        assert set(sd) - set(ref) == ({"layers.1.ffn.log_score_scale"} if name == "B-v2b" else set())
+        for k in ref:
+            assert torch.equal(ref[k], sd[k]), (name, k)

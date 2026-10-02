@@ -26,7 +26,7 @@ Zwei mögliche Bremsen:
 - Die Skala wirkt **nur auf die Gewichtung**, nie auf die Auswahl der Top-k (s_h > 0 erhält die
   Reihenfolge; per Test geprüft). Startwert `--mem_score_scale_init` (Default 1,0 = exakt v1).
 - `log_score_scale` liegt in der No-Decay-Gruppe mit der Basis-LR; die Sub-Keys bei v2a/v2b ebenfalls.
-- Die Initialisierung verbraucht in v2a/v2b keine zusätzlichen Zufallszahlen. **B-s0, B-v2a-s0 und
+- Die Initialisierung verbraucht in v2a/v2b keine zusätzlichen Zufallszahlen (per Test geprüft). **B-s0, B-v2a-s0 und
   B-v2b-s0 starten also mit identischen Gewichten** (gleiches für s1) und sehen denselben Token-Strom.
   Paarweise Vergleiche sind damit sauberer als der Vergleich über Seeds (Rest-Rauschen nur durch
   nicht-deterministische GPU-Kernels).
@@ -44,7 +44,7 @@ Startwert (`--mem_score_scale_init 4`) oder eine eigene LR für die Skala zu pr�
 
 ```bash
 cd ../AngryAnt-v2-sharpness          # dieser Worktree; data/ und .venv/ sind Symlinks auf ../AngryAnt
-.venv/bin/python -m pytest -q tests  # 35 Tests inkl. GPU-Fälle (25 ohne GPU)
+.venv/bin/python -m pytest -q tests  # 36 Tests inkl. GPU-Fälle (26 ohne GPU)
 .venv/bin/python scripts/run_suite.py v2          # B-v2a/B-v2b × Seeds 0/1, 1 Epoche, ≈ 4 × 28 min
 .venv/bin/python scripts/make_report.py v2        # vergleicht mit runs/ep1/{A,B,C}-* (gleiches Budget)
 ```
