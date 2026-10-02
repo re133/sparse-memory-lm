@@ -144,6 +144,11 @@ n² Keys (Scores und Index-Mengen exakt); Gradient der Wertetabelle ist genau au
 | Key-Nutzung (min.) / Top-1 %-Anteil (max.) | 99,2 % / 18,4 % → **Tabelle gesund** |
 | **Urteil** | **lohnt sich nicht** (B auf A-Niveau, trotz gesunder Tabelle) |
 
+Hinweis zur Einstufung: Die Schwelle 2·s und die Zuordnung „B besser, aber innerhalb 2·s → auf
+A-Niveau“ sind **meine** Operationalisierung der Vorgabe. Nach dem Wortlaut („B besser als A, aber
+knapp“) wäre auch **„unklar“** vertretbar, denn B ist in allen vier Paarungen besser. Die bei „unklar“
+verlangten Prüfungen (Implementierung, Tabellengesundheit) sind unten trotzdem gemacht.
+
 ![Val-PPL 1 Epoche](report/ep1_val_ppl.png)
 
 ![Abstand zu A, 1 Epoche](report/ep1_relative_to_A.png)
@@ -209,6 +214,15 @@ Token müssten auch mit einem Hot-Set-Cache noch zufällig von der SSD kommen.
 
 Bei 1 Epoche gibt es erwartungsgemäß kein Auswendiglernen (jedes Fenster wird genau einmal gesehen);
 dass Train über Val liegt, ist der nachlaufende Intervall-Mittelwert, s. Grenzen.
+
+**Inferenz-VRAM** (fp32-Gewichte unter bf16-Autocast, Spitze `max_memory_allocated`; gilt auch für 3 Epochen):
+Batch-1-Decoding A 1,16 GiB, B 1,54 GiB, C 1,46 GiB; Prefill 16 × 1024 A 2,75 GiB, B 3,13 GiB, C 3,11 GiB.
+Die Wertetabelle von B belegt allein 0,38 GiB (fp32), in bf16 wären es 0,19 GiB.
+
+**Herkunft:** A-s0 lief auf `a27c99d`, alle anderen 1-Epochen-Läufe auf `221480c`. Zwischen diesen
+Commits hat sich nur der Bericht geändert, nicht `smlm/` oder `scripts/run_suite.py`. B-s1 ist als
+`dirty` markiert, allein wegen des damals noch nicht versionierten Analyse-Skripts
+`scripts/diagnose_memory.py`, das beim Training nicht verwendet wird.
 
 ### 3 Epochen: 354 M Tokens, eigener Cosine-Plan (A, B je 2 Seeds; C 1 Seed)
 
@@ -290,6 +304,10 @@ Caching. Die Rangfolge „heißer“ Einträge ist zwischen Training und Val abe
 
 ![Zugriffsverteilung 3 Epochen](report/ep3_access_distribution.png)
 
+**Herkunft:** A-s0 lief auf `221480c` (als `dirty` markiert, nur wegen des unversionierten
+`scripts/diagnose_memory.py`), alle anderen 3-Epochen-Läufe auf `1a43e0d`. Trainingscode identisch zu
+allen 1-Epochen-Läufen (`git diff a27c99d 1a43e0d -- smlm/ scripts/run_suite.py` ist leer).
+
 ## Einordnung
 
 **Antwort auf die Frage dieser Stufe.** Eine Product-Key-Speicherschicht verbessert das kleine Modell bei
@@ -324,7 +342,10 @@ belegt):
 **Kosten.** Gleiche FLOPs, aber B trainiert 21 % langsamer, ist im Prefill 31 % und im Batch-1-Decoding
 ≈ 6 % langsamer und braucht 1,6 GiB mehr VRAM. Das liegt an den unregelmäßigen Speicherzugriffen
 (Gather/Scatter, Adam über 100 M Werte), nicht an Rechenarbeit, und ist genau der Teil, um den es in
-den späteren Stufen geht.
+den späteren Stufen geht. **Wichtige Einschränkung:** Verglichen wurde bei gleicher Token-Zahl und
+gleichen FLOPs, nicht bei gleicher Rechenzeit. In derselben Wall-Clock-Zeit hätte A auf dieser Hardware
+≈ 27 % mehr Tokens gesehen. Ob B dann noch vorne läge, wurde nicht gemessen; beim Wachstum von A
+zwischen 1 und 3 Epochen ist das nicht selbstverständlich.
 
 **Für das Gesamtprojekt.** Stufe 1 widerlegt den Ansatz nicht, liefert aber noch keinen Grund, ihn zu
 skalieren. Vor Stufe 2 würde ich die vorbereiteten v2-Varianten laufen lassen (≈ 2 h). Bringen sie die
