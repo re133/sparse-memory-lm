@@ -535,7 +535,7 @@ Zeile wird exakt getroffen. Ternär wie BitNet b1.58: Skala = mittlerer Betrag d
 
 ## Stufe 1c („Hampter“): sparsamer Optimizer, zweiter Seed, gleiche Rechenzeit (Kriterien vor dem Start festgelegt, 2026-10-03)
 
-> Status: **Kriterien und Ablauf festgelegt, bevor einer der Läufe gestartet wurde.** Der Zwischenstand
+> Status: **Kriterien und Ablauf festgelegt in Commit `07f131b`, bevor einer der Läufe gestartet wurde.** Der Zwischenstand
 > unten wird nach jedem Lauf automatisch erneuert; das Gesamturteil folgt am Ende von Hand.
 
 **Fragen:** (1) Liefert ein Optimizer, der nur die gelesenen Tabellenzeilen anfasst, dasselbe Ergebnis wie
