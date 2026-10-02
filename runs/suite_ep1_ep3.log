@@ -9,3 +9,12 @@
 22:13:14 start /mnt/sandisk/Sparse-Memory-LM/AngryAnt/.venv/bin/python -m smlm.train --model B --seed 1 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep1/B-s1 --epochs 1 --eval_every_tokens 4e6
 22:41:14 end ep1/B-s1 rc=0
 22:41:14 start /mnt/sandisk/Sparse-Memory-LM/AngryAnt/.venv/bin/python -m smlm.train --model A --seed 0 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep3/A-s0 --epochs 3 --eval_every_tokens 8e6
+23:46:27 end ep3/A-s0 rc=0
+23:46:27 start /mnt/sandisk/Sparse-Memory-LM/AngryAnt/.venv/bin/python -m smlm.train --model B --seed 0 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep3/B-s0 --epochs 3 --eval_every_tokens 8e6
+01:09:29 end ep3/B-s0 rc=0
+01:09:29 start /mnt/sandisk/Sparse-Memory-LM/AngryAnt/.venv/bin/python -m smlm.train --model C --seed 0 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep3/C-s0 --epochs 3 --eval_every_tokens 8e6
+04:01:51 end ep3/C-s0 rc=0
+04:01:51 start /mnt/sandisk/Sparse-Memory-LM/AngryAnt/.venv/bin/python -m smlm.train --model A --seed 1 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep3/A-s1 --epochs 3 --eval_every_tokens 8e6
+05:07:12 end ep3/A-s1 rc=0
+05:07:12 start /mnt/sandisk/Sparse-Memory-LM/AngryAnt/.venv/bin/python -m smlm.train --model B --seed 1 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep3/B-s1 --epochs 3 --eval_every_tokens 8e6
+06:30:33 end ep3/B-s1 rc=0

@@ -1,13 +1,11 @@
 {
   "status": "done",
-  "model_name": "A",
-  "started": "2026-10-01T22:41:16",
+  "model_name": "C",
+  "started": "2026-10-02T01:09:32",
   "git": {
-    "commit": "221480c973b415066bdee002a6a428f521e48dcf",
-    "dirty": true,
-    "dirty_files": [
-      "?? scripts/diagnose_memory.py"
-    ]
+    "commit": "1a43e0dcd860aebfe012f2f05a97fdb7b00e34c0",
+    "dirty": false,
+    "dirty_files": []
   },
   "hardware": {
     "gpu": "AMD Radeon RX 9070",
@@ -20,8 +18,8 @@
     "cpu": "AMD Ryzen 9 5900XT 16-Core Processor",
     "ram_gib": 125.7,
     "gpu_state_at_start": [
-      "GPU[0]\t\t: GPU use (%): 3",
-      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 5"
+      "GPU[0]\t\t: GPU use (%): 14",
+      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 8"
     ]
   },
   "seeds": {
@@ -29,15 +27,15 @@
     "data_seed": 1234
   },
   "train_config": {
-    "model": "A",
-    "out_dir": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep3/A-s0",
+    "model": "C",
+    "out_dir": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/ep3/C-s0",
     "tokens": null,
     "epochs": 3.0,
     "seed": 0,
     "data_seed": 1234,
     "seq_len": 1024,
     "batch_seqs": 32,
-    "micro_bs": 8,
+    "micro_bs": 4,
     "lr": 0.0006,
     "value_lr": 0.001,
     "weight_decay": 0.1,
@@ -51,7 +49,7 @@
     "total_steps": 10800,
     "warmup_steps": 540,
     "tokens_per_step": 32768,
-    "grad_accum": 4,
+    "grad_accum": 8,
     "total_tokens": 353894400,
     "eval_every_steps": 244,
     "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip",
@@ -60,10 +58,10 @@
   },
   "model_config": {
     "vocab_size": 50304,
-    "d_model": 384,
-    "n_layers": 12,
-    "n_heads": 6,
-    "ffn_hidden": 1024,
+    "d_model": 768,
+    "n_layers": 16,
+    "n_heads": 12,
+    "ffn_hidden": 2304,
     "max_seq_len": 1024,
     "rope_theta": 10000.0,
     "norm_eps": 1e-05,
@@ -79,21 +77,21 @@
     "mem_value_impl": "embedding_bag"
   },
   "params": {
-    "total": 40560000,
-    "embedding": 19316736,
-    "non_embedding": 21243264,
+    "total": 161342208,
+    "embedding": 38633472,
+    "non_embedding": 122708736,
     "memory_values": 0,
-    "dense_body": 21243264,
-    "active_non_embedding_per_token": 21243264,
+    "dense_body": 122708736,
+    "active_non_embedding_per_token": 122708736,
     "bn_running_stats": 0
   },
   "macs_per_token": {
-    "attn_proj": 7077888,
-    "attn_scores": 4718592.0,
-    "ffn": 14155776,
+    "attn_proj": 37748736,
+    "attn_scores": 12582912.0,
+    "ffn": 84934656,
     "memory": 0,
-    "lm_head": 19316736,
-    "total": 45268992.0
+    "lm_head": 38633472,
+    "total": 173899776.0
   },
   "data": {
     "dataset": "WikiText-103 raw (Salesforce/wikitext)",
@@ -117,23 +115,23 @@
       }
     }
   },
-  "finished": "2026-10-01T23:46:27",
-  "duration_s": 3912.1,
-  "train_time_s": 3861.2,
+  "finished": "2026-10-02T04:01:51",
+  "duration_s": 10340.2,
+  "train_time_s": 10226.2,
   "results": {
-    "val_loss": 3.2112558742119486,
-    "val_ppl": 24.81022518919137,
-    "val_word_ppl": 38.49379506506108,
-    "test_loss": 3.2185425339611355,
-    "test_ppl": 24.99166911570448,
-    "test_word_ppl": 41.04685168470026,
-    "train_tok_s_mean": 91660.31593556183,
-    "train_tok_s_median": 91659.08696111919,
-    "peak_train_vram_gib": 7.892161846160889,
-    "weights_gib_fp32": 0.15109777450561523,
-    "decode_b1_tok_s": 219.4598355510132,
-    "decode_peak_vram_gib": 1.1627626419067383,
-    "prefill_tok_s": 383219.8273032738,
-    "prefill_peak_vram_gib": 2.7463808059692383
+    "val_loss": 2.9523760350656256,
+    "val_ppl": 19.15140411873026,
+    "val_word_ppl": 28.68020562923407,
+    "test_loss": 2.9708835424979205,
+    "test_ppl": 19.509149145759114,
+    "test_word_ppl": 30.84195545248157,
+    "train_tok_s_mean": 34607.52685747604,
+    "train_tok_s_median": 34607.400019494125,
+    "peak_train_vram_gib": 7.9125075340271,
+    "weights_gib_fp32": 0.6010465621948242,
+    "decode_b1_tok_s": 164.10083957106653,
+    "decode_peak_vram_gib": 1.4626259803771973,
+    "prefill_tok_s": 131351.9709469579,
+    "prefill_peak_vram_gib": 3.1080422401428223
   }
 }

@@ -1,0 +1,52 @@
+{
+  "B-s0": {
+    "reads_share_train": {
+      "top1%": 12.1,
+      "top10%": 43.2,
+      "top20%": 59.1,
+      "top50%": 84.3
+    },
+    "reads_share_val": {
+      "top1%": 11.0,
+      "top10%": 40.2,
+      "top20%": 56.3,
+      "top50%": 83.1
+    },
+    "val_reads_served_by_train_hot_set": {
+      "train_top10%": 37.9,
+      "train_top20%": 53.6
+    },
+    "spearman_train_vs_val_counts": 0.895,
+    "val_entries_never_read_pct": 0.03,
+    "window_cache_hit_rate_pct_first16k_val_tokens": {
+      "w=1": 0.9,
+      "w=16": 9.4,
+      "w=256": 44.8
+    }
+  },
+  "B-s1": {
+    "reads_share_train": {
+      "top1%": 11.2,
+      "top10%": 40.6,
+      "top20%": 56.6,
+      "top50%": 82.9
+    },
+    "reads_share_val": {
+      "top1%": 11.0,
+      "top10%": 38.6,
+      "top20%": 54.5,
+      "top50%": 82.0
+    },
+    "val_reads_served_by_train_hot_set": {
+      "train_top10%": 36.4,
+      "train_top20%": 52.0
+    },
+    "spearman_train_vs_val_counts": 0.899,
+    "val_entries_never_read_pct": 0.01,
+    "window_cache_hit_rate_pct_first16k_val_tokens": {
+      "w=1": 0.7,
+      "w=16": 8.9,
+      "w=256": 42.8
+    }
+  }
+}
