@@ -150,6 +150,35 @@ class Transformer(nn.Module):
     def memory_layers(self):
         return [b.ffn for b in self.layers if b.is_memory]
 
+    def set_memory_decode_graphs(self, enabled=True):
+        """Single-token no-grad forwards of the memory layers replay a captured CUDA/HIP graph
+        (ProductKeyMemory._graph_forward): same kernels, no per-op launch overhead."""
+        for m in self.memory_layers():
+            m.decode_graph = enabled
+            m._graph = None
+
+    @torch.no_grad()
+    def set_memory_inference_table(self, kind="fp32"):
+        """Inference copy of the value table(s) for mem_impl="triton" (kernel 4): "fp32" (the weights
+        themselves), "bf16" or "q4" (4 bit, one fp16 scale per row, see smlm/kernels.py). Only used in no-grad
+        forwards under bf16 autocast; call again (or with "fp32") after the weights change."""
+        from .kernels import quantize_q4
+        seen = set()
+        for m in self.memory_layers():
+            m._graph = None                                 # captured decode graphs point at the old table
+            v = m.values
+            if id(v) in seen:
+                continue
+            seen.add(id(v))
+            if kind == "fp32":
+                v.infer_table = None
+            elif kind == "bf16":
+                v.infer_table = (v.weight.detach().to(torch.bfloat16), None)
+            elif kind == "q4":
+                v.infer_table = quantize_q4(v.weight.detach())
+            else:
+                raise ValueError(kind)
+
     def forward(self, idx, targets=None, kv_caches=None, pos0=0):
         x = self.tok_emb(idx)
         for i, blk in enumerate(self.layers):

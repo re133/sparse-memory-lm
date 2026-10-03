@@ -262,3 +262,110 @@ class PKSelect(torch.autograd.Function):
         ds1 = z.scatter_add(-1, idx // ctx.nk, ds).to(ctx.dtype)
         ds2 = z.scatter_add_(-1, idx % ctx.nk, ds).to(ctx.dtype)
         return ds1, ds2, None
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Kernel 4: inference lookups on a bf16 or 4-bit copy of the value table, with the swilu product fused in
+#
+# 4 bit: the "int4" scheme of scripts/quantize_table_eval.py (measured +0.12 % val PPL for B-1M): per row
+# d = (value with the largest |w|) / -8 as fp16, codes c = clamp(round(w / d), -8, 7), w ~ c * d. Packed two
+# codes per byte: byte i of a row holds column i (low nibble) and column i + D/2 (high nibble), stored as
+# c + 8. The bag dequantises c * d in fp32, i.e. exactly the table that quantize_table_eval evaluated.
+# Optional epilogue (inference): out = bag * bf16(silu(pre)), as `out * F.silu(swilu_proj(x)).to(out.dtype)`
+# with `pre` = swilu_proj(x) in bf16; optionally the result is rounded to bf16 (the cast autocast would do
+# before value_proj).
+# ---------------------------------------------------------------------------------------------------------
+def quantize_q4(table, chunk=1 << 18):
+    """table (rows, D) -> packed (rows, D/2) uint8, scales (rows,) fp16 (see above)."""
+    rows, D = table.shape
+    assert D % 2 == 0
+    packed = torch.empty(rows, D // 2, dtype=torch.uint8, device=table.device)
+    scales = torch.empty(rows, dtype=torch.float16, device=table.device)
+    for a in range(0, rows, chunk):
+        w = table[a:a + chunk].float()
+        m = w.gather(1, w.abs().argmax(dim=1, keepdim=True))
+        d = (m / -8).half()
+        d = torch.where(d == 0, torch.ones_like(d), d)
+        c = (torch.clamp(torch.round(w / d.float()), -8, 7) + 8).to(torch.uint8)
+        packed[a:a + chunk] = c[:, :D // 2] | (c[:, D // 2:] << 4)
+        scales[a:a + chunk] = d.squeeze(1)
+    return packed, scales
+
+
+def dequantize_q4(packed, scales):
+    lo = (packed & 15).float() - 8
+    hi = (packed >> 4).float() - 8
+    return torch.cat([lo, hi], dim=1) * scales.float()[:, None]
+
+
+if HAVE_TRITON:
+    @triton.jit
+    def _silu_bf16(p):
+        s = p / (1.0 + tl.exp(-p))
+        return (_bf16_bits_rtne(s) << 16).to(tl.float32, bitcast=True)
+
+    @triton.jit
+    def _round_bf16(x):
+        return (_bf16_bits_rtne(x) << 16).to(tl.float32, bitcast=True)
+
+    @triton.jit
+    def _bag_infer_kernel(idx_ptr, w_ptr, table_ptr, scale_ptr, pre_ptr, out_ptr, K: tl.constexpr,
+                          D: tl.constexpr, BLOCK_J: tl.constexpr, BLOCK_D: tl.constexpr, Q4: tl.constexpr,
+                          SWILU: tl.constexpr, OUT_BF16: tl.constexpr):
+        n = tl.program_id(0).to(tl.int64)
+        if Q4:
+            DH: tl.constexpr = D // 2
+            d = tl.program_id(1) * BLOCK_D + tl.arange(0, BLOCK_D)          # byte column (< D/2)
+            dm = d < DH
+            acc_lo = tl.zeros([BLOCK_D], dtype=tl.float32)
+            acc_hi = tl.zeros([BLOCK_D], dtype=tl.float32)
+            for j0 in range(0, K, BLOCK_J):
+                j = j0 + tl.arange(0, BLOCK_J)
+                r = tl.load(idx_ptr + n * K + j).to(tl.int64)
+                ws = tl.load(w_ptr + n * K + j).to(tl.float32) * tl.load(scale_ptr + r).to(tl.float32)
+                byte = tl.load(table_ptr + r[:, None] * DH + d[None, :], mask=dm[None, :], other=0).to(tl.int32)
+                lo = ((byte & 15) - 8).to(tl.float32)
+                hi = ((byte >> 4) - 8).to(tl.float32)
+                acc_lo += tl.sum(ws[:, None] * lo, axis=0)
+                acc_hi += tl.sum(ws[:, None] * hi, axis=0)
+            cols = (d, d + DH)
+            accs = (acc_lo, acc_hi)
+        else:
+            d = tl.program_id(1) * BLOCK_D + tl.arange(0, BLOCK_D)
+            dm = d < D
+            acc = tl.zeros([BLOCK_D], dtype=tl.float32)
+            for j0 in range(0, K, BLOCK_J):
+                j = j0 + tl.arange(0, BLOCK_J)
+                r = tl.load(idx_ptr + n * K + j).to(tl.int64)
+                w = tl.load(w_ptr + n * K + j).to(tl.float32)
+                v = tl.load(table_ptr + r[:, None] * D + d[None, :], mask=dm[None, :], other=0.0).to(tl.float32)
+                acc += tl.sum(w[:, None] * v, axis=0)
+            cols = (d,)
+            accs = (acc,)
+        for i in tl.static_range(len(cols)):
+            c = cols[i]
+            a = accs[i]
+            if SWILU:
+                p = tl.load(pre_ptr + n * D + c, mask=dm, other=0.0).to(tl.float32)
+                a = a * _silu_bf16(p)
+            if OUT_BF16:
+                tl.store(out_ptr + n * D + c, _round_bf16(a).to(tl.bfloat16), mask=dm)
+            else:
+                tl.store(out_ptr + n * D + c, a, mask=dm)
+
+
+def bag_infer(indices, weights, table, scales=None, pre=None, out_bf16=False, block_j=64, block_d=None):
+    """Inference value bag. table: fp32 / bf16 (scales None) or q4-packed uint8 (rows, D/2) with fp16 scales.
+    pre: optional (N, D) swilu pre-activation (bf16) -> out = bag * bf16(silu(pre)). Returns (N, D) fp32 or bf16."""
+    N, K = indices.shape
+    q4 = scales is not None
+    D = table.shape[1] * (2 if q4 else 1)
+    out = torch.empty(N, D, dtype=torch.bfloat16 if out_bf16 else torch.float32, device=table.device)
+    bj = min(block_j, K)
+    block_d = block_d or (64 if q4 else 128)
+    width = D // 2 if q4 else D
+    grid = (N, triton.cdiv(width, block_d))
+    _bag_infer_kernel[grid](indices.contiguous(), weights.contiguous(), table, scales if q4 else table,
+                            pre.contiguous() if pre is not None else out, out, K=K, D=D, BLOCK_J=bj,
+                            BLOCK_D=block_d, Q4=q4, SWILU=pre is not None, OUT_BF16=out_bf16, num_warps=4)
+    return out

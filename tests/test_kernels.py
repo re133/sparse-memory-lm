@@ -171,3 +171,68 @@ def test_bag_forward_matches_embedding_bag(rows, D, N, dtype):
     w = torch.softmax(torch.randn(N, 128, generator=gen), -1).to(DEVICE)
     ref = torch.nn.functional.embedding_bag(idx, table.float(), per_sample_weights=w, mode="sum")
     close(bag_forward(idx, w, table), ref, "bag forward")
+
+
+# ----------------------------------------------------------------------- kernel 4 / decode graphs
+@pytest.mark.parametrize("rows,D,N", SIZES)
+@pytest.mark.parametrize("kind", ["fp32", "bf16", "q4"])
+def test_bag_infer_matches_reference(rows, D, N, kind):
+    """Inference bag on fp32 / bf16 / 4-bit tables with the swilu product fused, against embedding_bag on the
+    same (dequantised) table times bf16(silu(pre)); the bf16 output against the reference's bf16 cast."""
+    from smlm.kernels import bag_infer, dequantize_q4, quantize_q4
+    gen = torch.Generator().manual_seed(5)
+    table = (torch.randn(rows, D, generator=gen) * D ** -0.5).to(DEVICE)
+    idx = skewed_indices(rows, N, 128, gen).to(DEVICE)
+    w = torch.softmax(torch.randn(N, 128, generator=gen), -1).to(DEVICE)
+    pre = torch.randn(N, D, generator=gen).to(DEVICE, torch.bfloat16)
+    if kind == "fp32":
+        t, sc, ref_t = table, None, table
+    elif kind == "bf16":
+        t, sc = table.to(torch.bfloat16), None
+        ref_t = t.float()
+    else:
+        t, sc = quantize_q4(table)
+        ref_t = dequantize_q4(t, sc)
+    ref = torch.nn.functional.embedding_bag(idx, ref_t, per_sample_weights=w, mode="sum")
+    close(bag_infer(idx, w, t, sc), ref, "bag")
+    ref2 = ref * torch.nn.functional.silu(pre).float()
+    close(bag_infer(idx, w, t, sc, pre=pre), ref2, "bag * silu")
+    out = bag_infer(idx, w, t, sc, pre=pre, out_bf16=True)
+    assert out.dtype == torch.bfloat16
+    scale = float(ref2.abs().max())                        # bf16 output: within 1 bf16 ulp of the reference
+    torch.testing.assert_close(out.float(), ref2.to(torch.bfloat16).float(), rtol=2 ** -7, atol=2 ** -8 * scale)
+
+
+def test_q4_equals_quantisation_study():
+    """The packed 4-bit table dequantises exactly to the int4 scheme of scripts/quantize_table_eval.py."""
+    import importlib.util
+    from smlm.kernels import dequantize_q4, quantize_q4
+    spec = importlib.util.spec_from_file_location(
+        "qte", os.path.join(os.path.dirname(os.path.dirname(__file__)), "scripts", "quantize_table_eval.py"))
+    qte = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(qte)
+    table = torch.randn(1000, 64, generator=torch.Generator().manual_seed(0)).to(DEVICE)
+    assert torch.equal(dequantize_q4(*quantize_q4(table)), qte.quantize(table, "int4"))
+
+
+@pytest.mark.skipif(DEVICE != "cuda", reason="graphs need a GPU")
+@pytest.mark.parametrize("kind", ["fp32", "bf16", "q4"])
+def test_decode_graph_bit_identical(kind):
+    """Decoding with captured memory-layer graphs gives bit-identical logits to the eager kernel path."""
+    ker = tiny("triton").eval()
+    ker.set_memory_inference_table(kind)
+    x = torch.randint(0, 128, (1, 8), generator=torch.Generator().manual_seed(2)).to(DEVICE)
+
+    def decode():
+        caches = [dict() for _ in range(ker.cfg.n_layers)]
+        outs = [ker(x[:, :4], kv_caches=caches, pos0=0).float()]
+        for i in range(4, 8):
+            outs.append(ker(x[:, i:i + 1], kv_caches=caches, pos0=i).float())
+        return torch.cat(outs, 1)
+    with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
+        eager = decode()
+        ker.set_memory_decode_graphs(True)
+        graph = decode()
+        graph2 = decode()                                   # replay of the captured graphs
+        ker.set_memory_decode_graphs(False)
+    assert torch.equal(graph, eager) and torch.equal(graph2, eager)

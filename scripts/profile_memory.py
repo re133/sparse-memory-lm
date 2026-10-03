@@ -304,6 +304,16 @@ def main():
     out["lazy_adam_alone"] = lazy_adam_alone(mem.values.weight)
     prompt = batch[:1, :128]
     out["inference_B"] = inference(model_b, prompt)
+    if IMPL == "triton":
+        for kind in ("bf16", "q4"):
+            model_b.set_memory_inference_table(kind)
+            out[f"inference_B_{kind}"] = inference(model_b, prompt)
+        model_b.set_memory_decode_graphs(True)
+        for kind in ("fp32", "bf16", "q4"):
+            model_b.set_memory_inference_table(kind)
+            out[f"inference_B_{kind}_graph"] = inference(model_b, prompt)
+        model_b.set_memory_decode_graphs(False)
+        model_b.set_memory_inference_table("fp32")
     del model_b
     torch.cuda.empty_cache()
     model_a = load("A")
@@ -316,8 +326,11 @@ def main():
         out["ffn_reference_decode_fwd"] = bench(lambda: ffn(x16[:1]), 50)
     print(json.dumps({k: v for k, v in out.items() if k not in ("train_step_B", "train_step_A")}, indent=1))
     if "inference_A" in out:
-        out["prefill_B_over_A_time"] = out["inference_B"]["prefill_16x1024_ms"] / out["inference_A"]["prefill_16x1024_ms"]
-        out["decode_B_slowdown"] = out["inference_B"]["decode_ms_per_token"] / out["inference_A"]["decode_ms_per_token"] - 1
+        a = out["inference_A"]
+        for k in [k for k in out if k.startswith("inference_B")]:
+            sfx = k[len("inference_B"):]
+            out["prefill_B_over_A_time" + sfx] = out[k]["prefill_16x1024_ms"] / a["prefill_16x1024_ms"]
+            out["decode_B_slowdown" + sfx] = out[k]["decode_ms_per_token"] / a["decode_ms_per_token"] - 1
     if args.out:
         with open(args.out, "w") as f:
             json.dump(out, f, indent=2)

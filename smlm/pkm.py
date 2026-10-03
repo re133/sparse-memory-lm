@@ -139,14 +139,50 @@ class ProductKeyMemory(nn.Module):
     def forward(self, x):
         shape = x.shape
         x = x.reshape(-1, self.d_in)
+        if (getattr(self, "decode_graph", False) and x.shape[0] == 1 and not self.record
+                and not torch.is_grad_enabled() and x.is_cuda):
+            return self._graph_forward(x).view(*shape[:-1], self.d_out)
+        return self._forward(x).view(*shape[:-1], self.d_out)
+
+    def _graph_forward(self, x):
+        """Decoding (one token, no grad): replay a CUDA/HIP graph of _forward captured for this shape. Same
+        kernels as the eager path, so the result is bit-identical; it only removes the per-op launch overhead
+        (~20 PyTorch ops and Triton launches cost ~0.39 ms of CPU time per call, the GPU work is ~0.05 ms)."""
+        ac = torch.is_autocast_enabled("cuda")
+        key = (tuple(x.shape), x.dtype, ac, torch.get_autocast_dtype("cuda") if ac else None,
+               id(getattr(self.values, "infer_table", None)))
+        g = getattr(self, "_graph", None)
+        if g is None or g[0] != key:
+            static_x = x.clone()
+            ctx = (torch.autocast("cuda", dtype=key[3], cache_enabled=False) if ac
+                   else torch.autocast("cuda", enabled=False))
+            s = torch.cuda.Stream()
+            s.wait_stream(torch.cuda.current_stream())
+            with torch.cuda.stream(s), ctx:
+                for _ in range(2):                                      # warm-up (Triton compilation etc.)
+                    self._forward(static_x)
+            torch.cuda.current_stream().wait_stream(s)
+            graph = torch.cuda.CUDAGraph()
+            with torch.cuda.graph(graph), ctx:
+                static_out = self._forward(static_x)
+            g = self._graph = (key, graph, static_x, static_out)
+        _, graph, static_x, static_out = g
+        static_x.copy_(x)
+        graph.replay()
+        return static_out.clone()
+
+    def _forward(self, x):
         N = x.shape[0]
         q = self.query_proj(x)
         if self.query_norm is not None:
             q = self.query_norm(q.to(self.query_norm.weight.dtype))   # BN in fp32 under autocast
         q = q.view(N, self.heads, self.k_dim)
         s1 = s2 = None
+        autocast_bf16 = (x.is_cuda and torch.is_autocast_enabled("cuda")
+                         and torch.get_autocast_dtype("cuda") == torch.bfloat16)
         if self.impl == "triton" and self.log_score_scale is None:
-            s1, s2 = self.subkey_scores(q)
+            # cast once instead of per half (autocast would cast each slice the same way): same bits
+            s1, s2 = self.subkey_scores(q.to(torch.bfloat16) if autocast_bf16 else q)
         if s1 is not None and s1.dtype == torch.bfloat16:
             # kernel 2: both half top-k, cartesian top-k and softmax in one Triton kernel (smlm/kernels.py)
             from .kernels import PKSelect
@@ -162,10 +198,19 @@ class ProductKeyMemory(nn.Module):
             self.last_indices = indices.detach()
             self.last_scores = scores.detach()
             self.last_weights = weights.detach()
+        if (self.impl == "triton" and not torch.is_grad_enabled() and self.swilu and autocast_bf16
+                and self.values.weight.is_cuda):
+            # kernel 4 (inference): value bag on the inference table (fp32 / bf16 / 4 bit, see
+            # Transformer.set_memory_inference_table) with the swilu product and the bf16 cast fused in
+            from .kernels import bag_infer
+            pre = self.swilu_proj(x)                                    # bf16 under autocast
+            t = getattr(self.values, "infer_table", None) or (self.values.weight, None)
+            out = bag_infer(indices.view(N, -1), weights.view(N, -1), t[0], t[1], pre=pre, out_bf16=True)
+            return self.value_proj(out)
         out = self.read_values(indices.view(N, -1), weights.view(N, -1))
         if self.swilu:
             out = self.value_proj(out * F.silu(self.swilu_proj(x)).to(out.dtype))
-        return out.view(*shape[:-1], self.d_out)
+        return out
 
     def macs_per_token(self):
         """Multiply-accumulates per token (analytic): query, sub-key scoring, value bag, swilu."""
