@@ -979,9 +979,9 @@ einmal mit `"triton"` (alle Kernels). Abbildungen: `report/kernel_check_*.png`, 
     Gleichstand beim 32. Score**. In **41 %** wählen Kernel und `torch.topk` andere, gleichwertige
     Einträge, im Mittel 15 von 32.
   - Gleiche Scores bedeuten gleiche Gewichte, die Ausgabe mischt dann aber andere Werte-Zeilen. Welche,
-    legt auch `torch.topk` nicht fest; die PyTorch-Referenz auf CUDA würde ebenso anders wählen als auf
-    ROCm.
-  - **Exakt gleiche Kurven sind deshalb mit keiner Implementierung erreichbar**, auch nicht mit der
+    legt auch `torch.topk` nicht fest; die PyTorch-Referenz auf CUDA kann ebenso anders wählen als
+    auf ROCm (nicht gemessen; der Cloud-Kontrolllauf B-1M zeigt es).
+  - **Exakt gleiche Kurven sind deshalb nicht garantierbar**, wahrscheinlich auch nicht mit der
     Referenz auf anderer Hardware. Erreichbar und gezeigt ist: exakt gleiche Scores, gültige exakte
     Top-k-Auswahl, gleiche Kurven im echten Plan.
   - Die vollständige Kontrolle ist der Cloud-Lauf B-1M (500 M Tokens) gegen B-1M-sparse s0 von zu
@@ -1118,12 +1118,22 @@ unsicher**:
   geprüft.
 - **GitHub:** privates Repo angelegt, gepusht. Klonen mit dem Deploy-Key getestet.
 - **Tests:** 87 GPU-Tests auf ROCm grün, CPU-Interpreter grün.
+- **Nachträglich ergänzt, nur auf der CPU getestet** (die GPU war nach dem Messfenster nicht mehr
+  freigegeben):
+  - Kernel 1 setzt die `touched`-Maske nicht mehr selbst; das ist dasselbe Muster wie beim
+    Kernel-3-Fehler, jetzt ein PyTorch-Scatter.
+  - Neue Tests: Auswahl mit 4096 Keys je Hälfte (B-16M) und Offsets über 2³¹ Elemente (nur ≥ 60 GB GPU).
+  - Ein Probelauf aller drei Konfigurationen in `setup.sh`.
+  - `git pull --rebase` vor jedem Push.
+
+  CPU-Suite 42 grün, CPU-Interpreter 21 grün. Auf GPU laufen sie zuerst in der Cloud (Setup-Schritt 6/7)
+  bzw. im nächsten Zeitfenster zu Hause.
 
 **Nicht getestet** (geht ohne die Maschine nicht). Das Setup prüft jeden dieser Punkte, bevor gerechnet
 wird, und stoppt die VM bei einem Fehler:
 
-- **Kernels auf CUDA/H200:** Die Tests laufen dort als Erstes; nur wenn alles grün ist, startet die
-  Warteschlange. Die Kernel-Konfigurationen sind auf die RX 9070 abgestimmt. Auf der H200 sind sie
+- **Kernels auf CUDA/H200:** Die Tests laufen dort als Erstes, dazu der Probelauf aller drei
+  Konfigurationen mit je 1 M Tokens. Nur wenn beides klappt, startet die Warteschlange. Die Kernel-Konfigurationen sind auf die RX 9070 abgestimmt. Auf der H200 sind sie
   korrekt, aber wohl nicht optimal schnell.
 - **Treiberinstallation auf dem IONOS-Ubuntu-Image** (inklusive automatischem Neustart).
 - **IONOS-API-Stopp:** braucht Token, Rechenzentrums- und Server-ID. `setup.sh` prüft den Zugang

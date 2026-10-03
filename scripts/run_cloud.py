@@ -25,16 +25,19 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from smlm.gpu_monitor import log_until  # noqa: E402
 
-# SMLM_CLOUD_DRYRUN=1: local test of the queue mechanics (tiny run of B-1M only, own output directory, no git
-# push, no VM stop) - used before the cloud start, see REPORT.md
+# SMLM_CLOUD_DRYRUN=1: preflight / test of the queue mechanics: every configuration for 1 M tokens (compile,
+# VRAM peak, final evaluation, checkpoint save, inference benchmark on the real card), own output directory,
+# no git push, no VM stop. setup.sh runs it on the cloud machine before the real queue;
+# SMLM_CLOUD_DRYRUN_RUNS=B-1M-s0 limits it (e.g. on a 16 GB card at home).
 DRY = os.environ.get("SMLM_CLOUD_DRYRUN") == "1"
 OUT = os.path.join(ROOT, "runs", "cloud_dryrun" if DRY else "cloud")
 RUNS = [("B-1M-s0", "B-1M-sparse"), ("B-4M-s0", "B-4M-sparse"), ("B-16M-s0", "B-16M-sparse")]
 ARGS = ["--mem_impl", "triton", "--value_lr", "2.4e-3", "--data", "wikipedia", "--tokens", "500e6",
         "--extra_val", "wikitext103", "--eval_every_tokens", "10e6", "--seed", "0", "--data_seed", "1234"]
 if DRY:
-    RUNS = RUNS[:1]
-    ARGS = [a if a not in ("500e6", "10e6") else {"500e6": "2e6", "10e6": "1e6"}[a] for a in ARGS]
+    only = os.environ.get("SMLM_CLOUD_DRYRUN_RUNS")
+    RUNS = [r for r in RUNS if not only or r[0] in only.split(",")]
+    ARGS = [a if a not in ("500e6", "10e6") else {"500e6": "1e6", "10e6": "1e6"}[a] for a in ARGS]
 STALL_MIN = float(os.environ.get("SMLM_STALL_MIN", 30))
 MAX_HOURS = float(os.environ.get("SMLM_MAX_HOURS", 12))
 TRAILER = ("\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
@@ -63,7 +66,10 @@ def git_push(message, paths):
         subprocess.run(["git", "add", "-f", p], cwd=ROOT, capture_output=True)
     subprocess.run(["git", "commit", "-q", "-m", message + TRAILER], cwd=ROOT, capture_output=True)
     for attempt in range(5):
-        r = subprocess.run(["git", "push", "-q", "origin", "HEAD"], cwd=ROOT, capture_output=True, text=True)
+        # someone may have pushed to main meanwhile (CLOUD.md asks not to); rebase the result commit onto it
+        subprocess.run(["git", "pull", "-q", "--rebase", "--autostash", "origin", "main"], cwd=ROOT,
+                       capture_output=True)
+        r = subprocess.run(["git", "push", "-q", "origin", "HEAD:main"], cwd=ROOT, capture_output=True, text=True)
         if r.returncode == 0:
             return True
         log(f"git push failed (attempt {attempt + 1}): {r.stderr.strip()[:200]}")

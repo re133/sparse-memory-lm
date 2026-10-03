@@ -8,10 +8,13 @@
 #   3 GitHub deploy key + clone  4 Python environment (PyTorch CUDA wheels, Triton)
 #   5 data: download at pinned revisions, rebuild, sha256 check (byte-identical to home)
 #   6 all tests (GPU + CPU interpreter) - only if green:
-#   7 IONOS API check, then the queue in tmux session "queue" (scripts/run_cloud.py)
+#   7 preflight: every configuration (B-1M, B-4M, B-16M) for 1 M tokens on this card (compile, VRAM peak,
+#     final evaluation, checkpoint save, inference) - outputs deleted afterwards
+#   8 IONOS API check, then the queue in tmux session "queue" (scripts/run_cloud.py)
 # On any failure: log pushed to GitHub (if possible), phone notification (ntfy, optional), VM stopped via
 # the IONOS API (so an idle H200 does not keep costing money). Nothing is deleted.
 set -euo pipefail
+if [ "$(id -u)" != "0" ]; then echo "please run as root (sudo -i), see CLOUD.md"; exit 1; fi
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SMLM_KIT="$KIT"
 . "$KIT/cloud.env"
@@ -135,7 +138,23 @@ if ! is_done tests; then
   done_ tests
 fi
 
-# ---- 7 queue
+# ---- 7 preflight on this card: all three configurations, 1 M tokens each
+if ! is_done preflight; then
+  rm -rf runs/cloud_dryrun
+  if ! SMLM_CLOUD_DRYRUN=1 .venv/bin/python scripts/run_cloud.py > "$STATE/preflight.log" 2>&1 \
+     || ! grep -q "QUEUE DONE" "$STATE/preflight.log"; then
+    tail -40 "$STATE/preflight.log"; fail "preflight (see $STATE/preflight.log)"
+  fi
+  for r in B-1M-s0 B-4M-s0 B-16M-s0; do
+    st=$(.venv/bin/python -c "import json;i=json.load(open('runs/cloud_dryrun/$r/run-info.json'));print(i['status'], round(i['results']['peak_train_vram_gib'],1), 'GiB peak')" 2>/dev/null || echo "missing")
+    say "preflight $r: $st"
+    case "$st" in done*) ;; *) fail "preflight $r: $st";; esac
+  done
+  rm -rf runs/cloud_dryrun
+  done_ preflight
+fi
+
+# ---- 8 queue
 bash "$KIT/ionos_stop.sh" --check || say "WARNING: IONOS API not usable - the VM will NOT stop by itself at the end"
 trap - ERR
 if tmux has-session -t queue 2>/dev/null; then

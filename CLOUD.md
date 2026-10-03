@@ -59,6 +59,10 @@ ssh root@<IP>
 tmux new -s setup 'bash ~/smlm-cloud-kit/setup.sh'
 ```
 
+Falls das IONOS-Image den Login nur mit einem normalen Benutzer erlaubt: Paket dorthin kopieren, nach dem
+Einloggen `sudo -i` und `mv /home/<benutzer>/smlm-cloud-kit /root/`, dann wie oben weiter. Das Skript
+läuft nur als root.
+
 Mit `Strg-b`, dann `d` löst du dich von der Sitzung; die Verbindung darfst du trennen.
 
 **Was `setup.sh` macht** (ca. 30–45 min, jeder Schritt wird bei einem Neustart übersprungen, wenn er schon
@@ -74,7 +78,12 @@ fertig ist):
    - WikiText-103 und Wikipedia 20231101.en von Hugging Face laden, in festgepinnten Versionen (≈ 11 GB).
    - Neu tokenisieren und per **SHA-256 prüfen, dass alles bytegleich mit deinem PC ist**.
 6. **Alle Tests**: GPU und CPU-Interpreter. **Nur wenn alles grün ist, geht es weiter.**
-7. **IONOS-API prüfen**, dann die Warteschlange in der tmux-Sitzung `queue` starten.
+   Dazu gehören zwei Tests, die nur auf großen GPUs laufen: Auswahl mit 4096 Keys je Hälfte (B-16M) und
+   Tabellen mit mehr als 2³¹ Elementen.
+7. **Probelauf auf der H200:** B-1M, B-4M und B-16M je 1 M Tokens, einmal komplett. Dabei werden
+   Kompilieren, VRAM-Spitze, Auswertung, Checkpoint-Speichern (26 GB bei B-16M) und Inferenz geprüft,
+   bevor bezahlte Stunden laufen. Dauer ≈ 10 min. Die VRAM-Spitzen stehen im Setup-Log.
+8. **IONOS-API prüfen**, dann die Warteschlange in der tmux-Sitzung `queue` starten.
 
 **Wenn etwas fehlschlägt:**
 - Das Log wird nach GitHub gepusht (`runs/cloud/setup_failed.log`), du bekommst eine Nachricht, und die
@@ -83,6 +92,10 @@ fertig ist):
 - Danach einfach `bash ~/smlm-cloud-kit/setup.sh` erneut starten.
 
 ## 4. Während der Läufe
+
+**Bitte während der Läufe nichts nach `main` pushen.** Die VM holt sich zwar vor jedem Push den neuesten
+Stand, aber ein Konflikt, z. B. in REPORT.md, würde ihre Pushes blockieren. Die Ergebnisse lägen dann nur
+auf der Cloud-Platte.
 
 - **Zwischenstand:** nach jedem Lauf in **REPORT.md** auf GitHub (Abschnitt „Zwischenstand Cloud“),
   dazu eine ntfy-Nachricht.
@@ -132,13 +145,13 @@ fertig ist):
 
 | Abschnitt | Dauer (Schätzung) | Kosten |
 |---|---|---|
-| Setup (Treiber, Python, Daten, Tests) | 30–45 min | 1,50–2,30 € |
+| Setup (Treiber, Python, Daten, Tests, Probelauf) | 40–55 min | 2,00–2,80 € |
 | B-1M | 25–45 min | 1,30–2,30 € |
 | B-4M | 30–55 min | 1,50–2,80 € |
 | B-16M | 40–75 min | 2,00–3,80 € |
 | Checkpoints holen (VM läuft wieder) | 20–60 min, je nach Leitung | 1,00–3,00 € |
 | Platte, solange die VM nur gestoppt ist | pro Tag | ≈ 5 € |
-| **Summe bei zügigem Löschen** | **≈ 2,5–4,5 h** | **≈ 8–15 €** |
+| **Summe bei zügigem Löschen** | **≈ 2,7–4,7 h** | **≈ 8–15 €** |
 
 Die Laufzeiten sind von der RX 9070 hochgerechnet (H200: ≈ 7,5× Bandbreite, ≈ 5× Rechenleistung; das
 kleine Modell lastet die H200 aber nicht aus) und **bis Faktor 2 unsicher**. Die Grenze von 12 h kostet

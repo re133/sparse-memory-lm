@@ -11,7 +11,8 @@ Kernel 1: value-bag backward with row-sparse accumulation (`bag_backward_rows`)
   equal rows with a segmented scan and adds each run once: runs that lie entirely inside the program with a
   plain read-add-write, the (at most two) runs at the program borders with an atomic add. Atomics for every
   run were 6x slower on the RX 9070 (17 ms vs 2.7 ms per call at training shape). The per-sample-weight gradient dot(grad_out[n], table[row]) is
-  computed in the same pass (consecutive equal rows hit the cache). Rows are marked in the `touched` mask.
+  computed in the same pass (consecutive equal rows hit the cache). The `touched` mask is set afterwards with
+  one PyTorch scatter (byte stores from inside kernels proved unsafe, see kernel 3).
   Summation order differs from the reference (floating-point rounding only).
 """
 import torch
@@ -67,7 +68,6 @@ if HAVE_TRITON:
             tl.store(ptrs, cur + seg, mask=own)
             tl.atomic_add(ptrs, seg, mask=(is_end & shared)[:, None] & m2, sem="relaxed")
         tl.store(gw_ptr + src, gw, mask=pm)
-        tl.store(touched_ptr + r64, tl.full([P], 1, tl.uint8), mask=pm)
 
 
 def bag_backward_rows(grad_out, indices, weights, table, acc, touched, P=32, block_d=64, num_warps=2):
@@ -84,6 +84,7 @@ def bag_backward_rows(grad_out, indices, weights, table, acc, touched, P=32, blo
     grid = (triton.cdiv(n_pos, P),)
     _bag_bwd_rows_kernel[grid](rows, src, w, g, table, acc, touched.view(torch.uint8), gw, n_pos, K, D,
                                P=P, BLOCK_D=block_d, num_warps=num_warps)
+    touched[flat] = True            # outside the kernel (in-kernel byte stores corrupted neighbours in kernel 3)
     return gw.view(N, K)
 
 

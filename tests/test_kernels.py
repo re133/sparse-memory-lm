@@ -116,8 +116,10 @@ def test_model_gradients_triton_equal_torch():
 
 
 # ----------------------------------------------------------------------------------------- kernel 2
-SELECT_SHAPES = ([(64, 2, 16, 4), (96, 4, 64, 8)] if INTERPRET else
-                 [(4096, 4, 512, 32), (4096, 4, 1024, 32), (4096, 4, 2048, 32), (1, 4, 1024, 32)])
+# n_keys per half: 512 (262k), 1024 (1M), 2048 (4M), 4096 (16M, the cloud's B-16M)
+SELECT_SHAPES = ([(64, 2, 16, 4), (96, 4, 64, 8), (4, 2, 4096, 32)] if INTERPRET else
+                 [(4096, 4, 512, 32), (4096, 4, 1024, 32), (4096, 4, 2048, 32), (4096, 4, 4096, 32),
+                  (1, 4, 1024, 32)])
 
 
 def reference_select(s1, s2, knn):
@@ -286,3 +288,41 @@ def test_lazy_adam_kernel_matches_reference(rows, D, N):
     del tabs, opts
     if DEVICE == "cuda":
         torch.cuda.empty_cache()
+
+
+# ------------------------------------------------- offsets beyond 2^31 elements (B-16M: 16.8M x 384 = 6.4 G)
+@pytest.mark.skipif(DEVICE != "cuda" or GPU_MEM_GIB < 60, reason="needs > 60 GB GPU memory (runs on the H200)")
+def test_large_table_offsets():
+    """Table with 6M x 384 = 2.3 G elements (> 2^31) and lookups of rows beyond 5.6M (row * 384 > 2^31):
+    bag forward, kernel-1 backward and the fused lazy Adam against PyTorch on the touched rows only."""
+    from smlm.kernels import bag_backward_rows, lazy_adam_step
+    rows, D, N, K = 6_000_000, 384, 1024, 128
+    gen = torch.Generator(device=DEVICE).manual_seed(0)
+    table = torch.randn(rows, D, device=DEVICE, generator=gen) * D ** -0.5
+    idx = torch.randint(rows - 400_000, rows, (N, K), device=DEVICE, generator=gen)   # rows > 5.6M
+    idx[:, :8] = torch.randint(0, rows, (N, 8), device=DEVICE, generator=gen)
+    w = torch.softmax(torch.randn(N, K, device=DEVICE, generator=gen), -1)
+    g = torch.randn(N, D, device=DEVICE, generator=gen)
+    rows_read = table[idx.reshape(-1)].view(N, K, D)                                  # (N, K, D) gather
+    close(bag_forward(idx, w, table), (w[..., None] * rows_read).sum(1), "bag forward")
+    acc = torch.zeros_like(table)
+    touched = torch.zeros(rows, dtype=torch.bool, device=DEVICE)
+    gw = bag_backward_rows(g, idx, w, table, acc, touched)
+    close(gw, (rows_read * g[:, None, :]).sum(-1), "per-sample-weight gradient")
+    uniq, inv = torch.unique(idx.reshape(-1), return_inverse=True)
+    ref_acc = torch.zeros(uniq.numel(), D, device=DEVICE).index_add_(0, inv, (w[..., None] * g[:, None, :]).view(-1, D))
+    close(acc[uniq], ref_acc, "accumulator rows")
+    assert int(touched.sum()) == uniq.numel() and bool(touched[uniq].all())
+    del rows_read
+    m, v = torch.zeros_like(table), torch.zeros_like(table)
+    p0 = table[uniq].clone()
+    untouched_probe = torch.tensor([0, rows // 2, rows - 1], device=DEVICE)
+    untouched_probe = untouched_probe[~touched[untouched_probe]]
+    before = table[untouched_probe].clone()
+    lazy_adam_step(table, m, v, acc, touched, 1.0, 1, 2.4e-3, 0.9, 0.95, 1e-8)
+    gr = ref_acc
+    m_ref, v_ref = 0.1 * gr, 0.05 * gr * gr
+    p_ref = p0 - (2.4e-3 / 0.1) * m_ref / (v_ref.sqrt() / 0.05 ** 0.5 + 1e-8)
+    close(table[uniq], p_ref, "lazy Adam values")
+    assert torch.equal(table[untouched_probe], before)
+    assert not touched.any() and torch.count_nonzero(acc[uniq]) == 0
