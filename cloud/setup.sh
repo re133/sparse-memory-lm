@@ -1,25 +1,28 @@
 #!/bin/bash
-# One-command setup of a fresh Ubuntu machine with an NVIDIA GPU (IONOS Cloud GPU VM H200-S), then the queue.
+# One-command setup on a fresh Runpod Pod (1 x H200, "Runpod PyTorch" template, volume disk at /workspace),
+# then the queue.
 #
-#   bash ~/smlm-cloud-kit/setup.sh          (run inside tmux; see CLOUD.md)
+#   bash /workspace/smlm-cloud-kit/setup.sh          (run inside tmux; see CLOUD.md)
 #
-# Stages (each one is skipped when already done, so the script can simply be started again):
-#   1 system packages            2 NVIDIA driver (reboots once if needed and continues automatically)
-#   3 GitHub deploy key + clone  4 Python environment (PyTorch CUDA wheels, Triton)
+# Everything that must survive a Pod stop lives on the volume /workspace: repository, Python environment, data,
+# checkpoints, setup state. The container disk (apt packages, ~/.ssh) is reset on every start, so those steps run
+# again each time (cheap). Stages that are done are skipped, so the script can simply be started again:
+#   1 system packages (every start)   2 GPU check (drivers come with Runpod)
+#   3 GitHub deploy key (every start) + clone   4 Python environment (PyTorch CUDA wheels, Triton)
 #   5 data: download at pinned revisions, rebuild, sha256 check (byte-identical to home)
 #   6 all tests (GPU + CPU interpreter) - only if green:
 #   7 preflight: every configuration (B-1M, B-4M, B-16M) for 1 M tokens on this card (compile, VRAM peak,
 #     final evaluation, checkpoint save, inference) - outputs deleted afterwards
-#   8 IONOS API check, then the queue in tmux session "queue" (scripts/run_cloud.py)
-# On any failure: log pushed to GitHub (if possible), phone notification (ntfy, optional), VM stopped via
-# the IONOS API (so an idle H200 does not keep costing money). Nothing is deleted.
+#   8 Runpod API check, then the queue in tmux session "queue" (scripts/run_cloud.py)
+# On any failure: log pushed to GitHub (if possible), phone notification (ntfy, optional), Pod stopped through
+# the Runpod API (an idle H200 keeps costing money). Nothing is deleted.
 set -euo pipefail
-if [ "$(id -u)" != "0" ]; then echo "please run as root (sudo -i), see CLOUD.md"; exit 1; fi
+if [ "$(id -u)" != "0" ]; then echo "please run as root, see CLOUD.md"; exit 1; fi
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SMLM_KIT="$KIT"
 . "$KIT/cloud.env"
-REPO_DIR="${REPO_DIR:-/root/AngryAnt}"
-STATE=/root/.smlm-setup
+REPO_DIR="${REPO_DIR:-/workspace/AngryAnt}"
+STATE=/workspace/.smlm-setup
 mkdir -p "$STATE"
 LOG="$STATE/setup.log"
 exec > >(tee -a "$LOG") 2>&1
@@ -29,82 +32,52 @@ done_() { touch "$STATE/$1.done"; }
 is_done() { [ -f "$STATE/$1.done" ]; }
 
 fail() {
+  trap - ERR
   say "FAILED: $*"
   if [ -d "$REPO_DIR/.git" ]; then
     mkdir -p "$REPO_DIR/runs/cloud"
     cp "$LOG" "$REPO_DIR/runs/cloud/setup_failed.log" || true
     (cd "$REPO_DIR" && git add -f runs/cloud/setup_failed.log && git commit -qm "Cloud setup failed: $*" \
-      && git push -q origin HEAD) || true
+      && git pull -q --rebase --autostash origin main && git push -q origin HEAD:main) || true
   fi
-  notify "SMLM cloud setup FAILED: $* - stopping the VM"
-  bash "$KIT/ionos_stop.sh" || notify "SMLM: VM could NOT be stopped automatically - stop it in the DCD!"
+  notify "SMLM cloud setup FAILED: $* - stopping the Pod"
+  bash "$KIT/stop_pod.sh" || notify "SMLM: Pod could NOT be stopped automatically - stop it in the Runpod console!"
   exit 1
 }
 trap 'fail "line $LINENO"' ERR
 
 say "start (kit $KIT, repo $REPO_DIR)"
+mountpoint -q /workspace || [ -d /workspace ] || fail "/workspace missing - the Pod needs a volume disk at /workspace"
+[ "$(df -P /workspace | tail -1 | awk '{print $4}')" -gt $((80 * 1024 * 1024)) ] \
+  || fail "less than 80 GB free on /workspace (data 13 GB, environment ~8 GB, checkpoints ~35 GB)"
 
-# ---- 1 system packages
-if ! is_done packages; then
+# ---- 1 system packages (container disk: again after every Pod start)
+if ! command -v tmux >/dev/null || ! command -v rsync >/dev/null || ! command -v git >/dev/null; then
   export DEBIAN_FRONTEND=noninteractive
   apt-get update -q
-  apt-get install -yq git tmux rsync curl jq python3-venv python3-pip python3-dev build-essential \
-    ubuntu-drivers-common pciutils
-  done_ packages
+  apt-get install -yq git tmux rsync curl python3-venv python3-pip python3-dev build-essential
 fi
 
-# ---- 2 NVIDIA driver (not included in the IONOS images)
-if ! nvidia-smi >/dev/null 2>&1; then
-  if ! is_done driver; then
-    say "installing the NVIDIA driver"
-    ubuntu-drivers install --gpgpu || apt-get install -yq nvidia-driver-570-server-open nvidia-utils-570-server
-    done_ driver
-  fi
-  modprobe nvidia 2>/dev/null || true
-  if ! nvidia-smi >/dev/null 2>&1; then
-    if is_done rebooted; then fail "nvidia-smi does not work after the reboot"; fi
-    say "driver needs a reboot - setup continues automatically afterwards (tmux attach -t setup)"
-    cat > /etc/systemd/system/smlm-setup.service <<EOF
-[Unit]
-Description=SMLM cloud setup (continue after driver reboot)
-After=network-online.target
-Wants=network-online.target
-[Service]
-Type=forking
-ExecStart=/usr/bin/tmux new-session -d -s setup /bin/bash $KIT/setup.sh
-[Install]
-WantedBy=multi-user.target
-EOF
-    systemctl enable smlm-setup.service
-    done_ rebooted
-    trap - ERR
-    reboot
-    exit 0
-  fi
-fi
-systemctl disable smlm-setup.service 2>/dev/null || true
-nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv
+# ---- 2 GPU (Runpod provides the driver)
+nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv || fail "no NVIDIA GPU visible (nvidia-smi)"
 
-# ---- 3 GitHub deploy key + repository
-if ! is_done repo; then
-  install -m 700 -d /root/.ssh
-  install -m 600 "$KIT/deploy_key" /root/.ssh/smlm_deploy
-  ssh-keyscan -t ed25519 github.com >> /root/.ssh/known_hosts 2>/dev/null
-  cat >> /root/.ssh/config <<EOF
+# ---- 3 GitHub deploy key (container disk: again after every start) + repository on the volume
+install -m 700 -d /root/.ssh
+install -m 600 "$KIT/deploy_key" /root/.ssh/smlm_deploy
+grep -q "smlm_deploy" /root/.ssh/config 2>/dev/null || cat >> /root/.ssh/config <<EOF
 Host github.com
   IdentityFile /root/.ssh/smlm_deploy
   IdentitiesOnly yes
 EOF
-  [ -d "$REPO_DIR/.git" ] || git clone -q "$GIT_REMOTE" "$REPO_DIR"
-  git -C "$REPO_DIR" config user.name "${GIT_NAME:-leon}"
-  git -C "$REPO_DIR" config user.email "${GIT_EMAIL:-you@example.com}"
-  done_ repo
-fi
+grep -q "^github.com" /root/.ssh/known_hosts 2>/dev/null || ssh-keyscan -t ed25519 github.com >> /root/.ssh/known_hosts 2>/dev/null
+[ -d "$REPO_DIR/.git" ] || git clone -q "$GIT_REMOTE" "$REPO_DIR"
+git -C "$REPO_DIR" config user.name "${GIT_NAME:-leon}"
+git -C "$REPO_DIR" config user.email "${GIT_EMAIL:-you@example.com}"
 cd "$REPO_DIR"
 git pull -q --ff-only || true
 say "repo at $(git rev-parse --short HEAD)"
 
-# ---- 4 Python environment
+# ---- 4 Python environment (on the volume)
 if ! is_done venv; then
   python3 -m venv .venv
   .venv/bin/pip install -q --upgrade pip
@@ -155,7 +128,7 @@ if ! is_done preflight; then
 fi
 
 # ---- 8 queue
-bash "$KIT/ionos_stop.sh" --check || say "WARNING: IONOS API not usable - the VM will NOT stop by itself at the end"
+bash "$KIT/stop_pod.sh" --check || say "WARNING: Runpod API not usable - the Pod will NOT stop by itself at the end"
 trap - ERR
 if tmux has-session -t queue 2>/dev/null; then
   say "queue already running (tmux attach -t queue)"
@@ -163,4 +136,4 @@ else
   tmux new-session -d -s queue "cd $REPO_DIR && SMLM_KIT=$KIT NTFY_TOPIC=${NTFY_TOPIC:-} .venv/bin/python scripts/run_cloud.py 2>&1 | tee -a runs/cloud_queue_stdout.log"
   say "queue started: tmux attach -t queue   (log: $REPO_DIR/runs/cloud/queue.log)"
 fi
-notify "SMLM cloud: setup done, tests green, queue running"
+notify "SMLM cloud: setup done, tests green, preflight ok, queue running"

@@ -1,78 +1,64 @@
-# Cloud-Läufe B-1M / B-4M / B-16M auf IONOS (H200-S): Anleitung
+# Cloud-Läufe B-1M / B-4M / B-16M auf Runpod (1 × H200): Anleitung
 
-Kurz: Maschine mieten → Starter-Paket hochkopieren → ein Befehl → warten (Handy-Nachricht) → die Maschine
-stoppt sich selbst → Ergebnisse per `git pull`, Checkpoints per `rsync` holen → Maschine löschen.
+Kurz: Pod in der Runpod-Konsole anlegen → Starter-Paket hochkopieren → ein Befehl → warten (Handy-Nachricht)
+→ der Pod stoppt sich selbst → Ergebnisse per `git pull`, Checkpoints per `rsync` holen → Pod löschen.
 
 **Was läuft:** B-1M (Kontrolle), B-4M, B-16M mit denselben Daten, Einstellungen und demselben Val-Set wie
 B-1M-sparse s0. Je 500 M Tokens, Triton-Kernels. Die Kriterien stehen in REPORT.md (Abschnitt
 „Kriterien für die Cloud-Läufe“). Nach jedem Lauf landet ein Zwischenstand in REPORT.md auf GitHub.
 
+Kein Runpod-Plugin und kein API-Key nötig: Du legst den Pod selbst in der Weboberfläche an. Zum Stoppen am
+Ende benutzt der Pod den Schlüssel, den Runpod automatisch in jeden Pod legt und der nur für diesen Pod gilt.
+
 ## 0. Einmalig vorbereitet (schon erledigt)
 
-- **Privates Repo:** `github.com/re133/sparse-memory-lm`, Code und Ergebnisse. Die VM pusht mit einem
+- **Privates Repo:** `github.com/re133/sparse-memory-lm`, Code und Ergebnisse. Der Pod pusht mit einem
   Deploy-Key, der nur für dieses Repo gilt.
 - **Starter-Paket `~/smlm-cloud-kit/`** auf deinem PC:
-  - `setup.sh` und `ionos_stop.sh`
+  - `setup.sh` und `stop_pod.sh`
   - `deploy_key` (privat, nicht weitergeben)
-  - `cloud.env`: Hier fehlen noch deine IONOS-Angaben (Schritt 2).
+  - `cloud.env` (fertig; nur `NTFY_TOPIC` kannst du optional eintragen)
 
-## 1. Maschine mieten (IONOS DCD)
+## 1. Runpod-Konto vorbereiten
 
-1. **Rechenzentrum:** DCD → *Virtual Data Centers* → ein Rechenzentrum in **de/fra/2** (Frankfurt) anlegen
-   oder öffnen. Cloud GPU VMs gibt es nur dort.
-2. **GPU-VM anlegen:**
-   - Typ **Cloud GPU VM**, Vorlage **H200-S**: 1 × H200 141 GB, 15 vCPU, 267 GiB RAM, 1 TB Speicher.
-   - Image: **Ubuntu** (aktuelle LTS).
-   - Deinen **SSH-Public-Key** hinterlegen.
-   - **Öffentliche IP** über eine Netzwerkkarte am Internetzugang.
-3. **Freischaltung:** Standardmäßig ist genau eine H200-S-VM erlaubt; größere Vorlagen nur über den
-   Support.
-4. **Provisionieren** und warten, bis die VM läuft. IP-Adresse notieren.
-5. **Falls die DCD die GPU-VM nicht anbietet:** Laut einer Doku-Seite lassen sich GPU-VMs nur über die
-   Cloud-API verwalten. Dann so:
-   `POST https://api.ionos.com/cloudapi/v6/datacenters/<DC-ID>/servers` mit
-   `"type": "GPU"`, `"templateUuid"` der H200-S-Vorlage und einem Volume mit `"imageAlias": "ubuntu:latest"`
-   (IONOS-Doku „Create a Cloud GPU VM“).
+1. **Guthaben:** mindestens **40 $** aufladen, besser Auto-Pay oder eine Warnung bei niedrigem Guthaben
+   einschalten.
+   - **Wichtig:** Fällt das Guthaben auf 0 $, stoppt Runpod alle Pods. Pods ohne Netzwerk-Volume werden
+     dabei **gelöscht, samt Daten**.
+2. **SSH-Key:** Deinen öffentlichen Key (`~/.ssh/id_ed25519.pub`) unter *Settings → SSH Public Keys*
+   eintragen, als ganze Zeile mit `ssh-ed25519 …` am Anfang.
 
-## 2. `cloud.env` ausfüllen (auf deinem PC)
+## 2. Pod anlegen (Runpod-Konsole → Pods → Deploy)
 
-```bash
-nano ~/smlm-cloud-kit/cloud.env
-```
+| Einstellung | Wert | Warum |
+|---|---|---|
+| Cloud | **Secure Cloud** | öffentliche IP, ohne die gehen `scp`/`rsync` nicht |
+| GPU | **1 × H200 SXM (141 GB)** | B-16M braucht ≈ 102 GiB; H100 (80/94 GB) reicht nicht |
+| Template | **Runpod PyTorch** (aktuelle Version, CUDA 12.8 oder neuer) | Treiber, SSH und `runpodctl` sind dabei |
+| Container Disk | 40 GB | Systempakete; wird bei jedem Stop geleert |
+| **Volume Disk** | **150 GB**, Mount-Pfad `/workspace` | Repo, Python-Umgebung, Daten (13 GB), Checkpoints (≈ 35 GB) – überlebt einen Stop |
+| Preis | **On-Demand** (nicht Spot/Interruptible) | Spot-Pods können mitten im Lauf weggenommen werden |
+| Optional | Umgebungsvariable `NTFY_TOPIC` | sonst in `cloud.env` |
 
-- **`IONOS_TOKEN`:**
-  - Erzeugen in DCD → *Management* → *Token Manager* → *Generate token*, kurze Laufzeit wählen
-    (z. B. 2 Tage).
-  - Damit stoppt sich die VM am Ende selbst. **Ein `shutdown` im Betriebssystem stoppt die Abrechnung bei
-    IONOS nicht.**
-- **`IONOS_DATACENTER_ID` und `IONOS_SERVER_ID`:** Beide UUIDs stehen im DCD-Inspector, wenn du die
-  GPU-VM anklickst.
-- **`NTFY_TOPIC` (optional, empfohlen):**
-  - Einen langen zufälligen Namen ausdenken und in der **ntfy**-App auf dem Handy abonnieren.
-  - Dann kommen Nachrichten bei Start, nach jedem Lauf, bei Fehlern und am Ende.
+**Deploy On-Demand** klicken und warten, bis der Pod läuft. Im Tab **Connect** steht unter
+**SSH over exposed TCP** ein Befehl wie `ssh root@<IP> -p <PORT> -i ~/.ssh/id_ed25519`. IP und Port
+notieren.
 
 ## 3. Hochladen und starten
 
 ```bash
-scp -r ~/smlm-cloud-kit root@<IP>:
-ssh root@<IP>
-tmux new -s setup 'bash ~/smlm-cloud-kit/setup.sh'
+scp -P <PORT> -r ~/smlm-cloud-kit root@<IP>:/workspace/
+ssh root@<IP> -p <PORT>
+tmux new -s setup 'bash /workspace/smlm-cloud-kit/setup.sh'
 ```
-
-Falls das IONOS-Image den Login nur mit einem normalen Benutzer erlaubt: Paket dorthin kopieren, nach dem
-Einloggen `sudo -i` und `mv /home/<benutzer>/smlm-cloud-kit /root/`, dann wie oben weiter. Das Skript
-läuft nur als root.
 
 Mit `Strg-b`, dann `d` löst du dich von der Sitzung; die Verbindung darfst du trennen.
 
-**Was `setup.sh` macht** (ca. 30–45 min, jeder Schritt wird bei einem Neustart übersprungen, wenn er schon
-fertig ist):
+**Was `setup.sh` macht** (ca. 40–55 min, jeder fertige Schritt wird bei einem Neustart übersprungen):
 
-1. **Pakete** installieren.
-2. **NVIDIA-Treiber** installieren (das IONOS-Image hat keinen).
-   - Falls nötig startet die VM **einmal neu** und macht danach von selbst weiter.
-   - Wieder ansehen: `ssh root@<IP>` und `tmux attach -t setup`.
-3. **Repo** mit dem Deploy-Key klonen.
+1. **Pakete** (git, tmux, rsync) installieren.
+2. **GPU prüfen** (Treiber bringt Runpod mit).
+3. **Repo** mit dem Deploy-Key nach `/workspace/AngryAnt` klonen.
 4. **Python-Umgebung** mit PyTorch (CUDA) und Triton einrichten.
 5. **Daten:**
    - WikiText-103 und Wikipedia 20231101.en von Hugging Face laden, in festgepinnten Versionen (≈ 11 GB).
@@ -83,24 +69,24 @@ fertig ist):
 7. **Probelauf auf der H200:** B-1M, B-4M und B-16M je 1 M Tokens, einmal komplett. Dabei werden
    Kompilieren, VRAM-Spitze, Auswertung, Checkpoint-Speichern (26 GB bei B-16M) und Inferenz geprüft,
    bevor bezahlte Stunden laufen. Dauer ≈ 10 min. Die VRAM-Spitzen stehen im Setup-Log.
-8. **IONOS-API prüfen**, dann die Warteschlange in der tmux-Sitzung `queue` starten.
+8. **Runpod-API prüfen**, dann die Warteschlange in der tmux-Sitzung `queue` starten.
 
 **Wenn etwas fehlschlägt:**
-- Das Log wird nach GitHub gepusht (`runs/cloud/setup_failed.log`), du bekommst eine Nachricht, und die
-  VM stoppt sich.
-- Neu starten in der DCD, einloggen, Log ansehen: `/root/.smlm-setup/setup.log`.
-- Danach einfach `bash ~/smlm-cloud-kit/setup.sh` erneut starten.
+- Das Log wird nach GitHub gepusht (`runs/cloud/setup_failed.log`), du bekommst eine Nachricht, und der Pod
+  stoppt sich.
+- Pod in der Konsole wieder starten, einloggen, Log ansehen: `/workspace/.smlm-setup/setup.log`.
+- Danach `bash /workspace/smlm-cloud-kit/setup.sh` erneut starten.
 
 ## 4. Während der Läufe
 
-**Bitte während der Läufe nichts nach `main` pushen.** Die VM holt sich zwar vor jedem Push den neuesten
-Stand, aber ein Konflikt, z. B. in REPORT.md, würde ihre Pushes blockieren. Die Ergebnisse lägen dann nur
-auf der Cloud-Platte.
+**Bitte während der Läufe nichts nach `main` pushen.** Der Pod holt sich zwar vor jedem Push den neuesten
+Stand, aber ein Konflikt, z. B. in REPORT.md, würde seine Pushes blockieren. Die Ergebnisse lägen dann nur
+im Pod.
 
 - **Zwischenstand:** nach jedem Lauf in **REPORT.md** auf GitHub (Abschnitt „Zwischenstand Cloud“),
   dazu eine ntfy-Nachricht.
-- **Live:** `ssh root@<IP>`, dann `tmux attach -t queue` oder
-  `tail -f /root/AngryAnt/runs/cloud/queue.log`.
+- **Live:** `ssh root@<IP> -p <PORT>`, dann `tmux attach -t queue` oder
+  `tail -f /workspace/AngryAnt/runs/cloud/queue.log`.
 - **GPU-Werte:** Temperatur, Leistung und Takt alle 10 s in `runs/cloud/<lauf>/gpu_thermal.csv`.
 - **Sicherungen:**
   - Ein Lauf, dessen Logs sich 30 min nicht ändern, wird beendet; die Warteschlange macht weiter.
@@ -110,9 +96,10 @@ auf der Cloud-Platte.
 
 - **Am Ende der Warteschlange:**
   - Eine Prüfsummenliste aller Checkpoints wird gepusht (`runs/cloud/checkpoints.sha256`).
-  - Die VM **stoppt sich über die IONOS-API**: Rechenkosten aus, Festplatte mit den Checkpoints bleibt.
-- **In der DCD kontrollieren**, dass die VM wirklich gestoppt ist. Wenn nicht (Nachricht „could NOT be
-  stopped“): *Power → Stop* von Hand.
+  - Der Pod **stoppt sich über die Runpod-API**: GPU freigegeben, keine Rechenkosten mehr. `/workspace` mit
+    den Checkpoints bleibt erhalten.
+- **In der Konsole kontrollieren**, dass der Pod wirklich *Stopped* ist. Wenn nicht (Nachricht „could NOT
+  be stopped“): Pod aufklappen → Stop.
 
 ## 6. Ergebnisse und Checkpoints holen
 
@@ -123,36 +110,42 @@ auf der Cloud-Platte.
    ```
 
 2. **Checkpoints** (≈ 35 GB: B-1M 1,7 GB, B-4M ≈ 6,6 GB, B-16M ≈ 26 GB):
-   - VM in der DCD wieder **starten**. Sie bekommt dabei **eine neue IP**.
+   - Pod in der Konsole wieder **starten**. Ist die GPU inzwischen vergeben, bietet Runpod an, ihn
+     **mit 0 GPUs** zu starten. Das genügt zum Kopieren und ist billiger.
+   - IP und Port können sich geändert haben, also im Tab **Connect** nachsehen.
    - Dann holen und prüfen:
 
    ```bash
-   rsync -avP --partial root@<NEUE-IP>:/root/AngryAnt/runs/cloud/ runs/cloud/
+   rsync -avP --partial -e "ssh -p <PORT>" root@<IP>:/workspace/AngryAnt/runs/cloud/ runs/cloud/
    sha256sum -c runs/cloud/checkpoints.sha256
    ```
 
    Alle Zeilen müssen `OK` zeigen. Erst dann weiter.
 
-## 7. Maschine löschen
+## 7. Pod löschen
 
-- In der DCD die **VM und ihr Volume löschen**, dazu eine reservierte IP, falls vorhanden. Gestoppt kostet
-  die 1-TB-Platte weiter, laut Preisliste 0,15 €/GB/30 Tage, also ≈ 5 €/Tag.
-- **Token widerrufen** (Token Manager).
+- In der Konsole **Terminate**. Erst damit enden alle Kosten. Ein gestoppter Pod kostet für 150 GB Volume
+  0,20 $/GB/Monat, also ≈ 1 $/Tag.
 - **Deploy-Key entfernen:**
   `gh repo deploy-key list -R re133/sparse-memory-lm`, dann `gh repo deploy-key delete <ID> -R re133/sparse-memory-lm`.
 
-## Kosten (H200-S: 3,00 €/h inkl. GPU, CPU, RAM und 1 TB)
+## Kosten (H200 SXM, On-Demand; Preise laut runpod.io/pricing, Stand Abruf 2026-10-03)
 
-| Abschnitt | Dauer (Schätzung) | Kosten |
+Secure Cloud 4,59 $/h, Community Cloud 3,59 $/h. Abgerechnet wird sekundengenau. Maßgeblich ist der Preis,
+den die Konsole beim Anlegen zeigt.
+
+| Abschnitt | Dauer (Schätzung) | Kosten (Secure) |
 |---|---|---|
-| Setup (Treiber, Python, Daten, Tests, Probelauf) | 40–55 min | 2,00–2,80 € |
-| B-1M | 25–45 min | 1,30–2,30 € |
-| B-4M | 30–55 min | 1,50–2,80 € |
-| B-16M | 40–75 min | 2,00–3,80 € |
-| Checkpoints holen (VM läuft wieder) | 20–60 min, je nach Leitung | 1,00–3,00 € |
-| Platte, solange die VM nur gestoppt ist | pro Tag | ≈ 5 € |
-| **Summe bei zügigem Löschen** | **≈ 2,7–4,7 h** | **≈ 8–15 €** |
+| Setup (Python, Daten, Tests, Probelauf) | 40–55 min | 3,10–4,20 $ |
+| B-1M | 25–45 min | 1,90–3,40 $ |
+| B-4M | 30–55 min | 2,30–4,20 $ |
+| B-16M | 40–75 min | 3,10–5,70 $ |
+| Checkpoints holen (Pod wieder gestartet; mit 0 GPUs billiger) | 20–60 min | 0–4,60 $ |
+| Volume, solange der Pod nur gestoppt ist | pro Tag | ≈ 1 $ |
+| **Summe bei zügigem Löschen** | **≈ 2,5–4,5 h** | **≈ 11–22 $** |
 
 Die Laufzeiten sind von der RX 9070 hochgerechnet (H200: ≈ 7,5× Bandbreite, ≈ 5× Rechenleistung; das
 kleine Modell lastet die H200 aber nicht aus) und **bis Faktor 2 unsicher**. Die Grenze von 12 h kostet
-höchstens 36 €.
+höchstens ≈ 55 $.
+
+*Frühere Variante für IONOS (Treiberinstallation, IONOS-API-Stopp): Git-Historie, Commit `ae66c01`.*

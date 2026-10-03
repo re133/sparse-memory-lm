@@ -1,4 +1,4 @@
-"""Cloud queue (IONOS H200-S): B-1M (control), B-4M, B-16M, back to back, then stop the VM.
+"""Cloud queue (Runpod Pod, 1 x H200): B-1M (control), B-4M, B-16M, back to back, then stop the Pod.
 
   python scripts/run_cloud.py            (started by cloud/setup.sh in tmux session "queue"; resumable)
 
@@ -7,12 +7,12 @@ Every run: settings and data of B-1M-sparse s0 (500 M Wikipedia tokens, data see
 (--mem_impl triton). GPU temperature / power / clocks every 10 s in <run>/gpu_thermal.csv.
 After every run: status block in REPORT.md (scripts/cloud_status.py), commit + push of the small run files
 (run-info, metrics, logs, thermal CSV; checkpoints stay on the disk), optional phone notification (ntfy).
-At the end: sha256 manifest of all checkpoints (pushed), then the VM is stopped through the IONOS Cloud API so
-that compute billing stops (cloud/ionos_stop.sh; an OS shutdown would NOT stop billing). The disk with the
-checkpoints stays.
+At the end: sha256 manifest of all checkpoints (pushed), then the Pod is stopped through the Runpod API with the
+Pod's own key (cloud/stop_pod.sh): the GPU is released and compute billing stops; the volume /workspace with the
+checkpoints stays (billed as stopped volume).
 
 Safety: a run whose logs have not changed for STALL_MIN minutes is terminated (and the queue goes on); after
-MAX_HOURS in total the queue stops what is running and stops the VM.
+MAX_HOURS in total the queue stops what is running and stops the Pod.
 """
 import json
 import os
@@ -27,7 +27,7 @@ from smlm.gpu_monitor import log_until  # noqa: E402
 
 # SMLM_CLOUD_DRYRUN=1: preflight / test of the queue mechanics: every configuration for 1 M tokens (compile,
 # VRAM peak, final evaluation, checkpoint save, inference benchmark on the real card), own output directory,
-# no git push, no VM stop. setup.sh runs it on the cloud machine before the real queue;
+# no git push, no Pod stop. setup.sh runs it on the Pod before the real queue;
 # SMLM_CLOUD_DRYRUN_RUNS=B-1M-s0 limits it (e.g. on a 16 GB card at home).
 DRY = os.environ.get("SMLM_CLOUD_DRYRUN") == "1"
 OUT = os.path.join(ROOT, "runs", "cloud_dryrun" if DRY else "cloud")
@@ -162,16 +162,16 @@ def main():
     m = manifest()
     pushed = git_push("Cloud: queue finished, checkpoint manifest", [m, os.path.join(OUT, "queue.log")])
     log("QUEUE DONE" + ("" if pushed else " (final git push FAILED - results only on this disk)"))
-    stop = os.path.join(ROOT, "cloud", "ionos_stop.sh")
+    stop = os.path.join(ROOT, "cloud", "stop_pod.sh")
     r = subprocess.run(["bash", stop] + (["--check"] if DRY else []), cwd=ROOT, capture_output=True, text=True)
     if r.returncode == 0:
-        notify("SMLM cloud: queue done, results pushed; VM stop requested via IONOS API (compute billing stops, "
-               "disk with checkpoints stays)")
-        log("IONOS stop requested: " + r.stdout.strip()[:300])
+        notify("SMLM cloud: queue done, results pushed; Pod stop requested via the Runpod API (GPU billing stops, "
+               "/workspace with the checkpoints stays)")
+        log("Runpod stop requested: " + r.stdout.strip()[:300])
     else:
-        notify("SMLM cloud: queue done, but the VM could NOT be stopped automatically - stop it in the DCD now "
-               "(Power > Stop), otherwise billing continues!")
-        log("IONOS stop FAILED: " + (r.stdout + r.stderr).strip()[:300])
+        notify("SMLM cloud: queue done, but the Pod could NOT be stopped automatically - stop it in the Runpod "
+               "console now (Pods > expand > Stop), otherwise billing continues!")
+        log("Runpod stop FAILED: " + (r.stdout + r.stderr).strip()[:300])
 
 
 if __name__ == "__main__":

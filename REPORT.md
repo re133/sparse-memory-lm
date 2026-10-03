@@ -731,7 +731,7 @@ Bei gleicher Tokenzahl lag B-1M 15 % vorn, bei gleicher Zeit bleibt davon etwa e
 ## Optimierung (Triton-Kernels) und Cloud-Vorbereitung (ab 2026-10-03)
 
 **Ziel:** B-1M so schnell wie realistisch möglich, ohne die Ergebnisse zu verändern. Danach Läufe mit
-größeren Tabellen auf einer gemieteten GPU (IONOS „H200-S“: 1 × H200 PCIe 141 GB, ≈ 3 €/h).
+größeren Tabellen auf einer gemieteten GPU (zuerst IONOS H200-S geplant, jetzt Runpod: 1 × H200 SXM 141 GB).
 Kernels nur in Triton (ROCm **und** CUDA). Die PyTorch-Implementierung bleibt als Referenz und Fallback
 per Konfiguration umschaltbar.
 
@@ -773,7 +773,8 @@ bleiben grün.
 
 ### Kriterien für die Cloud-Läufe (vor dem Bau festgelegt, 2026-10-03)
 
-Läufe auf einer IONOS H200 mit den Daten, Einstellungen und dem Val-Set von B-1M-sparse: B-1M
+Läufe auf einer gemieteten H200 (bei der Festlegung IONOS, jetzt Runpod; die Kriterien gelten unverändert)
+mit den Daten, Einstellungen und dem Val-Set von B-1M-sparse: B-1M
 (Kontrolllauf auf derselben Hardware und mit denselben Kernels), B-4M (2048² = 4.194.304 Einträge) und
 B-16M (4096² = 16.777.216 Einträge), je Init-Seed 0, 500 M Tokens.
 
@@ -1040,28 +1041,39 @@ noch 10 %.
 - **Hardware:** Alle Messungen stammen von der RX 9070. Auf der H200 sind die Verhältnisse anders: mehr
   Bandbreite, und die Kernel-Konfigurationen sind nicht für NVIDIA abgestimmt.
 
-### Cloud-Vorbereitung (IONOS H200-S)
+### Cloud-Vorbereitung (Runpod, 1 × H200)
 
-**Anbieter-Fakten** (IONOS-Doku, recherchiert 2026-10-03):
+**Anbieterwechsel (2026-10-03):** Zuerst war IONOS geplant (H200-S, 3,00 €/h; Stand in Commit `ae66c01`),
+jetzt **Runpod**. Kriterien, Läufe und Daten bleiben unverändert; geändert haben sich nur Setup,
+Speicherort und das Stoppen am Ende.
 
-- **Maschine:** H200-S = 1 × H200 PCIe 141 GB, 15 vCPU, 267 GiB RAM, 1 TB Speicher, **3,00 €/h**
-  (alles inklusive). Nur in de/fra/2; standardmäßig ist genau eine H200-S-VM erlaubt.
-- **Abrechnung stoppen:** Ein **Stop über DCD oder Cloud-API** (`POST …/servers/{id}/stop`) setzt die
-  Abrechnung für die Rechenleistung aus. Ein **Shutdown im Betriebssystem tut das nicht.** Gestoppt bleibt
-  die VM samt Platte erhalten; die Platte wird weiter berechnet (Performance-Speicher 0,15 €/GB/30 Tage,
-  also ≈ 5 €/Tag für 1 TB). Die dynamische IP geht beim Stop verloren.
-- **Löschen:** beendet alle Kosten, aber auch die Platte. Deshalb erst nach `rsync` und Prüfsummen-Check.
-- **Treiber:** Die IONOS-Linux-Images bringen **keine NVIDIA-Treiber** mit. Das Setup-Skript installiert
-  sie (`ubuntu-drivers --gpgpu`, ersatzweise `nvidia-driver-570-server-open`) und startet bei Bedarf
-  einmal neu.
+**Anbieter-Fakten** (Runpod-Doku und runpod.io/pricing, abgerufen 2026-10-03):
+
+- **GPU und Preis:** H200 SXM 141 GB On-Demand: Secure Cloud 4,59 $/h, Community Cloud 3,59 $/h
+  (24 vCPU, 276 GB RAM). Sekundengenaue Abrechnung; maßgeblich ist der Preis in der Konsole. H100 mit
+  80/94 GB reicht für B-16M nicht.
+- **Stoppen:** Ein Stop gibt die GPU frei und beendet die Rechenkosten. `/workspace` (Volume Disk) bleibt
+  und kostet gestoppt 0,20 $/GB/Monat (150 GB ≈ 1 $/Tag); die Container Disk wird geleert.
+  **Terminate** löscht alles.
+- **Stopp aus dem Pod:** Jeder Pod bekommt `RUNPOD_POD_ID` und einen Pod-eigenen `RUNPOD_API_KEY`. Damit
+  stoppt sich der Pod selbst (`POST https://rest.runpod.io/v1/pods/$RUNPOD_POD_ID/stop`, ersatzweise
+  `runpodctl pod stop`). Du musst keinen Schlüssel erzeugen.
+- **Neustart:** Nach einem Stop kann die GPU vergeben sein; dann startet der Pod auf Wunsch mit 0 GPUs. Das
+  reicht, um die Checkpoints zu holen.
+- **Treiber und SSH:** Treiber und SSH sind im Template „Runpod PyTorch“ dabei. `scp`/`rsync` brauchen
+  eine öffentliche IP („SSH over exposed TCP“), deshalb Secure Cloud.
+- **Guthaben:** Fällt es auf 0 $, werden Pods gestoppt, und Pods ohne Netzwerk-Volume **samt Daten
+  gelöscht**. Vorher genug aufladen (≥ 40 $).
 
 **Gebaut** (alles in Git, Anleitung `CLOUD.md`):
 
-- **`cloud/setup.sh`:** ein Befehl auf der frischen VM.
-  - Ablauf: Pakete, Treiber, Deploy-Key + Klonen, Python-Umgebung (PyTorch-CUDA-Wheels mit Triton),
-    Daten, alle Tests (GPU + CPU-Interpreter), dann die Warteschlange in tmux.
-  - Jeder Schritt wird beim erneuten Start übersprungen, wenn er fertig ist.
-  - Bei einem Fehler: Log nach GitHub, Nachricht, VM stoppen.
+- **`cloud/setup.sh`:** ein Befehl im Pod.
+  - Ablauf: Pakete, GPU-Check, Deploy-Key + Klonen nach `/workspace`, Python-Umgebung (PyTorch-CUDA-Wheels
+    mit Triton), Daten, alle Tests, Probelauf aller drei Konfigurationen, dann die Warteschlange in tmux.
+  - Alles, was einen Stop überleben muss, liegt auf `/workspace`; Pakete und SSH-Key werden nach jedem
+    Start neu eingerichtet.
+  - Fertige Schritte werden beim erneuten Start übersprungen.
+  - Bei einem Fehler: Log nach GitHub, Nachricht, Pod stoppen.
 - **`cloud/fetch_data.py`:**
   - Lädt WikiText-103 und Wikipedia 20231101.en in **festgepinnten Hugging-Face-Revisionen** und prüft
     jede Rohdatei per SHA-256. Alle 45 Rohdateien zu Hause stimmen mit den LFS-Prüfsummen dieser Revisionen
@@ -1071,13 +1083,16 @@ noch 10 %.
 - **`scripts/run_cloud.py`:** Warteschlange B-1M (Kontrolle) → B-4M → B-16M.
   - Je 500 M Tokens, Einstellungen von B-1M-sparse, `--mem_impl triton`.
   - GPU-Temperatur, Leistung und Takt alle 10 s (`smlm/gpu_monitor.py`, über `nvidia-smi`).
-  - Nach jedem Lauf: Zwischenstand in REPORT.md, Commit + Push, Handy-Nachricht (ntfy, optional).
-  - Am Ende: Prüfsummenliste der Checkpoints, dann **Stop über die IONOS-API**
-    (`cloud/ionos_stop.sh`; die Rechenkosten stoppen, die Checkpoints bleiben auf der Platte).
+  - Nach jedem Lauf: Zwischenstand in REPORT.md, `git pull --rebase` + Push, Handy-Nachricht (ntfy,
+    optional).
+  - Am Ende: Prüfsummenliste der Checkpoints, dann **Stopp über die Runpod-API** (`cloud/stop_pod.sh`).
   - Schutz: Ein Lauf ohne Log-Änderung für 30 min wird beendet; Obergrenze 12 h für alles.
 - **GitHub:** privates Repo `re133/sparse-memory-lm`, Deploy-Key mit Schreibrecht nur für dieses Repo.
-  Das Starter-Paket `~/smlm-cloud-kit/` liegt auf dem PC (`setup.sh`, `ionos_stop.sh`, `deploy_key`,
+  Das Starter-Paket `~/smlm-cloud-kit/` liegt auf dem PC (`setup.sh`, `stop_pod.sh`, `deploy_key`,
   `cloud.env`).
+- **Nicht benutzt:** das Runpod-Plugin für Claude Code. Die Installation wurde von der Rechte-Prüfung
+  blockiert, und es ist auch nicht nötig. Den Pod legst du in der Weboberfläche an; nur der Pod-eigene
+  Schlüssel wird benutzt.
 
 **Speicherbedarf auf der H200** (141 GB ≈ 131 GiB):
 
@@ -1094,18 +1109,18 @@ B-16M passt nur mit dem fusionierten Lazy Adam (Kernel 3). Die Referenz bräucht
 ungelesenen Zeilen zusätzlich bis zu 3 × 1,5 KiB pro Zeile, bei 16M Zeilen und der Hälfte ungelesen
 ≈ 36 GiB, und das passt nicht mehr.
 
-**Laufzeit und Kosten** (H200-S, 3,00 €/h). Hochgerechnet von der RX 9070 (575 ms je Schritt, H200
-≈ 7,5× Bandbreite, ≈ 5× Rechenleistung; das kleine Modell lastet die H200 nicht aus), **bis Faktor 2
-unsicher**:
+**Laufzeit und Kosten** (H200 SXM, Secure Cloud 4,59 $/h). Hochgerechnet von der RX 9070 (575 ms je
+Schritt, H200 ≈ 7,5× Bandbreite, ≈ 5× Rechenleistung; das kleine Modell lastet die H200 nicht aus),
+**bis Faktor 2 unsicher**:
 
-| | Dauer | Kosten |
+| | Dauer | Kosten (Secure) |
 |---|---|---|
-| Setup (Treiber, Python, 11 GB Daten + Tokenisieren, Tests) | 30–45 min | 1,50–2,30 € |
-| B-1M | 25–45 min | 1,30–2,30 € |
-| B-4M | 30–55 min | 1,50–2,80 € |
-| B-16M (Adam über 16M Zeilen, Top-k über 4096 Keys) | 40–75 min | 2,00–3,80 € |
-| Checkpoints holen (VM dafür wieder gestartet) | 20–60 min | 1,00–3,00 € |
-| **Summe** | **≈ 2,5–4,5 h** | **≈ 8–15 €** (+ ≈ 5 €/Tag, solange die gestoppte VM nicht gelöscht ist) |
+| Setup (Python, 11 GB Daten + Tokenisieren, Tests, Probelauf) | 40–55 min | 3,10–4,20 $ |
+| B-1M | 25–45 min | 1,90–3,40 $ |
+| B-4M | 30–55 min | 2,30–4,20 $ |
+| B-16M (Adam über 16M Zeilen, Top-k über 4096 Keys) | 40–75 min | 3,10–5,70 $ |
+| Checkpoints holen (Pod wieder gestartet, mit 0 GPUs billiger) | 20–60 min | 0–4,60 $ |
+| **Summe** | **≈ 2,5–4,5 h** | **≈ 11–22 $** (Community Cloud ≈ 9–17 $; + ≈ 1 $/Tag, solange der gestoppte Pod nicht gelöscht ist) |
 
 **Vor dem Start geprüft (hier, ohne NVIDIA-GPU):**
 
@@ -1113,9 +1128,9 @@ unsicher**:
   SHA-256-Prüfung; alle 7 Token-Dateien und meta.json entstehen **bytegleich** neu (126 s).
   Der Download über die gepinnte Hugging-Face-URL ist mit einer Datei getestet, inklusive Prüfsumme.
 - **Warteschlange:** Probelauf mit `SMLM_CLOUD_DRYRUN=1` (B-1M, 2 M Tokens, Triton): Lauf, GPU-Log alle
-  10 s, Prüfsummenliste und Ende funktionieren. Ohne IONOS-Zugangsdaten meldet die Warteschlange
-  „IONOS stop FAILED“ und schickt die Warnung, die VM von Hand zu stoppen; der Fehlerpfad ist damit auch
-  geprüft.
+  10 s, Prüfsummenliste und Ende funktionieren. Außerhalb eines Pods findet das Stopp-Skript keinen
+  Pod-Schlüssel, die Warteschlange meldet „stop FAILED“ und schickt die Warnung, von Hand zu stoppen; der
+  Fehlerpfad ist damit auch geprüft (damals mit dem IONOS-Skript, das Runpod-Skript prüft dasselbe).
 - **GitHub:** privates Repo angelegt, gepusht. Klonen mit dem Deploy-Key getestet.
 - **Tests:** 87 GPU-Tests auf ROCm grün, CPU-Interpreter grün.
 - **Nachträglich ergänzt, nur auf der CPU getestet** (die GPU war nach dem Messfenster nicht mehr
@@ -1130,17 +1145,17 @@ unsicher**:
   bzw. im nächsten Zeitfenster zu Hause.
 
 **Nicht getestet** (geht ohne die Maschine nicht). Das Setup prüft jeden dieser Punkte, bevor gerechnet
-wird, und stoppt die VM bei einem Fehler:
+wird, und stoppt den Pod bei einem Fehler:
 
 - **Kernels auf CUDA/H200:** Die Tests laufen dort als Erstes, dazu der Probelauf aller drei
-  Konfigurationen mit je 1 M Tokens. Nur wenn beides klappt, startet die Warteschlange. Die Kernel-Konfigurationen sind auf die RX 9070 abgestimmt. Auf der H200 sind sie
-  korrekt, aber wohl nicht optimal schnell.
-- **Treiberinstallation auf dem IONOS-Ubuntu-Image** (inklusive automatischem Neustart).
-- **IONOS-API-Stopp:** braucht Token, Rechenzentrums- und Server-ID. `setup.sh` prüft den Zugang
-  vorher (`ionos_stop.sh --check`) und warnt, falls er nicht klappt.
+  Konfigurationen mit je 1 M Tokens. Nur wenn beides klappt, startet die Warteschlange.
+- **Runpod-spezifisches:** Template, `/workspace`-Volume und Stopp mit dem Pod-Schlüssel.
+  `setup.sh` prüft den API-Zugang vorher (`stop_pod.sh --check`) und warnt, falls er nicht klappt. Ob
+  ein Pod-Schlüssel den eigenen Pod stoppen darf, steht so in der Runpod-Doku („Schedule a stop“), ist aber
+  nicht ausprobiert.
 
-**Bereit für die Cloud: ja**, sobald `~/smlm-cloud-kit/cloud.env` die IONOS-Angaben hat.
-Ablauf in `CLOUD.md`.
+**Bereit für die Cloud: ja.** Ablauf in `CLOUD.md`: Konto aufladen, Pod anlegen, Paket hochladen,
+`setup.sh` starten.
 
 <!-- CLOUD-STATUS:BEGIN -->
 
