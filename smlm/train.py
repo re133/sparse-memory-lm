@@ -259,6 +259,8 @@ def main():
                     "the val PPL at the evaluation nearest --abort_at_tokens is more than --abort_max_rel worse "
                     "than the reference's val PPL at the same token count")
     ap.add_argument("--abort_at_tokens", type=float, default=100e6)
+    ap.add_argument("--stop_after_tokens", type=float, default=None, help="end training early (after the evaluation "
+                    "at this token count) but keep the schedule of --tokens/--epochs (kernel comparison runs)")
     ap.add_argument("--abort_max_rel", type=float, default=0.05)
     args = ap.parse_args()
 
@@ -461,6 +463,9 @@ def main():
             do_eval(step + 1)
             torch.cuda.synchronize()
             last_log_t, steps_since_t = time.perf_counter(), 0   # evaluation excluded from throughput
+            if args.stop_after_tokens and (step + 1) * stream.tokens_per_step >= args.stop_after_tokens:
+                info["stopped_early_at_step"] = step + 1
+                break
 
     final_val = evaluate(model, "validation", args.seq_len, n_val_words, batch=micro_bs, mem_stats=bool(mems),
                          sample_windows=args.sample_windows if mems else 0, dataset=args.data)
