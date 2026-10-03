@@ -316,11 +316,14 @@ def test_large_table_offsets():
     del rows_read
     m, v = torch.zeros_like(table), torch.zeros_like(table)
     p0 = table[uniq].clone()
+    # Adam is checked against the gradient the kernel really gets (its own accumulator): for |g| ~ 0 the update
+    # is ~ lr * sign(g), so the summation-order noise between acc and ref_acc would flip single elements
+    g_used = acc[uniq].clone()
     untouched_probe = torch.tensor([0, rows // 2, rows - 1], device=DEVICE)
     untouched_probe = untouched_probe[~touched[untouched_probe]]
     before = table[untouched_probe].clone()
     lazy_adam_step(table, m, v, acc, touched, 1.0, 1, 2.4e-3, 0.9, 0.95, 1e-8)
-    gr = ref_acc
+    gr = g_used
     m_ref, v_ref = 0.1 * gr, 0.05 * gr * gr
     p_ref = p0 - (2.4e-3 / 0.1) * m_ref / (v_ref.sqrt() / 0.05 ** 0.5 + 1e-8)
     close(table[uniq], p_ref, "lazy Adam values")
