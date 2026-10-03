@@ -1,0 +1,202 @@
+{
+  "gpu": "AMD Radeon RX 9070",
+  "torch": "2.14.0",
+  "train_step_B": {
+    "fwd": 260.797513961792,
+    "bwd": 544.5860900878906,
+    "stats": 6.790008991956711,
+    "clip": 3.928570032119751,
+    "opt_adamw": 2.1621134281158447,
+    "opt_lazy_table": 28.96432113647461,
+    "step_total": 847.5925903320312,
+    "tok_s": 38660.08312692262
+  },
+  "train_step_A": {
+    "fwd": 127.47196769714355,
+    "bwd": 225.98340225219727,
+    "stats": 0.01625999971292913,
+    "clip": 1.3378929495811462,
+    "opt_adamw": 2.075634002685547,
+    "opt_lazy_table": 0.0,
+    "step_total": 357.1355743408203,
+    "tok_s": 91752.27099815311
+  },
+  "mem_layer_train_fwd_stages": {
+    "query_proj_bn": 0.1526309996843338,
+    "subkey_scores_2x": 0.3133220076560974,
+    "topk_halves_2x": 1.6566709876060486,
+    "cartesian_topk": 1.3502495288848877,
+    "softmax": 0.018160000443458557,
+    "value_bag_fwd": 2.0156935453414917,
+    "swilu": 0.11843099817633629,
+    "forward_total": 5.572407484054565
+  },
+  "mem_layer_train_bwd": {
+    "fwd_bwd_total": 19.19806480407715,
+    "value_bag_fwd_bwd": 13.89859390258789,
+    "value_bag_fwd": 2.0093990564346313,
+    "profiler_top_ops_ms_per_fwd_bwd": [
+      [
+        "autograd::engine::evaluate_function: _RowSparseBagBackward",
+        11.616
+      ],
+      [
+        "_RowSparseBagBackward",
+        11.616
+      ],
+      [
+        "aten::index_put_",
+        6.182
+      ],
+      [
+        "aten::_index_put_impl_",
+        6.182
+      ],
+      [
+        "void (anonymous namespace)::indexing_backward_kernel_many_indices<float, 4>(long const*, long const*, float const*, float*, long, long, long, long, bool) [clone .kd]",
+        5.814
+      ],
+      [
+        "aten::mul_",
+        2.826
+      ],
+      [
+        "void at::native::elementwise_kernel_manual_unroll<128, 4, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int, bool)#1}>(int, at::native::gpu_kernel_impl_nocast<at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > >(at::TensorIteratorBase&, at::native::BinaryFunctor<float, float, float, at::native::binary_internal::MulFunctor<float> > const&)::{lambda(int, bool)#1}) [clone .kd]",
+        2.826
+      ],
+      [
+        "aten::topk",
+        2.537
+      ],
+      [
+        "_RowSparseBag",
+        1.996
+      ],
+      [
+        "aten::_embedding_bag",
+        1.994
+      ],
+      [
+        "void at::native::(anonymous namespace)::EmbeddingBag_updateOutputKernel_sum_mean<float, long>(long const*, long const*, float const*, float*, long*, long, long, long, long, long, int, long*, float const*, long, long, long) [clone .kd]",
+        1.994
+      ],
+      [
+        "aten::gather",
+        1.502
+      ],
+      [
+        "aten::index_select",
+        1.362
+      ],
+      [
+        "void at::native::vectorized_gather_kernel<16, long>(char*, char*, long*, int, long, long, long, long, bool) [clone .kd]",
+        1.362
+      ],
+      [
+        "aten::_embedding_bag_per_sample_weights_backward",
+        1.246
+      ],
+      [
+        "void at::native::_embedding_bag_per_sample_weights_backward_kernel<float, long>(float const*, long, long, float const*, long, long, long const*, long const*, long, long, float*, long) [clone .kd]",
+        1.246
+      ],
+      [
+        "void at::native::mbtopk::computeBlockDigitCounts<c10::BFloat16, unsigned int, unsigned int, 2>(at::cuda::detail::TensorInfo<c10::BFloat16 const, unsigned int>, unsigned int, unsigned int*, unsigned int, unsigned int, int, int, unsigned int, unsigned int, unsigned int*, short*) [clone .kd]",
+        0.892
+      ],
+      [
+        "void at::native::mbtopk::gatherTopK<c10::BFloat16, unsigned int, 2>(at::cuda::detail::TensorInfo<c10::BFloat16 const, unsigned int>, unsigned int, unsigned int, bool, unsigned int, unsigned int, at::cuda::detail::TensorInfo<c10::BFloat16, unsigned int>, unsigned int, at::cuda::detail::TensorInfo<long, unsigned int>, unsigned int, unsigned int, unsigned int, c10::BFloat16*, unsigned int*, unsigned int*, unsigned int) [clone .kd]",
+        0.731
+      ],
+      [
+        "void at::native::mbtopk::computeBlockwiseWithinKCounts<unsigned int, c10::BFloat16>(unsigned int*, short*, unsigned int*, unsigned int, int, bool, unsigned int*, c10::BFloat16*, unsigned int*, unsigned int*, unsigned int*, unsigned int) [clone .kd]",
+        0.591
+      ],
+      [
+        "aten::copy_",
+        0.588
+      ],
+      [
+        "aten::bmm",
+        0.496
+      ],
+      [
+        "aten::sum",
+        0.425
+      ],
+      [
+        "aten::einsum",
+        0.402
+      ],
+      [
+        "autograd::engine::evaluate_function: AddBackward0",
+        0.381
+      ],
+      [
+        "void at::native::reduce_kernel<512, 1, at::native::ReduceOp<c10::BFloat16, at::native::func_wrapper_t<c10::BFloat16, at::native::sum_functor<c10::BFloat16, float, c10::BFloat16>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, c10::BFloat16, 4, 8> >(at::native::ReduceOp<c10::BFloat16, at::native::func_wrapper_t<c10::BFloat16, at::native::sum_functor<c10::BFloat16, float, c10::BFloat16>::operator()(at::TensorIterator&)::{lambda(float, float)#1}>, unsigned int, c10::BFloat16, 4, 8>) [clone .kd]",
+        0.358
+      ],
+      [
+        "autograd::engine::evaluate_function: BmmBackward0",
+        0.332
+      ],
+      [
+        "BmmBackward0",
+        0.332
+      ],
+      [
+        "aten::add",
+        0.283
+      ],
+      [
+        "aten::to",
+        0.266
+      ],
+      [
+        "aten::_to_copy",
+        0.266
+      ]
+    ]
+  },
+  "mem_layer_prefill_fwd_stages": {
+    "query_proj_bn": 0.5909440219402313,
+    "subkey_scores_2x": 1.0864670276641846,
+    "topk_halves_2x": 8.080413818359375,
+    "cartesian_topk": 6.177120923995972,
+    "softmax": 0.03360049985349178,
+    "value_bag_fwd": 8.199615001678467,
+    "swilu": 0.40354199707508087,
+    "forward_total": 24.384543418884277
+  },
+  "mem_layer_decode_fwd_stages": {
+    "query_proj_bn": 0.09114550054073334,
+    "subkey_scores_2x": 0.12718100100755692,
+    "topk_halves_2x": 0.039000000804662704,
+    "cartesian_topk": 0.05270049907267094,
+    "softmax": 0.01116000022739172,
+    "value_bag_fwd": 0.07294050231575966,
+    "swilu": 0.10204499959945679,
+    "forward_total": 0.4363979995250702
+  },
+  "lazy_adam_alone": {
+    "lazy_adam_step_ms": 23.035231471061707
+  },
+  "inference_B": {
+    "prefill_16x1024_ms": 109.30597686767578,
+    "decode_ms_per_token": 5.6676902813705965,
+    "prefill_tok_s": 149891.16304073867,
+    "decode_tok_s": 176.43871671798087
+  },
+  "inference_A": {
+    "prefill_16x1024_ms": 42.30345916748047,
+    "decode_ms_per_token": 4.668759077958384,
+    "prefill_tok_s": 387296.93321615446,
+    "decode_tok_s": 214.18967723588193
+  },
+  "ffn_reference": {
+    "ffn_fwd_bwd": 0.7877905070781708,
+    "ffn_fwd": 0.2194015011191368
+  },
+  "ffn_reference_prefill_fwd": 0.8083459734916687,
+  "ffn_reference_decode_fwd": 0.09540100023150444
+}
