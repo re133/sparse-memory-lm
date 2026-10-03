@@ -727,3 +727,70 @@ Bei gleicher Tokenzahl lag B-1M 15 % vorn, bei gleicher Zeit bleibt davon etwa e
 - **Temperaturen** (alle 10 s, 13 h): Höchstwerte edge 51 °C, Hotspot 83 °C, Speicher 82 °C, 261 W
   (Grenzen 110 / 110 / 108 °C). Keine Drosselung: Der Durchsatz war in allen Läufen konstant
   (5-%-Quantil ≤ 0,3 % unter dem Median).
+
+## Optimierung (Triton-Kernels) und Cloud-Vorbereitung (ab 2026-10-03)
+
+**Ziel:** B-1M so schnell wie realistisch möglich, ohne die Ergebnisse zu verändern. Danach Läufe mit
+größeren Tabellen auf einer gemieteten GPU (IONOS „H200-S“: 1 × H200 PCIe 141 GB, ≈ 3 €/h).
+Kernels nur in Triton (ROCm **und** CUDA). Die PyTorch-Implementierung bleibt als Referenz und Fallback
+per Konfiguration umschaltbar.
+
+**Zielwerte** (gegenüber A auf derselben GPU):
+
+| | Ziel | vorher (B-1M-sparse) |
+|---|---|---|
+| Training | ≥ 0,6× so schnell wie A pro Token | 0,42× |
+| Decoding (Batch 1) | höchstens 10 % langsamer als A | 17 % |
+| Prefill (16 × 1024) | höchstens 1,5× langsamer als A, gemessen mit bf16-Tabelle; fp32, bf16 und 4 Bit getrennt berichtet | 2,6× (fp32) |
+
+**Abbruchregel:** Bringt ein Optimierungsschritt weniger als 10 % Gewinn, wird aufgehört und berichtet,
+wo die Grenze liegt. Ausnahme: der fusionierte Lazy-Adam-Kernel wird wegen des Speicherbedarfs großer
+Tabellen trotzdem gebaut.
+
+**Korrektheit:** Jeder Kernel gegen die Referenz (vorwärts und Gradienten), Tabellen mit 262k, 1M und 4M
+Zeilen. Scores exakt gleich, Indizes gleich bis auf Gleichstände an der Top-k-Grenze, Ausgaben und
+Gradienten mit festen Toleranzen. Tests auch auf der CPU (`TRITON_INTERPRET=1`, kleine Größen).
+Vergleichslauf über 20 M Tokens Kernel gegen Referenz: Loss-Kurven praktisch identisch. Alle alten Tests
+bleiben grün.
+
+### Ausgangsmessung (Profiler, vor jedem Kernel)
+
+`scripts/profile_memory.py` → `report/profile_before.json`. RX 9070, trainierte Checkpoints, echte Batches.
+
+- **Training:** B-1M-sparse braucht 848 ms je Schritt (32.768 Tokens), A 357 ms (0,42×). Die 490 ms
+  Mehrzeit verteilen sich so:
+  - Zeilen-Gradienten sammeln: **285 ms** (24 Aufrufe à 11,9 ms; davon `index_put_` mit Sortieren
+    6,2 ms, Gewichten 2,8 ms, Gathern 1,4 ms, Gewichts-Gradienten 1,2 ms)
+  - Lookup vorwärts: 134 ms (Top-k 72, `embedding_bag` 48)
+  - übrige Speicher-Rückwärtsrechnung: 40 ms
+  - Lazy Adam: 29 ms
+  - Statistik und Clipping: 10 ms
+  - abzüglich der 3 FFNs, die A stattdessen hat: −19 ms
+- **Prefill** (16 × 1024): B 109 ms, A 42 ms. Pro Speicherschicht 24,4 ms (Top-k 14, Mischen 8,2), ein
+  FFN braucht 0,8 ms.
+- **Decoding:** B 5,67 ms pro Token, A 4,67 ms. Pro Speicherschicht 0,44 ms (≈ 15 kleine Kernel-Starts),
+  ein FFN 0,10 ms.
+
+### Kriterien für die Cloud-Läufe (vor dem Bau festgelegt, 2026-10-03)
+
+Läufe auf einer IONOS H200 mit den Daten, Einstellungen und dem Val-Set von B-1M-sparse: B-1M
+(Kontrolllauf auf derselben Hardware und mit denselben Kernels), B-4M (2048² = 4.194.304 Einträge) und
+B-16M (4096² = 16.777.216 Einträge), je Init-Seed 0, 500 M Tokens.
+
+Vorgabe (wörtlich):
+
+- **lohnt sich:** B-4M mindestens 3 % besser als B-1M (Cloud) UND B-16M nochmal besser als B-4M
+- **unklar:** Verbesserung, aber unter 3 %
+- **lohnt sich nicht:** B-4M nicht besser als B-1M (Cloud)
+
+Operationalisierung: Val-PPL Wikipedia am Trainingsende, gleiches Val-Set wie Stufe 1b/1c.
+
+| Urteil | Bedingung |
+|---|---|
+| lohnt sich | PPL(B-4M) ≤ 0,97 × PPL(B-1M) **und** PPL(B-16M) < PPL(B-4M) |
+| unklar | PPL(B-4M) < PPL(B-1M), aber nicht „lohnt sich“ |
+| lohnt sich nicht | PPL(B-4M) ≥ PPL(B-1M) |
+
+Zum Fall „unklar“: Er umfasst auch B-4M ≥ 3 % besser, aber B-16M nicht besser als B-4M. Das wird im
+Bericht ausdrücklich so benannt. Das Seed-Rauschen von B-1M-sparse lag bei 0,39 %; Unterschiede unter
+≈ 0,8 % (2 × Spanne) gelten als nicht belastbar und werden so benannt.
