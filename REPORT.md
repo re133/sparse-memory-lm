@@ -1157,6 +1157,29 @@ wird, und stoppt den Pod bei einem Fehler:
 **Bereit für die Cloud: ja.** Ablauf in `CLOUD.md`: Konto aufladen, Pod anlegen, Paket hochladen,
 `setup.sh` starten.
 
+**Durchführung (2026-10-03/04, Runpod Pod `7yajarg09lrzdn`, 1 × H200 SXM, EUR-IS-4):**
+
+- **Erster Versuch:** 88 von 89 GPU-Tests grün. Durchgefallen ist der neue Großtabellen-Test für Lazy Adam;
+  der Fehler lag im Test. Er verglich mit einem anders summierten Gradienten, und bei |g| ≈ 0 kippt bei Adam
+  das Vorzeichen. Korrigiert in `7867570`. Der Pod hat sich dabei wie vorgesehen nach dem Fehler gestoppt.
+  Zweiter Versuch: GPU 89/89 und CPU-Interpreter 21/21 grün.
+- **Probelauf auf der H200** (VRAM-Spitze Training): B-1M 10,4 GiB, B-4M 28,5 GiB, B-16M 100,9 GiB, wie
+  geschätzt.
+- **Ein Lauf ist auf dem Pod CPU-gebunden:** ein Python-Thread bei ≈ 90 %, GPU ≈ 24 % ausgelastet,
+  ≈ 81 k tok/s.
+  - Deshalb ab 22:01 UTC eine **parallele Ausführung** (Freigabe durch den Nutzer):
+    `scripts/run_cloud_parallel.py` übernimmt den laufenden B-1M und startet B-16M sofort auf derselben
+    GPU.
+  - B-4M startet erst nach B-1M und nur, wenn B-16M fertig ist oder vorher ≥ max(15 GB, 30,5 GiB) frei
+    sind.
+  - Ein abgestürzter Lauf wird gemeldet, nicht neu gestartet; es gibt keine Zwischen-Checkpoints.
+  - Die alte Warteschlange ist eingefroren (SIGSTOP), nicht beendet: Beim Schließen ihres tmux-Fensters hätte
+    B-1M ein SIGHUP bekommen.
+- **Gleicher Trainingscode und gleiche Einstellungen.** Die **Tempo-Werte der Cloud-Läufe (tok/s, Trainzeit)
+  sind wegen der geteilten GPU nicht vergleichbar**, weder untereinander noch mit der RX 9070.
+- **Selbst-Stopp funktioniert nicht:** Der Pod-eigene `RUNPOD_API_KEY` bekommt von der Runpod-REST-API
+  HTTP 403. Gestoppt wird am Ende über das MCP (Claude Code, mit dem Konto des Nutzers).
+
 <!-- CLOUD-STATUS:BEGIN -->
 
 **Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-03 18:12)
