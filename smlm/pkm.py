@@ -105,15 +105,19 @@ class ProductKeyMemory(nn.Module):
             return torch.ones(self.heads, device=self.keys.device)
         return self.log_score_scale.exp()
 
+    def subkey_scores(self, query):
+        """query: (N, heads, k_dim) -> scores against both sub-key sets, each (N, heads, n_keys)."""
+        half = self.k_dim // 2
+        k1, k2 = self.keys[:, 0], self.keys[:, 1]                      # (heads, n_keys, half)
+        s1 = torch.einsum("nhd,hkd->nhk", query[..., :half], k1)
+        s2 = torch.einsum("nhd,hkd->nhk", query[..., half:], k2)
+        return s1, s2
+
     def get_indices(self, query):
         """query: (N, heads, k_dim) -> scores, indices: (N, heads, knn), exact top-k over all n_keys^2 keys."""
         N = query.shape[0]
-        half = self.k_dim // 2
         knn, n = self.knn, self.n_keys
-        q1, q2 = query[..., :half], query[..., half:]
-        k1, k2 = self.keys[:, 0], self.keys[:, 1]                      # (heads, n_keys, half)
-        s1 = torch.einsum("nhd,hkd->nhk", q1, k1)                       # (N, heads, n_keys)
-        s2 = torch.einsum("nhd,hkd->nhk", q2, k2)
+        s1, s2 = self.subkey_scores(query)                              # (N, heads, n_keys)
         s1, i1 = s1.topk(knn, dim=-1)                                   # (N, heads, knn)
         s2, i2 = s2.topk(knn, dim=-1)
         all_s = (s1.unsqueeze(-1) + s2.unsqueeze(-2)).view(N, self.heads, knn * knn)
@@ -140,11 +144,20 @@ class ProductKeyMemory(nn.Module):
         if self.query_norm is not None:
             q = self.query_norm(q.to(self.query_norm.weight.dtype))   # BN in fp32 under autocast
         q = q.view(N, self.heads, self.k_dim)
-        scores, indices = self.get_indices(q)
-        logits = scores.float()
-        if self.log_score_scale is not None:
-            logits = logits * self.log_score_scale.float().exp().view(1, self.heads, 1)
-        weights = F.softmax(logits, dim=-1)                             # softmax over each head's knn
+        s1 = s2 = None
+        if self.impl == "triton" and self.log_score_scale is None:
+            s1, s2 = self.subkey_scores(q)
+        if s1 is not None and s1.dtype == torch.bfloat16:
+            # kernel 2: both half top-k, cartesian top-k and softmax in one Triton kernel (smlm/kernels.py)
+            from .kernels import PKSelect
+            scores, indices, weights = PKSelect.apply(s1, s2, self.knn)
+        else:
+            # reference (also the fallback for fp32 scores without autocast and for the v2b score scale)
+            scores, indices = self.get_indices(q)
+            logits = scores.float()
+            if self.log_score_scale is not None:
+                logits = logits * self.log_score_scale.float().exp().view(1, self.heads, 1)
+            weights = F.softmax(logits, dim=-1)                         # softmax over each head's knn
         if self.record:
             self.last_indices = indices.detach()
             self.last_scores = scores.detach()

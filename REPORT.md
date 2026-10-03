@@ -826,3 +826,55 @@ Bericht ausdrücklich so benannt. Das Seed-Rauschen von B-1M-sparse lag bei 0,39
 | gegenüber A (357 ms) | 0,42× | **0,56×** |
 
 Gewinn 1,32× (Abbruchregel: > 10 %, weiter). Rohdaten: `report/profile_k1.json`.
+
+### Schritt 2: Lookup fusioniert (Kernel 2)
+
+`smlm/kernels.py::pk_select` / `PKSelect` (Auswahl) und `bag_forward` (gewichtetes Mischen).
+
+- **Gleiche Teil-Scores:** s1, s2 kommen weiter aus demselben `einsum` wie in der Referenz und sind
+  deshalb bitgleich.
+- **Auswahl in einem Kernel**, ein Programm je (Token, Kopf):
+  - Top-32 jeder Hälfte (int32-Schlüssel aus ordnungserhaltendem bf16-Code und Index, zweistufig über
+    128er-Blöcke).
+  - Paar-Summen, auf bf16 gerundet wie `s1 + s2` in PyTorch (RTNE mit Integer-Arithmetik, damit GPU und
+    CPU-Interpreter gleich runden).
+  - Top-32 der Paare und Softmax in fp32.
+  - Von den 32 × 32 Paaren kommen nur die 130 mit (i+1)(j+1) ≤ 32 überhaupt in Frage, alle anderen werden
+    von ≥ 32 mindestens gleich großen Paaren dominiert.
+- **Rückwärts:** Softmax-Ableitung, dann der Gradient jedes gewählten Scores in seine zwei Teil-Scores,
+  in fp32 summiert und einmal auf bf16 gerundet (wie der Autograd der Referenz). Der `einsum`-Backward
+  bleibt PyTorch.
+- **Mischen:** ein Programm je (Token, 128 Spalten), 32 Lookups pro Kachel; Tabelle fp32 oder bf16.
+- **Exaktheit:**
+  - Die gewählten Scores sind **bitgleich** mit der Referenz. Jeder gewählte Index hat nachweislich genau
+    seinen Score, die Auswahl ist also ein exaktes Top-k.
+  - Indizes weichen nur bei gleichen Scores ab. Bei bf16 ist das häufig: Mit Zufallsdaten haben 59 % der
+    Zeilen irgendwo einen Gleichstand mit anderer Wahl. Auch `torch.topk` legt die Reihenfolge bei
+    Gleichstand nicht fest.
+  - Softmax-Gewichte: Abweichung ≤ 3·10⁻⁸.
+- **Tests:** Auswahl bei 512 / 1024 / 2048 Keys je Hälfte und bei N = 1. Rückwärts gegen die exakt
+  summierte Ableitung: ≤ 1 bf16-ulp. Mischen gegen `embedding_bag` bei 262k / 1M / 4M Zeilen, fp32 und
+  bf16. CPU-Interpreter grün. Gesamt 71 Tests grün.
+
+| Ein Aufruf (Trainingsform N = 4096) | Referenz | Kernel |
+|---|---|---|
+| Top-k beider Hälften + Kreuz-Top-k + Softmax | 2,83 ms | 0,86 ms |
+| Mischen (`embedding_bag` → Kernel), fp32-Tabelle | 1,97 ms | 0,84 ms |
+| Speicherschicht vorwärts gesamt | 5,57 ms | 2,45 ms |
+
+| | vorher | Kernel 1 | Kernel 1 + 2 | A |
+|---|---|---|---|---|
+| Trainingsschritt | 848 ms | 643 ms | **584 ms** (vorwärts 187, rückwärts 355) | 358 ms |
+| Training tok/s | 38,7 k | 50,9 k | **56,1 k** | 91,5 k |
+| gegenüber A | 0,42× | 0,56× | **0,61×** ✅ (Ziel ≥ 0,6) | |
+| Prefill 16 × 1024 (fp32-Tabelle) | 109 ms (2,6×) | | 64,0 ms (1,52×) | 42,2 ms |
+| Decoding pro Token | 5,67 ms | | 5,70 ms (+21 %) | 4,69 ms |
+
+- **Trainingsgewinn von Schritt 2:** 1,10× (643 → 584 ms), knapp über der 10-%-Grenze.
+- **Rückwärts** wurde etwas langsamer (339 → 355 ms): Die dichten Teil-Score-Gradienten entstehen mit
+  `scatter_add` in fp32 plus Rundung statt mit dem Top-k-Backward der Referenz.
+- **Decoding** ändert sich nicht. Bei einem Token pro Schritt bestimmen die ≈ 15 Kernel-Starts pro
+  Speicherschicht die Zeit, nicht die Rechenarbeit.
+
+Rohdaten: `report/profile_k2.json`, `report/profile_k2_infer.json`. Die Stufenzeiten dort messen die
+PyTorch-Teilschritte; maßgeblich für die Kernels ist `forward_total`.

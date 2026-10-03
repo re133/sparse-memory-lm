@@ -20,6 +20,7 @@ else:
     pytest.skip("Triton kernels need a GPU or TRITON_INTERPRET=1", allow_module_level=True)
 pytest.importorskip("triton")
 
+from smlm.kernels import PKSelect, bag_forward, pk_select  # noqa: E402
 from smlm.model import ModelConfig, Transformer  # noqa: E402
 from smlm.sparse_values import RowStore, _RowSparseBag  # noqa: E402
 
@@ -68,7 +69,7 @@ def test_bag_backward_rows_matches_reference(rows, D, N):
         out[impl] = (y.detach(), wr.grad, st.acc, st.touched)
         del st, y
     (y0, gw0, acc0, t0), (y1, gw1, acc1, t1) = out.pop("torch"), out.pop("triton")
-    torch.testing.assert_close(y1, y0, rtol=0, atol=0)
+    close(y1, y0, "bag output (kernel 2 forward)")
     close(gw1, gw0, "per-sample-weight gradient")
     close(acc1, acc0, "row accumulator")
     assert torch.equal(t1, t0)
@@ -103,3 +104,70 @@ def test_model_gradients_triton_equal_torch():
     t0, t1 = ref.memory_layers()[0].values.weight, ker.memory_layers()[0].values.weight
     close(t1.row_store.acc, t0.row_store.acc, "table accumulator")
     assert torch.equal(t1.row_store.touched, t0.row_store.touched)
+
+
+# ----------------------------------------------------------------------------------------- kernel 2
+SELECT_SHAPES = ([(64, 2, 16, 4), (96, 4, 64, 8)] if INTERPRET else
+                 [(4096, 4, 512, 32), (4096, 4, 1024, 32), (4096, 4, 2048, 32), (1, 4, 1024, 32)])
+
+
+def reference_select(s1, s2, knn):
+    N, H, NK = s1.shape
+    a1, i1 = s1.topk(knn, -1)
+    a2, i2 = s2.topk(knn, -1)
+    alls = (a1.unsqueeze(-1) + a2.unsqueeze(-2)).view(N, H, -1)
+    alli = (i1.unsqueeze(-1) * NK + i2.unsqueeze(-2)).view(N, H, -1)
+    sc, best = alls.topk(knn, -1)
+    return sc, alli.gather(-1, best), torch.softmax(sc.float(), -1)
+
+
+@pytest.mark.parametrize("N,H,NK,knn", SELECT_SHAPES)
+def test_pk_select_matches_reference(N, H, NK, knn, dtype=torch.bfloat16):
+    """Scores exactly equal; every selected index really has its reported score (so the selection is an exact
+    top-k and can differ from the reference only between equal scores); weights within 1e-6."""
+    gen = torch.Generator().manual_seed(N + NK)
+    s1 = torch.randn(N, H, NK, generator=gen).to(DEVICE, dtype)
+    s2 = torch.randn(N, H, NK, generator=gen).to(DEVICE, dtype)
+    rs, ri, rw = reference_select(s1, s2, knn)
+    sc, idx, w = pk_select(s1, s2, knn)
+    assert torch.equal(sc, rs)
+    own = (s1.gather(-1, idx // NK).float() + s2.gather(-1, idx % NK).float()).to(dtype)
+    assert torch.equal(own, sc)
+    srt = idx.view(-1, knn).sort(-1).values
+    assert bool((srt[:, 1:] != srt[:, :-1]).all())                       # no index twice in a row
+    torch.testing.assert_close(w, rw, rtol=0, atol=1e-6)
+
+
+@pytest.mark.parametrize("N,H,NK,knn", SELECT_SHAPES[:2])
+def test_pk_select_backward(N, H, NK, knn):
+    """PKSelect's backward: softmax backward, then every selected score's gradient summed into its two sub-key
+    scores. The reference's autograd sums these in fp32 and rounds once to bf16 (sum over the cartesian
+    partners), so the kernel must equal the exactly summed (fp64) gradient rounded to bf16, within 1 bf16 ulp."""
+    gen = torch.Generator().manual_seed(7)
+    s1 = torch.randn(N, H, NK, generator=gen).to(DEVICE, torch.bfloat16).requires_grad_()
+    s2 = torch.randn(N, H, NK, generator=gen).to(DEVICE, torch.bfloat16).requires_grad_()
+    g = torch.randn(N, H, knn, generator=gen).to(DEVICE)
+    sc, idx, w = PKSelect.apply(s1, s2, knn)
+    (w * g).sum().backward()
+    d1, d2 = s1.grad.clone(), s2.grad.clone()
+    w64, g64 = w.double(), g.double()
+    ds = (w64 * (g64 - (w64 * g64).sum(-1, keepdim=True))).float().to(torch.bfloat16).double()
+    z = torch.zeros(N, H, NK, dtype=torch.float64, device=DEVICE)
+    e1 = z.scatter_add(-1, idx // NK, ds).to(torch.bfloat16).float()
+    e2 = z.scatter_add(-1, idx % NK, ds).to(torch.bfloat16).float()
+    # gradient flows only into selected sub-keys
+    assert torch.equal(d1 != 0, e1 != 0) or bool(((d1 != 0) & (e1 == 0)).sum() == 0)
+    # 1 bf16 ulp, absolute floor at the scale of the largest term (cancellation in fp32 vs fp64)
+    torch.testing.assert_close(d1.float(), e1, rtol=2 ** -7, atol=2 ** -8 * float(ds.abs().max()))
+    torch.testing.assert_close(d2.float(), e2, rtol=2 ** -7, atol=2 ** -8 * float(ds.abs().max()))
+
+
+@pytest.mark.parametrize("rows,D,N", SIZES)
+@pytest.mark.parametrize("dtype", [torch.float32, torch.bfloat16])
+def test_bag_forward_matches_embedding_bag(rows, D, N, dtype):
+    gen = torch.Generator().manual_seed(3)
+    table = (torch.randn(rows, D, generator=gen) * D ** -0.5).to(DEVICE, dtype)
+    idx = skewed_indices(rows, N, 128, gen).to(DEVICE)
+    w = torch.softmax(torch.randn(N, 128, generator=gen), -1).to(DEVICE)
+    ref = torch.nn.functional.embedding_bag(idx, table.float(), per_sample_weights=w, mode="sum")
+    close(bag_forward(idx, w, table), ref, "bag forward")
