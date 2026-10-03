@@ -1,0 +1,148 @@
+2026-10-03 20:51:47 [setup] start (kit /workspace/smlm-cloud-kit, repo /workspace/AngryAnt)
+name, driver_version, memory.total [MiB]
+NVIDIA H200, 570.211.01, 143771 MiB
+2026-10-03 20:51:53 [setup] repo at 3840651
+torch 2.11.0+cu128 cuda 12.8 triton 3.6.0 NVIDIA H200 139.8 GiB
+ok     data/raw/train-00000-of-00002.parquet
+ok     data/raw/train-00001-of-00002.parquet
+ok     data/raw/validation-00000-of-00001.parquet
+ok     data/raw/test-00000-of-00001.parquet
+ok     data/raw_wikipedia/train-00000-of-00041.parquet
+ok     data/raw_wikipedia/train-00001-of-00041.parquet
+ok     data/raw_wikipedia/train-00002-of-00041.parquet
+ok     data/raw_wikipedia/train-00003-of-00041.parquet
+ok     data/raw_wikipedia/train-00004-of-00041.parquet
+ok     data/raw_wikipedia/train-00005-of-00041.parquet
+ok     data/raw_wikipedia/train-00006-of-00041.parquet
+ok     data/raw_wikipedia/train-00007-of-00041.parquet
+ok     data/raw_wikipedia/train-00008-of-00041.parquet
+ok     data/raw_wikipedia/train-00009-of-00041.parquet
+ok     data/raw_wikipedia/train-00010-of-00041.parquet
+ok     data/raw_wikipedia/train-00011-of-00041.parquet
+ok     data/raw_wikipedia/train-00012-of-00041.parquet
+ok     data/raw_wikipedia/train-00013-of-00041.parquet
+ok     data/raw_wikipedia/train-00014-of-00041.parquet
+ok     data/raw_wikipedia/train-00015-of-00041.parquet
+ok     data/raw_wikipedia/train-00016-of-00041.parquet
+ok     data/raw_wikipedia/train-00017-of-00041.parquet
+ok     data/raw_wikipedia/train-00018-of-00041.parquet
+ok     data/raw_wikipedia/train-00019-of-00041.parquet
+ok     data/raw_wikipedia/train-00020-of-00041.parquet
+ok     data/raw_wikipedia/train-00021-of-00041.parquet
+ok     data/raw_wikipedia/train-00022-of-00041.parquet
+ok     data/raw_wikipedia/train-00023-of-00041.parquet
+ok     data/raw_wikipedia/train-00024-of-00041.parquet
+ok     data/raw_wikipedia/train-00025-of-00041.parquet
+ok     data/raw_wikipedia/train-00026-of-00041.parquet
+ok     data/raw_wikipedia/train-00027-of-00041.parquet
+ok     data/raw_wikipedia/train-00028-of-00041.parquet
+ok     data/raw_wikipedia/train-00029-of-00041.parquet
+ok     data/raw_wikipedia/train-00030-of-00041.parquet
+ok     data/raw_wikipedia/train-00031-of-00041.parquet
+ok     data/raw_wikipedia/train-00032-of-00041.parquet
+ok     data/raw_wikipedia/train-00033-of-00041.parquet
+ok     data/raw_wikipedia/train-00034-of-00041.parquet
+ok     data/raw_wikipedia/train-00035-of-00041.parquet
+ok     data/raw_wikipedia/train-00036-of-00041.parquet
+ok     data/raw_wikipedia/train-00037-of-00041.parquet
+ok     data/raw_wikipedia/train-00038-of-00041.parquet
+ok     data/raw_wikipedia/train-00039-of-00041.parquet
+ok     data/raw_wikipedia/train-00040-of-00041.parquet
+raw data verified (45 files, 56 s)
+train {'n_tokens': 117980476, 'n_words': 103227021, 'n_lines': 1801350}
+validation {'n_tokens': 247417, 'n_words': 217646, 'n_lines': 3760}
+test {'n_tokens': 283427, 'n_words': 245569, 'n_lines': 4358}
+WikiText-103 val+test article titles: 122
+[1/41] train-00000-of-00041.parquet: 156289 articles, kept 19780, 7s
+[2/41] train-00001-of-00041.parquet: 156289 articles, kept 19569, 12s
+[3/41] train-00002-of-00041.parquet: 156289 articles, kept 19580, 18s
+[4/41] train-00003-of-00041.parquet: 156289 articles, kept 19788, 24s
+[5/41] train-00004-of-00041.parquet: 156289 articles, kept 19679, 30s
+[6/41] train-00005-of-00041.parquet: 156289 articles, kept 19511, 35s
+[7/41] train-00006-of-00041.parquet: 156288 articles, kept 19746, 39s
+[8/41] train-00007-of-00041.parquet: 156288 articles, kept 19677, 43s
+[9/41] train-00008-of-00041.parquet: 156288 articles, kept 19601, 47s
+[10/41] train-00009-of-00041.parquet: 156288 articles, kept 19613, 52s
+[11/41] train-00010-of-00041.parquet: 156288 articles, kept 19580, 57s
+[12/41] train-00011-of-00041.parquet: 156288 articles, kept 19464, 60s
+[13/41] train-00012-of-00041.parquet: 156288 articles, kept 19553, 64s
+[14/41] train-00013-of-00041.parquet: 156288 articles, kept 19333, 68s
+[15/41] train-00014-of-00041.parquet: 156288 articles, kept 19399, 72s
+[16/41] train-00015-of-00041.parquet: 156288 articles, kept 19695, 76s
+[17/41] train-00016-of-00041.parquet: 156288 articles, kept 19507, 83s
+[18/41] train-00017-of-00041.parquet: 156288 articles, kept 19566, 88s
+[19/41] train-00018-of-00041.parquet: 156288 articles, kept 19650, 92s
+[20/41] train-00019-of-00041.parquet: 156288 articles, kept 19455, 96s
+[21/41] train-00020-of-00041.parquet: 156288 articles, kept 19358, 100s
+[22/41] train-00021-of-00041.parquet: 156288 articles, kept 19651, 103s
+[23/41] train-00022-of-00041.parquet: 156288 articles, kept 19632, 107s
+[24/41] train-00023-of-00041.parquet: 156288 articles, kept 19596, 111s
+[25/41] train-00024-of-00041.parquet: 156288 articles, kept 19657, 115s
+[26/41] train-00025-of-00041.parquet: 156288 articles, kept 19475, 119s
+[27/41] train-00026-of-00041.parquet: 156288 articles, kept 19376, 123s
+[28/41] train-00027-of-00041.parquet: 156288 articles, kept 19425, 126s
+[29/41] train-00028-of-00041.parquet: 156288 articles, kept 19576, 130s
+[30/41] train-00029-of-00041.parquet: 156288 articles, kept 19480, 134s
+[31/41] train-00030-of-00041.parquet: 156288 articles, kept 19606, 138s
+[32/41] train-00031-of-00041.parquet: 156288 articles, kept 19715, 141s
+[33/41] train-00032-of-00041.parquet: 156288 articles, kept 19431, 145s
+[34/41] train-00033-of-00041.parquet: 156288 articles, kept 19591, 149s
+[35/41] train-00034-of-00041.parquet: 156288 articles, kept 19514, 152s
+[36/41] train-00035-of-00041.parquet: 156288 articles, kept 19483, 156s
+[37/41] train-00036-of-00041.parquet: 156288 articles, kept 19594, 165s
+[38/41] train-00037-of-00041.parquet: 156288 articles, kept 19749, 174s
+[39/41] train-00038-of-00041.parquet: 156288 articles, kept 19570, 182s
+[40/41] train-00039-of-00041.parquet: 156288 articles, kept 19586, 188s
+[41/41] train-00040-of-00041.parquet: 156288 articles, kept 19244, 195s
+validation {'n_tokens': 1484010, 'n_articles': 1917, 'n_candidate_articles': 1917, 'candidate_tokens': 1484010, 'n_words': 990651}
+train {'n_tokens': 505000000, 'n_articles': 689951, 'n_candidate_articles': 800138, 'candidate_tokens': 584857875, 'n_words': None}
+done in 198s; excluded 14 of 122 WikiText titles
+OK  wikitext103_gpt2/test.bin
+OK  wikitext103_gpt2/train.bin
+OK  wikitext103_gpt2/validation.bin
+OK  wikitext103_gpt2/meta.json
+OK  wikipedia_en_gpt2/train.bin
+OK  wikipedia_en_gpt2/validation.bin
+OK  wikipedia_en_gpt2/meta.json
+all data byte-identical to home (302 s)
+        untouched_probe = torch.tensor([0, rows // 2, rows - 1], device=DEVICE)
+        untouched_probe = untouched_probe[~touched[untouched_probe]]
+        before = table[untouched_probe].clone()
+        lazy_adam_step(table, m, v, acc, touched, 1.0, 1, 2.4e-3, 0.9, 0.95, 1e-8)
+        gr = ref_acc
+        m_ref, v_ref = 0.1 * gr, 0.05 * gr * gr
+        p_ref = p0 - (2.4e-3 / 0.1) * m_ref / (v_ref.sqrt() / 0.05 ** 0.5 + 1e-8)
+>       close(table[uniq], p_ref, "lazy Adam values")
+
+tests/test_kernels.py:326: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+a = tensor([[ 0.0693, -0.0894,  0.0548,  ..., -0.0546,  0.0742,  0.0415],
+        [-0.0527, -0.0349, -0.0225,  ..., -0.061...0251, -0.0190,  0.0307],
+        [ 0.0682,  0.0294,  0.0450,  ..., -0.0194,  0.0498,  0.0214]],
+       device='cuda:0')
+b = tensor([[ 0.0693, -0.0894,  0.0548,  ..., -0.0546,  0.0742,  0.0415],
+        [-0.0527, -0.0349, -0.0225,  ..., -0.061...0251, -0.0190,  0.0307],
+        [ 0.0682,  0.0294,  0.0450,  ..., -0.0194,  0.0498,  0.0214]],
+       device='cuda:0')
+msg = 'lazy Adam values', chunk = 262144
+
+    def close(a, b, msg="", chunk=1 << 18):
+        """assert_close relative to the reference's scale, in row chunks (no full-size temporaries)."""
+        scale = max(1.0, float(b.abs().max()))
+        for s in range(0, a.shape[0], chunk):
+>           torch.testing.assert_close(a[s:s + chunk] / scale, b[s:s + chunk] / scale, **TOL, msg=msg)
+E           AssertionError: lazy Adam values
+
+tests/test_kernels.py:51: AssertionError
+=============================== warnings summary ===============================
+tests/test_kernels.py::test_pk_select_backward[4096-4-512-32]
+  /workspace/AngryAnt/tests/test_kernels.py:172: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+  Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:836.)
+    torch.testing.assert_close(d1.float(), e1, rtol=2 ** -7, atol=2 ** -8 * float(ds.abs().max()))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_kernels.py::test_large_table_offsets - AssertionError: lazy...
+1 failed, 88 passed, 1 warning in 294.83s (0:04:54)
+2026-10-03 21:05:36 [setup] FAILED: GPU tests (see /workspace/.smlm-setup/tests_gpu.log)
