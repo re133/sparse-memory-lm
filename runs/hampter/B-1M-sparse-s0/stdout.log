@@ -1,0 +1,282 @@
+{"model_name": "B-1M-sparse", "params": {"total": 444895872, "embedding": 19316736, "non_embedding": 425579136, "memory_values": 402653184, "dense_body": 22925952, "active_non_embedding_per_token": 23073408, "bn_running_stats": 6144}, "seeds": {"init_seed": 0, "data_seed": 1234}}
+steps=15258 warmup=763 eval_every=305 accum=8
+[eval] step 0 tokens 0.0M val_ppl 52646.785 train_loss  usage 1.000 kl 0.561
+step 100/15258 loss 8.7225 tok/s 39434
+step 200/15258 loss 6.9689 tok/s 39521
+step 300/15258 loss 6.2991 tok/s 39416
+[eval] step 305 tokens 10.0M val_ppl 522.172 train_loss 7.937 usage 1.000 kl 1.897
+step 400/15258 loss 5.8948 tok/s 39296
+step 500/15258 loss 5.5863 tok/s 39252
+step 600/15258 loss 5.2918 tok/s 39225
+[eval] step 610 tokens 20.0M val_ppl 208.578 train_loss 5.6961 usage 0.999 kl 1.447
+step 700/15258 loss 5.1245 tok/s 39148
+step 800/15258 loss 4.9130 tok/s 39126
+step 900/15258 loss 4.7424 tok/s 39002
+[eval] step 915 tokens 30.0M val_ppl 110.606 train_loss 4.9858 usage 0.999 kl 1.244
+step 1000/15258 loss 4.5079 tok/s 38983
+step 1100/15258 loss 4.4336 tok/s 38917
+step 1200/15258 loss 4.2207 tok/s 38876
+[eval] step 1220 tokens 40.0M val_ppl 75.679 train_loss 4.4489 usage 0.999 kl 1.097
+step 1300/15258 loss 4.2302 tok/s 38854
+step 1400/15258 loss 4.1579 tok/s 38839
+step 1500/15258 loss 4.0559 tok/s 38826
+[eval] step 1525 tokens 50.0M val_ppl 60.848 train_loss 4.1574 usage 1.000 kl 1.013
+step 1600/15258 loss 4.0496 tok/s 38791
+step 1700/15258 loss 4.0359 tok/s 38749
+step 1800/15258 loss 3.9727 tok/s 38766
+[eval] step 1830 tokens 60.0M val_ppl 52.665 train_loss 3.9841 usage 1.000 kl 0.939
+step 1900/15258 loss 3.8691 tok/s 38716
+step 2000/15258 loss 3.8233 tok/s 38722
+step 2100/15258 loss 3.7845 tok/s 38723
+[eval] step 2135 tokens 70.0M val_ppl 47.648 train_loss 3.8535 usage 1.000 kl 0.869
+step 2200/15258 loss 3.7847 tok/s 38684
+step 2300/15258 loss 3.7430 tok/s 38677
+step 2400/15258 loss 3.7326 tok/s 38674
+[eval] step 2440 tokens 80.0M val_ppl 44.038 train_loss 3.7687 usage 1.000 kl 0.848
+step 2500/15258 loss 3.7388 tok/s 38681
+step 2600/15258 loss 3.6601 tok/s 38644
+step 2700/15258 loss 3.6791 tok/s 38667
+[eval] step 2745 tokens 89.9M val_ppl 41.477 train_loss 3.7031 usage 1.000 kl 0.820
+step 2800/15258 loss 3.6425 tok/s 38677
+step 2900/15258 loss 3.5827 tok/s 38657
+step 3000/15258 loss 3.6297 tok/s 38599
+[abort check] tokens 99.94M val_ppl 39.339 vs reference 39.293 (+0.12 %, limit +5.0 %)
+[eval] step 3050 tokens 99.9M val_ppl 39.339 train_loss 3.6309 usage 1.000 kl 0.814
+step 3100/15258 loss 3.5938 tok/s 38645
+step 3200/15258 loss 3.6073 tok/s 38603
+step 3300/15258 loss 3.5382 tok/s 38618
+[eval] step 3355 tokens 109.9M val_ppl 37.687 train_loss 3.5962 usage 1.000 kl 0.782
+step 3400/15258 loss 3.5829 tok/s 38619
+step 3500/15258 loss 3.6127 tok/s 38579
+step 3600/15258 loss 3.5455 tok/s 38594
+[eval] step 3660 tokens 119.9M val_ppl 36.314 train_loss 3.5538 usage 1.000 kl 0.770
+step 3700/15258 loss 3.4877 tok/s 38598
+step 3800/15258 loss 3.5578 tok/s 38584
+step 3900/15258 loss 3.4956 tok/s 38583
+[eval] step 3965 tokens 129.9M val_ppl 35.032 train_loss 3.5183 usage 1.000 kl 0.756
+step 4000/15258 loss 3.5020 tok/s 38612
+step 4100/15258 loss 3.4763 tok/s 38563
+step 4200/15258 loss 3.4437 tok/s 38590
+[eval] step 4270 tokens 139.9M val_ppl 34.032 train_loss 3.5048 usage 1.000 kl 0.740
+step 4300/15258 loss 3.4556 tok/s 38549
+step 4400/15258 loss 3.4437 tok/s 38587
+step 4500/15258 loss 3.4121 tok/s 38524
+[eval] step 4575 tokens 149.9M val_ppl 33.101 train_loss 3.4543 usage 1.000 kl 0.737
+step 4600/15258 loss 3.4106 tok/s 38558
+step 4700/15258 loss 3.4809 tok/s 38526
+step 4800/15258 loss 3.4346 tok/s 38527
+[eval] step 4880 tokens 159.9M val_ppl 32.392 train_loss 3.4307 usage 1.000 kl 0.723
+step 4900/15258 loss 3.3538 tok/s 38529
+step 5000/15258 loss 3.3611 tok/s 38545
+step 5100/15258 loss 3.3790 tok/s 38550
+[eval] step 5185 tokens 169.9M val_ppl 31.631 train_loss 3.389 usage 1.000 kl 0.708
+step 5200/15258 loss 3.4411 tok/s 38514
+step 5300/15258 loss 3.3895 tok/s 38546
+step 5400/15258 loss 3.3524 tok/s 38520
+[eval] step 5490 tokens 179.9M val_ppl 30.959 train_loss 3.3829 usage 1.000 kl 0.707
+step 5500/15258 loss 3.3396 tok/s 38565
+step 5600/15258 loss 3.3297 tok/s 38529
+step 5700/15258 loss 3.4229 tok/s 38516
+[eval] step 5795 tokens 189.9M val_ppl 30.300 train_loss 3.3626 usage 1.000 kl 0.692
+step 5800/15258 loss 3.3977 tok/s 38508
+step 5900/15258 loss 3.3236 tok/s 38566
+step 6000/15258 loss 3.2923 tok/s 38532
+step 6100/15258 loss 3.3069 tok/s 38533
+[eval] step 6100 tokens 199.9M val_ppl 29.664 train_loss 3.3421 usage 1.000 kl 0.694
+step 6200/15258 loss 3.3278 tok/s 38567
+step 6300/15258 loss 3.3324 tok/s 38537
+step 6400/15258 loss 3.3798 tok/s 38525
+[eval] step 6405 tokens 209.9M val_ppl 29.199 train_loss 3.326 usage 1.000 kl 0.696
+step 6500/15258 loss 3.2329 tok/s 38557
+step 6600/15258 loss 3.2958 tok/s 38539
+step 6700/15258 loss 3.2951 tok/s 38515
+[eval] step 6710 tokens 219.9M val_ppl 28.630 train_loss 3.315 usage 1.000 kl 0.684
+step 6800/15258 loss 3.2701 tok/s 38526
+step 6900/15258 loss 3.2946 tok/s 38548
+step 7000/15258 loss 3.2574 tok/s 38510
+[eval] step 7015 tokens 229.9M val_ppl 28.160 train_loss 3.287 usage 1.000 kl 0.678
+step 7100/15258 loss 3.2118 tok/s 38548
+step 7200/15258 loss 3.2996 tok/s 38484
+step 7300/15258 loss 3.2831 tok/s 38507
+[eval] step 7320 tokens 239.9M val_ppl 27.754 train_loss 3.2505 usage 1.000 kl 0.670
+step 7400/15258 loss 3.2776 tok/s 38496
+step 7500/15258 loss 3.1719 tok/s 38549
+step 7600/15258 loss 3.2778 tok/s 38506
+[eval] step 7625 tokens 249.9M val_ppl 27.288 train_loss 3.2497 usage 1.000 kl 0.662
+step 7700/15258 loss 3.2422 tok/s 38484
+step 7800/15258 loss 3.2529 tok/s 38511
+step 7900/15258 loss 3.2465 tok/s 38523
+[eval] step 7930 tokens 259.9M val_ppl 26.971 train_loss 3.2374 usage 1.000 kl 0.666
+step 8000/15258 loss 3.2609 tok/s 38497
+step 8100/15258 loss 3.2193 tok/s 38517
+step 8200/15258 loss 3.2784 tok/s 38501
+[eval] step 8235 tokens 269.8M val_ppl 26.482 train_loss 3.2156 usage 1.000 kl 0.673
+step 8300/15258 loss 3.2570 tok/s 38499
+step 8400/15258 loss 3.2027 tok/s 38475
+step 8500/15258 loss 3.1961 tok/s 38537
+[eval] step 8540 tokens 279.8M val_ppl 26.143 train_loss 3.2019 usage 1.000 kl 0.654
+step 8600/15258 loss 3.2007 tok/s 38491
+step 8700/15258 loss 3.1773 tok/s 38482
+step 8800/15258 loss 3.1734 tok/s 38515
+[eval] step 8845 tokens 289.8M val_ppl 25.741 train_loss 3.1908 usage 1.000 kl 0.653
+step 8900/15258 loss 3.1512 tok/s 38503
+step 9000/15258 loss 3.1673 tok/s 38479
+step 9100/15258 loss 3.2260 tok/s 38505
+[eval] step 9150 tokens 299.8M val_ppl 25.437 train_loss 3.1738 usage 1.000 kl 0.652
+step 9200/15258 loss 3.2440 tok/s 38486
+step 9300/15258 loss 3.1886 tok/s 38499
+step 9400/15258 loss 3.1502 tok/s 38504
+[eval] step 9455 tokens 309.8M val_ppl 25.105 train_loss 3.1758 usage 1.000 kl 0.651
+step 9500/15258 loss 3.1635 tok/s 38498
+step 9600/15258 loss 3.1839 tok/s 38500
+step 9700/15258 loss 3.1607 tok/s 38487
+[eval] step 9760 tokens 319.8M val_ppl 24.833 train_loss 3.158 usage 1.000 kl 0.646
+step 9800/15258 loss 3.0805 tok/s 38479
+step 9900/15258 loss 3.1659 tok/s 38487
+step 10000/15258 loss 3.1372 tok/s 38497
+[eval] step 10065 tokens 329.8M val_ppl 24.544 train_loss 3.1489 usage 1.000 kl 0.639
+step 10100/15258 loss 3.1621 tok/s 38512
+step 10200/15258 loss 3.1045 tok/s 38483
+step 10300/15258 loss 3.1107 tok/s 38488
+[eval] step 10370 tokens 339.8M val_ppl 24.260 train_loss 3.1377 usage 1.000 kl 0.644
+step 10400/15258 loss 3.1648 tok/s 38492
+step 10500/15258 loss 3.0803 tok/s 38520
+step 10600/15258 loss 3.1025 tok/s 38480
+[eval] step 10675 tokens 349.8M val_ppl 24.016 train_loss 3.12 usage 1.000 kl 0.634
+step 10700/15258 loss 3.0960 tok/s 38507
+step 10800/15258 loss 3.1385 tok/s 38466
+step 10900/15258 loss 3.1451 tok/s 38490
+[eval] step 10980 tokens 359.8M val_ppl 23.775 train_loss 3.1186 usage 1.000 kl 0.627
+step 11000/15258 loss 3.1330 tok/s 38463
+step 11100/15258 loss 3.1024 tok/s 38464
+step 11200/15258 loss 3.1188 tok/s 38483
+[eval] step 11285 tokens 369.8M val_ppl 23.514 train_loss 3.1092 usage 1.000 kl 0.634
+step 11300/15258 loss 3.0858 tok/s 38482
+step 11400/15258 loss 3.0854 tok/s 38468
+step 11500/15258 loss 3.0696 tok/s 38466
+[eval] step 11590 tokens 379.8M val_ppl 23.297 train_loss 3.0892 usage 1.000 kl 0.631
+step 11600/15258 loss 3.0555 tok/s 38500
+step 11700/15258 loss 3.0915 tok/s 38493
+step 11800/15258 loss 3.0978 tok/s 38451
+[eval] step 11895 tokens 389.8M val_ppl 23.099 train_loss 3.0841 usage 1.000 kl 0.630
+step 11900/15258 loss 3.0339 tok/s 38473
+step 12000/15258 loss 3.1365 tok/s 38464
+step 12100/15258 loss 3.0666 tok/s 38479
+step 12200/15258 loss 3.1109 tok/s 38475
+[eval] step 12200 tokens 399.8M val_ppl 22.910 train_loss 3.0705 usage 1.000 kl 0.624
+step 12300/15258 loss 3.0203 tok/s 38513
+step 12400/15258 loss 3.0090 tok/s 38495
+step 12500/15258 loss 3.0781 tok/s 38491
+[eval] step 12505 tokens 409.8M val_ppl 22.754 train_loss 3.0778 usage 1.000 kl 0.621
+step 12600/15258 loss 3.0306 tok/s 38495
+step 12700/15258 loss 3.0228 tok/s 38489
+step 12800/15258 loss 3.0297 tok/s 38499
+[eval] step 12810 tokens 419.8M val_ppl 22.607 train_loss 3.0568 usage 1.000 kl 0.627
+step 12900/15258 loss 3.0492 tok/s 38495
+step 13000/15258 loss 2.9543 tok/s 38534
+step 13100/15258 loss 3.1112 tok/s 38491
+[eval] step 13115 tokens 429.8M val_ppl 22.481 train_loss 3.0585 usage 1.000 kl 0.621
+step 13200/15258 loss 3.0737 tok/s 38462
+step 13300/15258 loss 3.0263 tok/s 38490
+step 13400/15258 loss 3.0071 tok/s 38482
+[eval] step 13420 tokens 439.7M val_ppl 22.348 train_loss 3.0508 usage 1.000 kl 0.619
+step 13500/15258 loss 3.0484 tok/s 38506
+step 13600/15258 loss 3.0495 tok/s 38483
+step 13700/15258 loss 2.9654 tok/s 38506
+[eval] step 13725 tokens 449.7M val_ppl 22.228 train_loss 3.0345 usage 1.000 kl 0.625
+step 13800/15258 loss 2.9725 tok/s 38520
+step 13900/15258 loss 3.0099 tok/s 38508
+step 14000/15258 loss 2.9937 tok/s 38464
+[eval] step 14030 tokens 459.7M val_ppl 22.145 train_loss 3.049 usage 1.000 kl 0.617
+step 14100/15258 loss 3.0416 tok/s 38508
+step 14200/15258 loss 3.0886 tok/s 38472
+step 14300/15258 loss 3.0388 tok/s 38484
+[eval] step 14335 tokens 469.7M val_ppl 22.043 train_loss 3.0372 usage 1.000 kl 0.620
+step 14400/15258 loss 3.0352 tok/s 38465
+step 14500/15258 loss 3.0230 tok/s 38483
+step 14600/15258 loss 3.0289 tok/s 38467
+[eval] step 14640 tokens 479.7M val_ppl 21.983 train_loss 3.0351 usage 1.000 kl 0.618
+step 14700/15258 loss 3.0985 tok/s 38480
+step 14800/15258 loss 3.0549 tok/s 38486
+step 14900/15258 loss 3.0180 tok/s 38467
+[eval] step 14945 tokens 489.7M val_ppl 21.906 train_loss 3.0222 usage 1.000 kl 0.619
+step 15000/15258 loss 3.0261 tok/s 38497
+step 15100/15258 loss 3.0341 tok/s 38497
+step 15200/15258 loss 3.0540 tok/s 38492
+[eval] step 15250 tokens 499.7M val_ppl 21.834 train_loss 3.032 usage 1.000 kl 0.616
+[eval] step 15258 tokens 500.0M val_ppl 21.837 train_loss 3.0085 usage 1.000 kl 0.617
+{
+ "val_loss": 3.0835997708760052,
+ "val_ppl": 21.83686880526545,
+ "val_word_ppl": 101.42051804417594,
+ "val2_dataset": "wikitext103",
+ "val2_loss": 4.182222930822355,
+ "val2_ppl": 65.51131860369753,
+ "val2_word_ppl": 116.07942877182813,
+ "train_tok_s_mean": 38589.429621815914,
+ "train_tok_s_median": 38517.40955175412,
+ "peak_train_vram_gib": 10.521557331085205,
+ "weights_gib_fp32": 1.6573662757873535,
+ "decode_b1_tok_s": 181.5935350079894,
+ "decode_peak_vram_gib": 2.3071365356445312,
+ "prefill_tok_s": 150541.2334957513,
+ "prefill_peak_vram_gib": 3.8907546997070312,
+ "mem_val": {
+  "usage": 0.9999990463256836,
+  "kl": 0.6169235869992242,
+  "top1pct_share": 0.11725802089699816,
+  "eff_entries_per_head": 28.59257864736564,
+  "top1_weight": 0.09434141977734926
+ },
+ "mem_val_per_layer": [
+  {
+   "usage": 0.9128828048706055,
+   "kl": 1.5479893323526657,
+   "top1pct_share": 0.26317730173806225,
+   "eff_entries_per_head": 29.182108117242507,
+   "top1_weight": 0.0860317478890466
+  },
+  {
+   "usage": 0.9947786331176758,
+   "kl": 0.9419808511555541,
+   "top1pct_share": 0.15465275353788285,
+   "eff_entries_per_head": 28.567267555133803,
+   "top1_weight": 0.09460035380330992
+  },
+  {
+   "usage": 0.9859132766723633,
+   "kl": 1.1234955427562863,
+   "top1pct_share": 0.16251801917980283,
+   "eff_entries_per_head": 28.02836026972061,
+   "top1_weight": 0.10239215763969126
+  }
+ ],
+ "mem_train_usage_total": 1.0,
+ "mem_score_scale_per_head": [
+  1.0,
+  1.0,
+  1.0,
+  1.0
+ ],
+ "mem_score_scale_per_layer_head": [
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ]
+ ],
+ "mem_key_norm_mean": 0.5459228157997131
+}

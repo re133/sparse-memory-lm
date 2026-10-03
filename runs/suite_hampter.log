@@ -1,0 +1,113 @@
+2026-10-03 01:01:46 queue start
+2026-10-03 01:01:46 start B-1M-sparse-s0: -m smlm.train --model B-1M-sparse --value_lr 2.4e-3 --data wikipedia --tokens 500e6 --abort_ref /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/s1b/B-1M-s0/metrics.csv --abort_at_tokens 100e6 --abort_max_rel 0.05 --seed 0 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/hampter/B-1M-sparse-s0 --extra_val wikitext103 --eval_every_tokens 10e6
+2026-10-03 04:51:15 end B-1M-sparse-s0 rc=0 status=done
+<!-- HAMPTER-STATUS:BEGIN -->
+
+**Zwischenstand** (automatisch erzeugt von `scripts/hampter_status.py`, Stand 2026-10-03 04:51)
+
+| Lauf | Status | Tokens | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s Median (5 %-Quantil) | VRAM Train | max. edge / Hotspot / Speicher | max. Leistung | Takt unter Last |
+|---|---|---|---|---|---|---|---|---|---|---|
+| B-1M s0 (Schnelltest, dichter Optimizer, Referenz) | fertig | 500 M | 21,801 | 66,28 | 249 min | 33.383 (33.345) | 11,70 GiB | – | – | – |
+| A s0 (Schnelltest, Referenz) | fertig | 500 M | 25,665 | 78,38 | 91 min | 91.563 (91.488) | 7,89 GiB | – | – | – |
+| B-1M-sparse s0 | fertig | 500 M | 21,837 | 65,51 | 216 min | 38.517 (38.464) | 10,52 GiB | 48 / 79 / 80 °C | 238 W | 3.120 MHz |
+| A s0 bei gleicher Rechenzeit | ausstehend | – | – | – | – | – | – | – | – | – |
+| A s1 | ausstehend | – | – | – | – | – | – | – | – | – |
+| B-1M-sparse s1 | ausstehend | – | – | – | – | – | – | – | – | – |
+
+**Abbruchregel** (B-1M-sparse s0 bei 99,9 M Tokens): PPL 39,339 gegenüber 39,293 beim bisherigen B-1M s0 = +0,12 % (Grenze +5 %) → **weiter**.
+
+| Kriterium (vorher festgelegt) | Bedingung | Messwert | Ergebnis |
+|---|---|---|---|
+| Optimizer ok | PPL(B-1M-sparse s0) ≤ 1,02 × 21,801 = 22,237 | 21,837 (+0,16 %) | **erfüllt** |
+| Stabil | beide B-1M-sparse-Seeds ≤ 0,90 × Mittel(A s0, A s1) | – | ausstehend |
+| Gleiche Rechenzeit | PPL(B-1M-sparse s0) / PPL(A gleiche Zeit): ≤ 1,00 konkurrenzfähig, ≤ 0,95 klarer Vorteil | – | ausstehend |
+
+**GPU-Höchstwerte über alle Hampter-Läufe** (alle 10 s gemessen, `gpu_thermal.csv` je Lauf): edge 48 °C, Hotspot 79 °C, Speicher 80 °C (Grenzen laut Treiber 110 / 110 / 108 °C), Leistung 238 W.
+
+<!-- HAMPTER-STATUS:END -->
+2026-10-03 04:51:15 A-eqtime budget: 1186.4 M tokens (36206 steps) = 12957 s x 91569 tok/s
+2026-10-03 04:51:15 start A-eqtime-s0: -m smlm.train --model A --data wikipedia_1500m --tokens 1186398208 --seed 0 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/hampter/A-eqtime-s0 --extra_val wikitext103 --eval_every_tokens 10e6
+2026-10-03 08:40:59 end A-eqtime-s0 rc=0 status=done
+<!-- HAMPTER-STATUS:BEGIN -->
+
+**Zwischenstand** (automatisch erzeugt von `scripts/hampter_status.py`, Stand 2026-10-03 08:40)
+
+| Lauf | Status | Tokens | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s Median (5 %-Quantil) | VRAM Train | max. edge / Hotspot / Speicher | max. Leistung | Takt unter Last |
+|---|---|---|---|---|---|---|---|---|---|---|
+| B-1M s0 (Schnelltest, dichter Optimizer, Referenz) | fertig | 500 M | 21,801 | 66,28 | 249 min | 33.383 (33.345) | 11,70 GiB | – | – | – |
+| A s0 (Schnelltest, Referenz) | fertig | 500 M | 25,665 | 78,38 | 91 min | 91.563 (91.488) | 7,89 GiB | – | – | – |
+| B-1M-sparse s0 | fertig | 500 M | 21,837 | 65,51 | 216 min | 38.517 (38.464) | 10,52 GiB | 48 / 79 / 80 °C | 238 W | 3.120 MHz |
+| A s0 bei gleicher Rechenzeit | fertig | 1.186 M | 22,508 | 66,44 | 216 min | 91.498 (91.395) | 7,89 GiB | 49 / 83 / 80 °C | 261 W | 2.993 MHz |
+| A s1 | ausstehend | – | – | – | – | – | – | – | – | – |
+| B-1M-sparse s1 | ausstehend | – | – | – | – | – | – | – | – | – |
+
+**Abbruchregel** (B-1M-sparse s0 bei 99,9 M Tokens): PPL 39,339 gegenüber 39,293 beim bisherigen B-1M s0 = +0,12 % (Grenze +5 %) → **weiter**.
+
+**Budget A bei gleicher Rechenzeit:** 12.957 s Trainzeit von B-1M-sparse s0 × 91.569 tok/s (A s0 im Schnelltest) = 1.186,4 M Tokens (36206 Schritte).
+
+| Kriterium (vorher festgelegt) | Bedingung | Messwert | Ergebnis |
+|---|---|---|---|
+| Optimizer ok | PPL(B-1M-sparse s0) ≤ 1,02 × 21,801 = 22,237 | 21,837 (+0,16 %) | **erfüllt** |
+| Stabil | beide B-1M-sparse-Seeds ≤ 0,90 × Mittel(A s0, A s1) | – | ausstehend |
+| Gleiche Rechenzeit | PPL(B-1M-sparse s0) / PPL(A gleiche Zeit): ≤ 1,00 konkurrenzfähig, ≤ 0,95 klarer Vorteil | 0,970 (−3,0 %); Trainzeit B 216 min, A 216 min | **konkurrenzfähig** |
+
+**GPU-Höchstwerte über alle Hampter-Läufe** (alle 10 s gemessen, `gpu_thermal.csv` je Lauf): edge 49 °C, Hotspot 83 °C, Speicher 80 °C (Grenzen laut Treiber 110 / 110 / 108 °C), Leistung 261 W.
+
+<!-- HAMPTER-STATUS:END -->
+2026-10-03 08:40:59 start A-s1: -m smlm.train --model A --data wikipedia --tokens 500e6 --seed 1 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/hampter/A-s1 --extra_val wikitext103 --eval_every_tokens 10e6
+2026-10-03 10:17:59 end A-s1 rc=0 status=done
+<!-- HAMPTER-STATUS:BEGIN -->
+
+**Zwischenstand** (automatisch erzeugt von `scripts/hampter_status.py`, Stand 2026-10-03 10:17)
+
+| Lauf | Status | Tokens | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s Median (5 %-Quantil) | VRAM Train | max. edge / Hotspot / Speicher | max. Leistung | Takt unter Last |
+|---|---|---|---|---|---|---|---|---|---|---|
+| B-1M s0 (Schnelltest, dichter Optimizer, Referenz) | fertig | 500 M | 21,801 | 66,28 | 249 min | 33.383 (33.345) | 11,70 GiB | – | – | – |
+| A s0 (Schnelltest, Referenz) | fertig | 500 M | 25,665 | 78,38 | 91 min | 91.563 (91.488) | 7,89 GiB | – | – | – |
+| B-1M-sparse s0 | fertig | 500 M | 21,837 | 65,51 | 216 min | 38.517 (38.464) | 10,52 GiB | 48 / 79 / 80 °C | 238 W | 3.120 MHz |
+| A s0 bei gleicher Rechenzeit | fertig | 1.186 M | 22,508 | 66,44 | 216 min | 91.498 (91.395) | 7,89 GiB | 49 / 83 / 80 °C | 261 W | 2.993 MHz |
+| A s1 | fertig | 500 M | 25,756 | 78,48 | 91 min | 91.641 (91.467) | 7,89 GiB | 49 / 82 / 80 °C | 261 W | 2.991 MHz |
+| B-1M-sparse s1 | ausstehend | – | – | – | – | – | – | – | – | – |
+
+**Abbruchregel** (B-1M-sparse s0 bei 99,9 M Tokens): PPL 39,339 gegenüber 39,293 beim bisherigen B-1M s0 = +0,12 % (Grenze +5 %) → **weiter**.
+
+**Budget A bei gleicher Rechenzeit:** 12.957 s Trainzeit von B-1M-sparse s0 × 91.569 tok/s (A s0 im Schnelltest) = 1.186,4 M Tokens (36206 Schritte).
+
+| Kriterium (vorher festgelegt) | Bedingung | Messwert | Ergebnis |
+|---|---|---|---|
+| Optimizer ok | PPL(B-1M-sparse s0) ≤ 1,02 × 21,801 = 22,237 | 21,837 (+0,16 %) | **erfüllt** |
+| Stabil | beide B-1M-sparse-Seeds ≤ 0,90 × Mittel(A s0, A s1) | – | ausstehend |
+| Gleiche Rechenzeit | PPL(B-1M-sparse s0) / PPL(A gleiche Zeit): ≤ 1,00 konkurrenzfähig, ≤ 0,95 klarer Vorteil | 0,970 (−3,0 %); Trainzeit B 216 min, A 216 min | **konkurrenzfähig** |
+
+**GPU-Höchstwerte über alle Hampter-Läufe** (alle 10 s gemessen, `gpu_thermal.csv` je Lauf): edge 49 °C, Hotspot 83 °C, Speicher 80 °C (Grenzen laut Treiber 110 / 110 / 108 °C), Leistung 261 W.
+
+<!-- HAMPTER-STATUS:END -->
+2026-10-03 10:17:59 start B-1M-sparse-s1: -m smlm.train --model B-1M-sparse --value_lr 2.4e-3 --data wikipedia --tokens 500e6 --seed 1 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/hampter/B-1M-sparse-s1 --extra_val wikitext103 --eval_every_tokens 10e6
+2026-10-03 14:07:14 end B-1M-sparse-s1 rc=0 status=done
+<!-- HAMPTER-STATUS:BEGIN -->
+
+**Zwischenstand** (automatisch erzeugt von `scripts/hampter_status.py`, Stand 2026-10-03 14:07)
+
+| Lauf | Status | Tokens | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s Median (5 %-Quantil) | VRAM Train | max. edge / Hotspot / Speicher | max. Leistung | Takt unter Last |
+|---|---|---|---|---|---|---|---|---|---|---|
+| B-1M s0 (Schnelltest, dichter Optimizer, Referenz) | fertig | 500 M | 21,801 | 66,28 | 249 min | 33.383 (33.345) | 11,70 GiB | – | – | – |
+| A s0 (Schnelltest, Referenz) | fertig | 500 M | 25,665 | 78,38 | 91 min | 91.563 (91.488) | 7,89 GiB | – | – | – |
+| B-1M-sparse s0 | fertig | 500 M | 21,837 | 65,51 | 216 min | 38.517 (38.464) | 10,52 GiB | 48 / 79 / 80 °C | 238 W | 3.120 MHz |
+| A s0 bei gleicher Rechenzeit | fertig | 1.186 M | 22,508 | 66,44 | 216 min | 91.498 (91.395) | 7,89 GiB | 49 / 83 / 80 °C | 261 W | 2.993 MHz |
+| A s1 | fertig | 500 M | 25,756 | 78,48 | 91 min | 91.641 (91.467) | 7,89 GiB | 49 / 82 / 80 °C | 261 W | 2.991 MHz |
+| B-1M-sparse s1 | fertig | 500 M | 21,752 | 65,09 | 216 min | 38.577 (38.519) | 10,52 GiB | 51 / 81 / 82 °C | 240 W | 3.121 MHz |
+
+**Abbruchregel** (B-1M-sparse s0 bei 99,9 M Tokens): PPL 39,339 gegenüber 39,293 beim bisherigen B-1M s0 = +0,12 % (Grenze +5 %) → **weiter**.
+
+**Budget A bei gleicher Rechenzeit:** 12.957 s Trainzeit von B-1M-sparse s0 × 91.569 tok/s (A s0 im Schnelltest) = 1.186,4 M Tokens (36206 Schritte).
+
+| Kriterium (vorher festgelegt) | Bedingung | Messwert | Ergebnis |
+|---|---|---|---|
+| Optimizer ok | PPL(B-1M-sparse s0) ≤ 1,02 × 21,801 = 22,237 | 21,837 (+0,16 %) | **erfüllt** |
+| Stabil | beide B-1M-sparse-Seeds ≤ 0,90 × Mittel(A s0, A s1) = 23,140 | s0 0,849×, s1 0,846× (Mittel A 25,711) | **erfüllt** |
+| Gleiche Rechenzeit | PPL(B-1M-sparse s0) / PPL(A gleiche Zeit): ≤ 1,00 konkurrenzfähig, ≤ 0,95 klarer Vorteil | 0,970 (−3,0 %); Trainzeit B 216 min, A 216 min | **konkurrenzfähig** |
+
+**GPU-Höchstwerte über alle Hampter-Läufe** (alle 10 s gemessen, `gpu_thermal.csv` je Lauf): edge 51 °C, Hotspot 83 °C, Speicher 82 °C (Grenzen laut Treiber 110 / 110 / 108 °C), Leistung 261 W.
+
+<!-- HAMPTER-STATUS:END -->
+2026-10-03 14:07:14 QUEUE DONE

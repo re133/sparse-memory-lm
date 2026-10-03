@@ -29,17 +29,128 @@
       "peak_train_vram_gib": 7.892161846160889
     },
     "B0": {
-      "status": "ausstehend"
+      "status": "done",
+      "total_tokens": 499974144,
+      "git": "4bd11af",
+      "thermal": {
+        "edge_c": 48.0,
+        "junction_c": 79.0,
+        "mem_c": 80.0,
+        "power_w": 238.0,
+        "vram_used_gib": 12.03,
+        "sclk_mhz_median_load": 3120.0,
+        "sclk_mhz_max": 3147.0,
+        "n_samples": 1377
+      },
+      "last_eval_tokens": 499974144.0,
+      "last_eval_ppl": 21.83686880526545,
+      "tok_s_median": 38517.0,
+      "tok_s_p5": 38464.0,
+      "abort_check": {
+        "step": 3050,
+        "tokens": 99942400,
+        "val_ppl": 39.33949402206489,
+        "ref_val_ppl": 39.292829002283305,
+        "rel_diff": 0.0011876217866337857,
+        "max_rel": 0.05,
+        "ref": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/s1b/B-1M-s0/metrics.csv",
+        "aborted": false
+      },
+      "val_ppl": 21.83686880526545,
+      "val2_ppl": 65.51131860369753,
+      "train_time_s": 12956.6,
+      "peak_train_vram_gib": 10.521557331085205
     },
     "Aeq": {
-      "status": "ausstehend"
+      "status": "done",
+      "total_tokens": 1186398208,
+      "git": "4bd11af",
+      "thermal": {
+        "edge_c": 49.0,
+        "junction_c": 83.0,
+        "mem_c": 80.0,
+        "power_w": 261.0,
+        "vram_used_gib": 9.71,
+        "sclk_mhz_median_load": 2993.0,
+        "sclk_mhz_max": 3054.0,
+        "n_samples": 1379
+      },
+      "last_eval_tokens": 1186398208.0,
+      "last_eval_ppl": 22.507756404199156,
+      "tok_s_median": 91498.0,
+      "tok_s_p5": 91394.9,
+      "val_ppl": 22.507756404199156,
+      "val2_ppl": 66.43859024339059,
+      "train_time_s": 12961.3,
+      "peak_train_vram_gib": 7.892161846160889
     },
     "A1": {
-      "status": "ausstehend"
+      "status": "done",
+      "total_tokens": 499974144,
+      "git": "4bd11af",
+      "thermal": {
+        "edge_c": 49.0,
+        "junction_c": 82.0,
+        "mem_c": 80.0,
+        "power_w": 261.0,
+        "vram_used_gib": 9.71,
+        "sclk_mhz_median_load": 2991.0,
+        "sclk_mhz_max": 3044.0,
+        "n_samples": 582
+      },
+      "last_eval_tokens": 499974144.0,
+      "last_eval_ppl": 25.75633490316263,
+      "tok_s_median": 91641.0,
+      "tok_s_p5": 91467.0,
+      "val_ppl": 25.75633490316263,
+      "val2_ppl": 78.47878746360017,
+      "train_time_s": 5456.6,
+      "peak_train_vram_gib": 7.892161846160889
     },
     "B1": {
-      "status": "ausstehend"
+      "status": "done",
+      "total_tokens": 499974144,
+      "git": "4bd11af",
+      "thermal": {
+        "edge_c": 51.0,
+        "junction_c": 81.0,
+        "mem_c": 82.0,
+        "power_w": 240.0,
+        "vram_used_gib": 12.04,
+        "sclk_mhz_median_load": 3121.0,
+        "sclk_mhz_max": 3140.0,
+        "n_samples": 1376
+      },
+      "last_eval_tokens": 499974144.0,
+      "last_eval_ppl": 21.75169282478011,
+      "tok_s_median": 38577.0,
+      "tok_s_p5": 38519.0,
+      "val_ppl": 21.75169282478011,
+      "val2_ppl": 65.08855923995254,
+      "train_time_s": 12941.8,
+      "peak_train_vram_gib": 10.521557331085205
     }
   },
-  "criteria": {}
+  "criteria": {
+    "optimizer_ok": {
+      "value": 0.0016419788153037018,
+      "limit": 0.02,
+      "met": true
+    },
+    "stable": {
+      "mean_A": 25.71071425064575,
+      "ratios": [
+        0.8493295282419855,
+        0.8460166688770148
+      ],
+      "limit": 0.9,
+      "met": true
+    },
+    "equal_time": {
+      "ratio": 0.9701930487034887,
+      "verdict": "konkurrenzf\u00e4hig",
+      "train_time_B_s": 12956.6,
+      "train_time_Aeq_s": 12961.3
+    }
+  }
 }

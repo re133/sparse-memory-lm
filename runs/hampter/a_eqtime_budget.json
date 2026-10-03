@@ -1,0 +1,10 @@
+{
+  "b_sparse_s0_train_time_s": 12956.6,
+  "b_sparse_s0_tok_s": 38588.37534538382,
+  "a_ref_run": "runs/s1b/A-s0",
+  "a_tok_s": 91568.67896192377,
+  "steps": 36206,
+  "tokens": 1186398208,
+  "dataset_tokens": 1500000000,
+  "fits_in_one_pass": true
+}

@@ -389,8 +389,67 @@ def paired_vs_b(runs):
     return out
 
 
+HAMPTER_RUNS = [  # (run dir, label, colour, line style)
+    ("s1b/A-s0", "A s0 (500 M)", "#2a78d6", "-"),
+    ("hampter/A-s1", "A s1 (500 M)", "#2a78d6", "--"),
+    ("hampter/A-eqtime-s0", "A s0 gleiche Zeit (1,19 Mrd.)", "#e87ba4", "-"),
+    ("s1b/B-1M-s0", "B-1M s0 dichter Optimizer", "#eb6834", ":"),
+    ("hampter/B-1M-sparse-s0", "B-1M-sparse s0", "#1baf7a", "-"),
+    ("hampter/B-1M-sparse-s1", "B-1M-sparse s1", "#1baf7a", "--"),
+]
+
+
+def hampter_figures():
+    """Stage 1c: val PPL over training time (the equal-compute-time view) and over tokens."""
+    runs = []
+    for rel, label, color, ls in HAMPTER_RUNS:
+        d = os.path.join(ROOT, "runs", rel)
+        p = os.path.join(d, "run-info.json")
+        if os.path.exists(p) and json.load(open(p)).get("status") == "done":
+            runs.append((pd.read_csv(os.path.join(d, "metrics.csv")), label, color, ls))
+    paths = []
+    for xkey, xlabel, scale, name in [("train_time_s", "reine Trainingszeit (h, ohne Auswertungen)", 3600, "time"),
+                                      ("tokens", "Trainings-Tokens (Mio.)", 1e6, "tokens")]:
+        fig, ax = plt.subplots(figsize=(8.5, 4.6))
+        ends = []
+        for m, label, color, ls in runs:
+            m = m[m.step > 0]
+            x = m[xkey] / scale
+            ax.plot(x, m.val_ppl, color=color, ls=ls, label=label)
+            ends.append((m.val_ppl.iloc[-1], x.iloc[-1], f"{m.val_ppl.iloc[-1]:.2f}"))
+        ends.sort()
+        xmax = max(x for _, x, _ in ends)
+        placed = []                                     # (x, y) of labels already placed
+        for y, x, txt in ends:
+            y_lab = y
+            for px, py in placed:                       # only labels at about the same x can collide
+                if abs(px - x) < 0.06 * xmax:
+                    y_lab = max(y_lab, py * 1.035)
+            placed.append((x, y_lab))
+            ax.annotate(txt, (x, y), xytext=(x + 0.012 * xmax, y_lab), textcoords="data", color=INK2, fontsize=8,
+                        va="center", annotation_clip=False)
+        ax.set_yscale("log")
+        ax.set_ylim(19, 60)
+        ax.set_yticks([20, 25, 30, 40, 50, 60])
+        ax.get_yaxis().set_major_formatter(matplotlib.ticker.ScalarFormatter())
+        ax.set_xlabel(xlabel)
+        ax.set_ylabel("Val-PPL Wikipedia (log)")
+        ax.set_title("Stufe 1c: Val-PPL über " + ("die Trainingszeit" if name == "time" else "die Tokens"),
+                     color=INK, loc="left")
+        ax.legend(fontsize=8, loc="upper right")
+        fig.tight_layout()
+        path = os.path.join(OUT, f"hampter_val_ppl_{name}.png")
+        fig.savefig(path, dpi=150)
+        plt.close(fig)
+        paths.append(path)
+    return paths
+
+
 def main():
     os.makedirs(OUT, exist_ok=True)
+    if sys.argv[1:] == ["hampter"]:
+        print(hampter_figures())
+        return
     for phase in sys.argv[1:]:
         runs = load_runs(phase)
         if not runs:

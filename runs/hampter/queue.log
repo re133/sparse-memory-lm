@@ -1,0 +1,11 @@
+2026-10-03 01:01:46 queue start
+2026-10-03 01:01:46 start B-1M-sparse-s0: -m smlm.train --model B-1M-sparse --value_lr 2.4e-3 --data wikipedia --tokens 500e6 --abort_ref /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/s1b/B-1M-s0/metrics.csv --abort_at_tokens 100e6 --abort_max_rel 0.05 --seed 0 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/hampter/B-1M-sparse-s0 --extra_val wikitext103 --eval_every_tokens 10e6
+2026-10-03 04:51:15 end B-1M-sparse-s0 rc=0 status=done
+2026-10-03 04:51:15 A-eqtime budget: 1186.4 M tokens (36206 steps) = 12957 s x 91569 tok/s
+2026-10-03 04:51:15 start A-eqtime-s0: -m smlm.train --model A --data wikipedia_1500m --tokens 1186398208 --seed 0 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/hampter/A-eqtime-s0 --extra_val wikitext103 --eval_every_tokens 10e6
+2026-10-03 08:40:59 end A-eqtime-s0 rc=0 status=done
+2026-10-03 08:40:59 start A-s1: -m smlm.train --model A --data wikipedia --tokens 500e6 --seed 1 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/hampter/A-s1 --extra_val wikitext103 --eval_every_tokens 10e6
+2026-10-03 10:17:59 end A-s1 rc=0 status=done
+2026-10-03 10:17:59 start B-1M-sparse-s1: -m smlm.train --model B-1M-sparse --value_lr 2.4e-3 --data wikipedia --tokens 500e6 --seed 1 --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/hampter/B-1M-sparse-s1 --extra_val wikitext103 --eval_every_tokens 10e6
+2026-10-03 14:07:14 end B-1M-sparse-s1 rc=0 status=done
+2026-10-03 14:07:14 QUEUE DONE
