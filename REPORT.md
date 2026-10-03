@@ -949,6 +949,73 @@ Rohdaten: `report/profile_k4_infer.json`.
 - **Tempo:** Tabellen-Optimizer 29,0 → 22,5 ms je Schritt, Trainingsschritt 584 → 575 ms
   (57,0 k tok/s, 0,62× A). Gewinn < 10 %, wie erwartet; gebaut wegen des Speichers.
 
+### Cloud-Vorbereitung (IONOS H200-S)
+
+**Anbieter-Fakten** (IONOS-Doku, recherchiert 2026-10-03):
+
+- **Maschine:** H200-S = 1 × H200 PCIe 141 GB, 15 vCPU, 267 GiB RAM, 1 TB Speicher, **3,00 €/h**
+  (alles inklusive). Nur in de/fra/2; standardmäßig ist genau eine H200-S-VM erlaubt.
+- **Abrechnung stoppen:** Ein **Stop über DCD oder Cloud-API** (`POST …/servers/{id}/stop`) setzt die
+  Abrechnung für die Rechenleistung aus. Ein **Shutdown im Betriebssystem tut das nicht.** Gestoppt bleibt
+  die VM samt Platte erhalten; die Platte wird weiter berechnet (Performance-Speicher 0,15 €/GB/30 Tage,
+  also ≈ 5 €/Tag für 1 TB). Die dynamische IP geht beim Stop verloren.
+- **Löschen:** beendet alle Kosten, aber auch die Platte. Deshalb erst nach `rsync` und Prüfsummen-Check.
+- **Treiber:** Die IONOS-Linux-Images bringen **keine NVIDIA-Treiber** mit. Das Setup-Skript installiert
+  sie (`ubuntu-drivers --gpgpu`, ersatzweise `nvidia-driver-570-server-open`) und startet bei Bedarf
+  einmal neu.
+
+**Gebaut** (alles in Git, Anleitung `CLOUD.md`):
+
+- **`cloud/setup.sh`:** ein Befehl auf der frischen VM.
+  - Ablauf: Pakete, Treiber, Deploy-Key + Klonen, Python-Umgebung (PyTorch-CUDA-Wheels mit Triton),
+    Daten, alle Tests (GPU + CPU-Interpreter), dann die Warteschlange in tmux.
+  - Jeder Schritt wird beim erneuten Start übersprungen, wenn er fertig ist.
+  - Bei einem Fehler: Log nach GitHub, Nachricht, VM stoppen.
+- **`cloud/fetch_data.py`:**
+  - Lädt WikiText-103 und Wikipedia 20231101.en in **festgepinnten Hugging-Face-Revisionen** und prüft
+    jede Rohdatei per SHA-256. Alle 45 Rohdateien zu Hause stimmen mit den LFS-Prüfsummen dieser Revisionen
+    überein.
+  - Erzeugt die Token-Dateien neu und bricht ab, wenn eine nicht **bytegleich** mit zu Hause ist
+    (`cloud/data_sha256.txt`).
+- **`scripts/run_cloud.py`:** Warteschlange B-1M (Kontrolle) → B-4M → B-16M.
+  - Je 500 M Tokens, Einstellungen von B-1M-sparse, `--mem_impl triton`.
+  - GPU-Temperatur, Leistung und Takt alle 10 s (`smlm/gpu_monitor.py`, über `nvidia-smi`).
+  - Nach jedem Lauf: Zwischenstand in REPORT.md, Commit + Push, Handy-Nachricht (ntfy, optional).
+  - Am Ende: Prüfsummenliste der Checkpoints, dann **Stop über die IONOS-API**
+    (`cloud/ionos_stop.sh`; die Rechenkosten stoppen, die Checkpoints bleiben auf der Platte).
+  - Schutz: Ein Lauf ohne Log-Änderung für 30 min wird beendet; Obergrenze 12 h für alles.
+- **GitHub:** privates Repo `re133/sparse-memory-lm`, Deploy-Key mit Schreibrecht nur für dieses Repo.
+  Das Starter-Paket `~/smlm-cloud-kit/` liegt auf dem PC (`setup.sh`, `ionos_stop.sh`, `deploy_key`,
+  `cloud.env`).
+
+**Speicherbedarf auf der H200** (141 GB ≈ 131 GiB):
+
+- Die Tabelle braucht pro Zeile 4 fp32-Kopien × 384 × 4 B = 6 KiB: Werte, Akkumulator, Adam m und v.
+- „Rest“ wurde bei B-1M gemessen: 10,5 GiB Spitze minus 6,0 GiB Tabelle.
+
+| | Einträge | Tabelle + Optimizer | + Rest | Spitze (Schätzung) | Checkpoint |
+|---|---|---|---|---|---|
+| B-1M | 1.048.576 | 6,0 GiB | 4,5 GiB | ≈ 10,5 GiB (gemessen) | 1,7 GB |
+| B-4M | 4.194.304 | 24,0 GiB | ≈ 4,8 GiB | ≈ 29 GiB | ≈ 6,5 GB |
+| B-16M | 16.777.216 | 96,0 GiB | ≈ 5,5 GiB | ≈ 102 GiB | ≈ 26 GB |
+
+B-16M passt nur mit dem fusionierten Lazy Adam (Kernel 3). Die Referenz bräuchte für die Kopien der
+ungelesenen Zeilen zusätzlich bis zu 3 × 1,5 KiB pro Zeile, bei 16M Zeilen und der Hälfte ungelesen
+≈ 36 GiB, und das passt nicht mehr.
+
+**Laufzeit und Kosten** (H200-S, 3,00 €/h). Hochgerechnet von der RX 9070 (575 ms je Schritt, H200
+≈ 7,5× Bandbreite, ≈ 5× Rechenleistung; das kleine Modell lastet die H200 nicht aus), **bis Faktor 2
+unsicher**:
+
+| | Dauer | Kosten |
+|---|---|---|
+| Setup (Treiber, Python, 11 GB Daten + Tokenisieren, Tests) | 30–45 min | 1,50–2,30 € |
+| B-1M | 25–45 min | 1,30–2,30 € |
+| B-4M | 30–55 min | 1,50–2,80 € |
+| B-16M (Adam über 16M Zeilen, Top-k über 4096 Keys) | 40–75 min | 2,00–3,80 € |
+| Checkpoints holen (VM dafür wieder gestartet) | 20–60 min | 1,00–3,00 € |
+| **Summe** | **≈ 2,5–4,5 h** | **≈ 8–15 €** (+ ≈ 5 €/Tag, solange die gestoppte VM nicht gelöscht ist) |
+
 <!-- CLOUD-STATUS:BEGIN -->
 
 **Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-03 17:11)

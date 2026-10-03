@@ -25,10 +25,16 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from smlm.gpu_monitor import log_until  # noqa: E402
 
-OUT = os.path.join(ROOT, "runs", "cloud")
+# SMLM_CLOUD_DRYRUN=1: local test of the queue mechanics (tiny run of B-1M only, own output directory, no git
+# push, no VM stop) - used before the cloud start, see REPORT.md
+DRY = os.environ.get("SMLM_CLOUD_DRYRUN") == "1"
+OUT = os.path.join(ROOT, "runs", "cloud_dryrun" if DRY else "cloud")
 RUNS = [("B-1M-s0", "B-1M-sparse"), ("B-4M-s0", "B-4M-sparse"), ("B-16M-s0", "B-16M-sparse")]
 ARGS = ["--mem_impl", "triton", "--value_lr", "2.4e-3", "--data", "wikipedia", "--tokens", "500e6",
         "--extra_val", "wikitext103", "--eval_every_tokens", "10e6", "--seed", "0", "--data_seed", "1234"]
+if DRY:
+    RUNS = RUNS[:1]
+    ARGS = [a if a not in ("500e6", "10e6") else {"500e6": "2e6", "10e6": "1e6"}[a] for a in ARGS]
 STALL_MIN = float(os.environ.get("SMLM_STALL_MIN", 30))
 MAX_HOURS = float(os.environ.get("SMLM_MAX_HOURS", 12))
 TRAILER = ("\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
@@ -50,6 +56,9 @@ def notify(msg):
 
 
 def git_push(message, paths):
+    if DRY:
+        log(f"(dry run) would commit + push: {message} {[os.path.relpath(p, ROOT) for p in paths]}")
+        return True
     for p in paths:
         subprocess.run(["git", "add", "-f", p], cwd=ROOT, capture_output=True)
     subprocess.run(["git", "commit", "-q", "-m", message + TRAILER], cwd=ROOT, capture_output=True)
@@ -106,7 +115,8 @@ def run(name, model):
     th.join()
     st = status(name)
     log(f"end {name} rc={p.returncode} status={st}" + (f" ({result})" if result else ""))
-    subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "cloud_status.py")], cwd=ROOT)
+    if not DRY:
+        subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "cloud_status.py")], cwd=ROOT)
     info = json.load(open(os.path.join(out, "run-info.json"))) if os.path.exists(os.path.join(out, "run-info.json")) else {}
     ppl = info.get("results", {}).get("val_ppl")
     pushed = git_push(f"Cloud: {name} {st or 'failed'}" + (f", val PPL {ppl:.3f}" if ppl else ""),
@@ -126,7 +136,7 @@ def manifest():
             continue
         for f in sorted(os.listdir(d)):
             if f.endswith((".pt", ".npy", ".npz")):
-                r = subprocess.run(["sha256sum", os.path.join("runs", "cloud", name, f)], cwd=ROOT,
+                r = subprocess.run(["sha256sum", os.path.relpath(os.path.join(d, f), ROOT)], cwd=ROOT,
                                    capture_output=True, text=True)
                 lines.append(r.stdout.strip())
     path = os.path.join(OUT, "checkpoints.sha256")
@@ -147,7 +157,7 @@ def main():
     pushed = git_push("Cloud: queue finished, checkpoint manifest", [m, os.path.join(OUT, "queue.log")])
     log("QUEUE DONE" + ("" if pushed else " (final git push FAILED - results only on this disk)"))
     stop = os.path.join(ROOT, "cloud", "ionos_stop.sh")
-    r = subprocess.run(["bash", stop], cwd=ROOT, capture_output=True, text=True)
+    r = subprocess.run(["bash", stop] + (["--check"] if DRY else []), cwd=ROOT, capture_output=True, text=True)
     if r.returncode == 0:
         notify("SMLM cloud: queue done, results pushed; VM stop requested via IONOS API (compute billing stops, "
                "disk with checkpoints stays)")
