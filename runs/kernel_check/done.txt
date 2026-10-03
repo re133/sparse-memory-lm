@@ -1,0 +1,3 @@
+17:16:53 torch rc=0
+17:24:36 triton rc=0
+17:24:36 ALL DONE

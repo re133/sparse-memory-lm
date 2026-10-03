@@ -949,6 +949,97 @@ Rohdaten: `report/profile_k4_infer.json`.
 - **Tempo:** Tabellen-Optimizer 29,0 → 22,5 ms je Schritt, Trainingsschritt 584 → 575 ms
   (57,0 k tok/s, 0,62× A). Gewinn < 10 %, wie erwartet; gebaut wegen des Speichers.
 
+### Schritt 5: Vergleichslauf Kernel gegen Referenz (Korrektheit)
+
+Gleiches Modell (B-1M-sparse), gleiche Initialisierung, gleiche Daten, einmal mit `mem_impl="torch"`,
+einmal mit `"triton"` (alle Kernels). Abbildungen: `report/kernel_check_*.png`, Zahlen:
+`report/kernel_check_*.json`.
+
+| Vergleich | Trainings-Loss, Abweichung Median / max. | Val-PPL Referenz → Kernel |
+|---|---|---|
+| **erste 22 M Tokens des echten 500-M-Plans** (Warmup 763 Schritte, wie in der Cloud), Seed 0 | **0,04 % / 0,13 %** | **184,52 → 184,56 (+0,02 %)**; Zwischenwerte −1,0 … +0,5 % |
+| 20 M Tokens mit eigenem kurzem Plan (Warmup 31 Schritte), Seed 0 | 0,37 % / 0,46 % | 181,93 → 178,01 (−2,2 %) |
+| dasselbe, Seed 1 | | 186,73 → 193,73 (+3,8 %) |
+| zum Vergleich: Referenz Seed 0 → Referenz Seed 1 (kurzer Plan) | | 181,93 → 186,73 (+2,6 %) |
+
+![Kernel gegen Referenz, echter Plan](report/kernel_check_500msched.png)
+
+- **Im Regime der echten Läufe sind die Kurven praktisch identisch.** Bei Schritt 10–90 stimmen die
+  Losses auf 5–6 Stellen überein. Danach wachsen die Abweichungen langsam, bleiben aber unter 0,13 %.
+- **Im kurzen Plan** springt die Lernrate nach 31 Schritten auf den vollen Wert, die Tabellennutzung
+  bricht kurz ein (13 % bei 2 M Tokens) und erholt sich wieder. Diese Phase ist chaotisch:
+  - Beide Läufe sind bis Schritt 20 gleich und trennen sich ab Schritt 30.
+  - Am Ende liegt der Kernel einmal 2,2 % besser, einmal 3,8 % schlechter.
+  - Das ist dieselbe Größenordnung wie zwei Seeds der Referenz (2,6 %). Ein systematischer Unterschied
+    ist nicht zu sehen.
+- **Warum die Läufe überhaupt auseinanderlaufen (neuer Befund):**
+  - Die Teil-Scores sind wie in der Referenz bf16 (Autocast). Bei 8 Bit Mantisse haben sehr viele
+    Kandidaten exakt denselben Score.
+  - Auf echten Aktivierungen des trainierten B-1M haben **65 % der (Token, Kopf)-Zeilen einen
+    Gleichstand beim 32. Score**. In **41 %** wählen Kernel und `torch.topk` andere, gleichwertige
+    Einträge, im Mittel 15 von 32.
+  - Gleiche Scores bedeuten gleiche Gewichte, die Ausgabe mischt dann aber andere Werte-Zeilen. Welche,
+    legt auch `torch.topk` nicht fest; die PyTorch-Referenz auf CUDA würde ebenso anders wählen als auf
+    ROCm.
+  - **Exakt gleiche Kurven sind deshalb mit keiner Implementierung erreichbar**, auch nicht mit der
+    Referenz auf anderer Hardware. Erreichbar und gezeigt ist: exakt gleiche Scores, gültige exakte
+    Top-k-Auswahl, gleiche Kurven im echten Plan.
+  - Die vollständige Kontrolle ist der Cloud-Lauf B-1M (500 M Tokens) gegen B-1M-sparse s0 von zu
+    Hause; das Seed-Rauschen dort lag bei 0,39 %.
+- **Nebenbefund fürs Modell (nicht geändert):** Die Auswahl hat wegen der bf16-Scores nur eine grobe
+  Auflösung. Ob fp32-Teil-Scores (kaum teurer) die Speicherschicht verbessern, wäre ein eigener Versuch.
+  Er würde die Ergebnisse gegenüber allen bisherigen B-Läufen verändern und gehört deshalb nicht in diese
+  Optimierung.
+
+### Ergebnis der Optimierung
+
+Gemessen mit `scripts/profile_memory.py` (RX 9070, trainierte Checkpoints; `report/profile_before.json`
+→ `report/profile_after.json`).
+
+| | Ziel | vorher | nachher | erreicht |
+|---|---|---|---|---|
+| Training: Schritt (32.768 Tokens) | | 848 ms (38,7 k tok/s) | 577 ms (56,8 k tok/s) | |
+| Training gegenüber A (359 ms) | ≥ 0,6× | 0,42× | **0,62×** | ✅ |
+| Prefill 16 × 1024 gegenüber A (42,7 ms), bf16-Tabelle | ≤ 1,5× | 2,6× (fp32) | **1,43×** (61,1 ms) | ✅ |
+| Prefill, fp32-Tabelle / 4 Bit | (berichtet) | 2,6× | 1,47× / 1,49× | |
+| Decoding pro Token gegenüber A (4,60 ms) | ≤ +10 % | +21 % | **−2 %** (4,50 ms, mit Decoding-Graph) | ✅ |
+| Decoding ohne Graph | (berichtet) | +21 % | +23 % | |
+| Val-PPL B-1M-sparse s0 (fp32 / bf16 / 4 Bit) | unverändert | 21,837 | 21,836 / 21,837 / 21,866 | ✅ |
+
+**Gewinn je Schritt** (Abbruchregel: ab < 10 % aufhören, außer Kernel 3):
+
+| Schritt | Gewinn |
+|---|---|
+| Kernel 1 (Zeilen-Gradienten) | Training 1,32× |
+| Kernel 2 (Lookup) | Training 1,10×, Prefill 109 → 63 ms (1,73×) |
+| Kernel 4 (bf16 / 4 Bit) | Prefill 63 → 61 ms (1,03×) |
+| Decoding-Graph | Decoding 1,26× |
+| Kernel 3 (Lazy Adam) | Training 1,02×; gebaut wegen des Speichers |
+
+Danach habe ich aufgehört: Alle Ziele sind erreicht, und keiner der verbleibenden Posten verspricht
+noch 10 %.
+
+**Wo die Grenze liegt (ehrlich):**
+
+- **Training:** Von den 577 ms je Schritt sind 359 ms der Rechenkern, den A auch hat. Die Speicherschichten
+  kosten noch ≈ 220 ms:
+  - Rückwärtsrechnung ≈ 130 ms, davon Kernel 1 ≈ 3 ms je Aufruf, der Rest sind Teil-Score-Gradienten,
+    Projektionen und BatchNorm.
+  - Vorwärts ≈ 60 ms.
+  - Lazy Adam 22 ms, Statistik und Clipping 10 ms.
+
+  Ein weiterer großer Schritt bräuchte einen fusionierten Backward für Auswahl und Teil-Scores (heute
+  `scatter_add` + `einsum`-Backward in PyTorch) oder fusionierte Projektionen. Mehr als 10 % sind davon
+  einzeln nicht zu erwarten.
+- **Prefill:** Die Werte-Lesezugriffe sind kein Engpass mehr: bf16 bringt nur 2 ms, 4 Bit nichts. Die
+  Auswahl kostet ≈ 3,2 ms je Schicht bei 16k Tokens; sie ist an eine bitonische Sortierung in Triton
+  gebunden.
+- **Decoding:** Der Gewinn kommt **aus den CUDA/HIP-Graphen, nicht aus einem Kernel.** Ohne Graph liegt B
+  bei +23 %, weil eine Speicherschicht ≈ 20 Ops absetzt (0,39 ms CPU). A läuft ohne Graphen; mit Graphen
+  würde auch A schneller, der Abstand bliebe aber klein.
+- **Hardware:** Alle Messungen stammen von der RX 9070. Auf der H200 sind die Verhältnisse anders: mehr
+  Bandbreite, und die Kernel-Konfigurationen sind nicht für NVIDIA abgestimmt.
+
 ### Cloud-Vorbereitung (IONOS H200-S)
 
 **Anbieter-Fakten** (IONOS-Doku, recherchiert 2026-10-03):
@@ -1016,9 +1107,34 @@ unsicher**:
 | Checkpoints holen (VM dafür wieder gestartet) | 20–60 min | 1,00–3,00 € |
 | **Summe** | **≈ 2,5–4,5 h** | **≈ 8–15 €** (+ ≈ 5 €/Tag, solange die gestoppte VM nicht gelöscht ist) |
 
+**Vor dem Start geprüft (hier, ohne NVIDIA-GPU):**
+
+- **Daten:** `cloud/fetch_data.py` in einer frischen Kopie des Repos. Alle 45 Rohdateien bestehen die
+  SHA-256-Prüfung; alle 7 Token-Dateien und meta.json entstehen **bytegleich** neu (126 s).
+  Der Download über die gepinnte Hugging-Face-URL ist mit einer Datei getestet, inklusive Prüfsumme.
+- **Warteschlange:** Probelauf mit `SMLM_CLOUD_DRYRUN=1` (B-1M, 2 M Tokens, Triton): Lauf, GPU-Log alle
+  10 s, Prüfsummenliste und Ende funktionieren. Ohne IONOS-Zugangsdaten meldet die Warteschlange
+  „IONOS stop FAILED“ und schickt die Warnung, die VM von Hand zu stoppen; der Fehlerpfad ist damit auch
+  geprüft.
+- **GitHub:** privates Repo angelegt, gepusht. Klonen mit dem Deploy-Key getestet.
+- **Tests:** 87 GPU-Tests auf ROCm grün, CPU-Interpreter grün.
+
+**Nicht getestet** (geht ohne die Maschine nicht). Das Setup prüft jeden dieser Punkte, bevor gerechnet
+wird, und stoppt die VM bei einem Fehler:
+
+- **Kernels auf CUDA/H200:** Die Tests laufen dort als Erstes; nur wenn alles grün ist, startet die
+  Warteschlange. Die Kernel-Konfigurationen sind auf die RX 9070 abgestimmt. Auf der H200 sind sie
+  korrekt, aber wohl nicht optimal schnell.
+- **Treiberinstallation auf dem IONOS-Ubuntu-Image** (inklusive automatischem Neustart).
+- **IONOS-API-Stopp:** braucht Token, Rechenzentrums- und Server-ID. `setup.sh` prüft den Zugang
+  vorher (`ionos_stop.sh --check`) und warnt, falls er nicht klappt.
+
+**Bereit für die Cloud: ja**, sobald `~/smlm-cloud-kit/cloud.env` die IONOS-Angaben hat.
+Ablauf in `CLOUD.md`.
+
 <!-- CLOUD-STATUS:BEGIN -->
 
-**Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-03 17:11)
+**Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-03 18:12)
 
 | Lauf | Status | GPU | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s | VRAM Train | Nutzung | max. Temp. GPU / Speicher | max. Leistung |
 |---|---|---|---|---|---|---|---|---|---|---|
