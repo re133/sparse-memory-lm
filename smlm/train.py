@@ -249,6 +249,8 @@ def main():
     ap.add_argument("--data", default=None, choices=list(DATASETS), help="training / primary val dataset "
                     "(default: wikitext103, or SMLM_DATA_DIR)")
     ap.add_argument("--extra_val", default=None, choices=list(DATASETS), help="second validation set (val2_*)")
+    ap.add_argument("--mem_impl", default=None, choices=["torch", "triton"], help="memory layer: PyTorch "
+                    "reference or Triton kernels (default: model preset, i.e. torch)")
     ap.add_argument("--abort_ref", default=None, help="metrics.csv of a reference run: stop with exit code 3 if "
                     "the val PPL at the evaluation nearest --abort_at_tokens is more than --abort_max_rel worse "
                     "than the reference's val PPL at the same token count")
@@ -279,6 +281,8 @@ def main():
         mcfg.mem_query_norm = args.mem_query_norm
         if args.mem_score_scale_init is not None:
             mcfg.mem_score_scale_init = args.mem_score_scale_init
+        if args.mem_impl is not None:
+            mcfg.mem_impl = args.mem_impl
     model = Transformer(mcfg).cuda()
     opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay)
     mems = model.memory_layers()

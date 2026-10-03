@@ -30,7 +30,7 @@ class ProductKeyMemory(nn.Module):
     def __init__(self, d_in, d_out, n_keys=512, heads=4, knn=32, k_dim=256, v_dim=-1,
                  query_norm="batchnorm", swilu=True, value_impl="embedding_bag",
                  keys_weight_decay=True, score_scale="none", score_scale_init=1.0, shared_values=None,
-                 value_grad="dense"):
+                 value_grad="dense", impl="torch"):
         super().__init__()
         assert k_dim % 2 == 0 and knn <= n_keys
         self.d_in, self.d_out = d_in, d_out
@@ -41,6 +41,8 @@ class ProductKeyMemory(nn.Module):
         self.value_impl = value_impl
         assert value_grad in ("dense", "row_sparse")
         self.value_grad = value_grad                    # "row_sparse": see smlm/sparse_values.py
+        assert impl in ("torch", "triton")
+        self.impl = impl                                # "triton": kernels in smlm/kernels.py
         self.score_scale_init = score_scale_init
 
         self.keys = nn.Parameter(torch.empty(heads, 2, n_keys, k_dim // 2))
@@ -124,7 +126,7 @@ class ProductKeyMemory(nn.Module):
         """indices, weights: (N, heads*knn) -> (N, v_dim) = sum_j weights[:, j] * values[indices[:, j]]"""
         w = self.values.weight
         if self.value_grad == "row_sparse":
-            return row_sparse_embedding_bag(indices, weights, w)
+            return row_sparse_embedding_bag(indices, weights, w, self.impl)
         if self.value_impl == "embedding_bag":
             return F.embedding_bag(indices, w, per_sample_weights=weights.to(w.dtype), mode="sum")
         # reference path: materialises (N, heads*knn, v_dim)

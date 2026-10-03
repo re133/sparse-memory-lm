@@ -43,8 +43,13 @@ def bench(fn, reps=10, warmup=3):
     return float(np.median(ts))
 
 
+IMPL = "torch"
+
+
 def load(name):
     cfg = ModelConfig(max_seq_len=1024, **MODELS[name])
+    if cfg.mem_layers:
+        cfg.mem_impl = IMPL
     model = Transformer(cfg).cuda()
     sd = torch.load(os.path.join(ROOT, CKPT[name]), map_location="cuda", weights_only=False)["state_dict"]
     model.load_state_dict(sd)
@@ -256,15 +261,28 @@ def inference(model, prompt, reps=5, new_tokens=64):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=None)
+    ap.add_argument("--mem_impl", default="torch", choices=["torch", "triton"])
+    ap.add_argument("--parts", default="train,layer,infer", help="comma list of train, layer, infer")
     args = ap.parse_args()
+    global IMPL
+    IMPL = args.mem_impl
+    parts = set(args.parts.split(","))
     torch.manual_seed(0)
     stream = TrainStream(1024, 32, 1234, dataset="wikipedia")
     batch = torch.from_numpy(stream.batch(2000).astype(np.int64)).cuda()
-    out = {"gpu": torch.cuda.get_device_name(0), "torch": torch.__version__}
+    out = {"gpu": torch.cuda.get_device_name(0), "torch": torch.__version__, "mem_impl": IMPL}
 
-    out["train_step_B"] = train_step_profile("B-1M-sparse", stream)
-    out["train_step_A"] = train_step_profile("A", stream)
-    print(json.dumps({k: out[k] for k in ("train_step_B", "train_step_A")}, indent=1), flush=True)
+    if "train" in parts:
+        out["train_step_B"] = train_step_profile("B-1M-sparse", stream)
+        out["train_step_A"] = train_step_profile("A", stream)
+        out["train_B_over_A"] = out["train_step_B"]["tok_s"] / out["train_step_A"]["tok_s"]
+        print(json.dumps({k: out[k] for k in ("train_step_B", "train_step_A", "train_B_over_A")}, indent=1),
+              flush=True)
+    if not parts & {"layer", "infer"}:
+        if args.out:
+            with open(args.out, "w") as f:
+                json.dump(out, f, indent=2)
+        return
 
     model_b = load("B-1M-sparse")
     mem = model_b.memory_layers()[1]                      # middle memory layer (layer index 6)
@@ -297,6 +315,9 @@ def main():
     with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
         out["ffn_reference_decode_fwd"] = bench(lambda: ffn(x16[:1]), 50)
     print(json.dumps({k: v for k, v in out.items() if k not in ("train_step_B", "train_step_A")}, indent=1))
+    if "inference_A" in out:
+        out["prefill_B_over_A_time"] = out["inference_B"]["prefill_16x1024_ms"] / out["inference_A"]["prefill_16x1024_ms"]
+        out["decode_B_slowdown"] = out["inference_B"]["decode_ms_per_token"] / out["inference_A"]["decode_ms_per_token"] - 1
     if args.out:
         with open(args.out, "w") as f:
             json.dump(out, f, indent=2)

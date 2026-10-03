@@ -52,14 +52,17 @@ def row_store(table):
 
 class _RowSparseBag(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, weights, indices, table, store):
+    def forward(ctx, weights, indices, table, store, impl="torch"):
         n, j = indices.shape
         flat = indices.reshape(-1).contiguous()
         offsets = torch.arange(0, n * j, j, device=indices.device)
         w = weights.reshape(-1).to(table.dtype).contiguous()
         out, offset2bag, _, _ = torch.ops.aten._embedding_bag(table, flat, offsets, False, 0, False, w, False, -1)
+        if offset2bag.numel() != flat.numel():          # CPU fp32 fast path leaves it empty (fixed-size bags)
+            offset2bag = torch.arange(n, device=indices.device).repeat_interleave(j)
         ctx.save_for_backward(w, flat, offsets, offset2bag)
         ctx.table, ctx.store, ctx.wshape, ctx.wdtype = table, store, weights.shape, weights.dtype
+        ctx.impl, ctx.ishape = impl, indices.shape
         return out
 
     @staticmethod
@@ -67,6 +70,11 @@ class _RowSparseBag(torch.autograd.Function):
         w, flat, offsets, offset2bag = ctx.saved_tensors
         table, store = ctx.table, ctx.store
         g = grad_out.contiguous().to(store.acc.dtype)
+        if ctx.impl == "triton":                       # kernel 1 (smlm/kernels.py)
+            from .kernels import bag_backward_rows
+            gw = bag_backward_rows(g, flat.view(ctx.ishape), w, table, store.acc, store.touched)
+            ctx.table = ctx.store = None
+            return gw.view(ctx.wshape).to(ctx.wdtype), None, None, None, None
         gw = torch.ops.aten._embedding_bag_per_sample_weights_backward(g.to(table.dtype), table, flat, offsets,
                                                                        offset2bag, 0, -1)
         for a in range(0, flat.numel(), CHUNK):
@@ -76,14 +84,15 @@ class _RowSparseBag(torch.autograd.Function):
         # the graph node outlives backward while the last loss tensor is alive; drop the RowStore reference
         # so `del table.row_store` after training really frees the accumulator
         ctx.table = ctx.store = None
-        return gw.view(ctx.wshape).to(ctx.wdtype), None, None, None
+        return gw.view(ctx.wshape).to(ctx.wdtype), None, None, None, None
 
 
-def row_sparse_embedding_bag(indices, weights, table):
-    """sum_j weights[:, j] * table[indices[:, j]] with row-sparse gradient accumulation into table.row_store."""
+def row_sparse_embedding_bag(indices, weights, table, impl="torch"):
+    """sum_j weights[:, j] * table[indices[:, j]] with row-sparse gradient accumulation into table.row_store.
+    impl="triton": the backward runs kernel 1 of smlm/kernels.py instead of the aten/index_put_ reference."""
     if not torch.is_grad_enabled():
         return F.embedding_bag(indices, table, per_sample_weights=weights.to(table.dtype), mode="sum")
-    return _RowSparseBag.apply(weights, indices, table.detach(), row_store(table))
+    return _RowSparseBag.apply(weights, indices, table.detach(), row_store(table), impl)
 
 
 def row_sparse_tables(model):
