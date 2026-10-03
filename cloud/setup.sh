@@ -133,7 +133,9 @@ trap - ERR
 if tmux has-session -t queue 2>/dev/null; then
   say "queue already running (tmux attach -t queue)"
 else
-  tmux new-session -d -s queue "cd $REPO_DIR && SMLM_KIT=$KIT NTFY_TOPIC=${NTFY_TOPIC:-} .venv/bin/python scripts/run_cloud.py 2>&1 | tee -a runs/cloud_queue_stdout.log"
+  # cloud.env is sourced (exported) inside the queue session, so SMLM_MAX_HOURS / SMLM_STALL_MIN / NTFY_TOPIC
+  # reach run_cloud.py (a plain `.` above only sets shell variables of this script)
+  tmux new-session -d -s queue "cd $REPO_DIR && set -a && . $KIT/cloud.env && set +a && SMLM_KIT=$KIT .venv/bin/python scripts/run_cloud.py 2>&1 | tee -a runs/cloud_queue_stdout.log"
   say "queue started: tmux attach -t queue   (log: $REPO_DIR/runs/cloud/queue.log)"
 fi
 notify "SMLM cloud: setup done, tests green, preflight ok, queue running"
