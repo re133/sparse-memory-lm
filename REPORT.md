@@ -924,3 +924,27 @@ PyTorch-Teilschritte; maßgeblich für die Kernels ist `forward_total`.
   Zugriffe dichter und die Lookups werden eher schneller.
 
 Rohdaten: `report/profile_k4_infer.json`.
+
+### Schritt 4: Lazy Adam fusioniert (Kernel 3, wegen des Speichers großer Tabellen)
+
+`smlm/kernels.py::lazy_adam_step`, automatisch mit `mem_impl="triton"`.
+
+- **Kernel:** Gleiche Rechnung wie `LazyRowAdam` (Adam-Formel von PyTorch, globaler Schritt für die
+  Bias-Korrektur, kein Weight Decay), aber direkt in der Tabelle: gelesene Zeilen werden aktualisiert und
+  ihr Akkumulator genullt. Ungelesene Zeilen werden gar nicht geladen.
+- **Speicher:** Die Referenz sichert und restauriert die ungelesenen Zeilen (Werte und beide Momente),
+  das sind 3 × 1,5 KB temporär pro ungelesener Zeile. Bei 16M Zeilen und vielen ungelesenen wären das
+  zweistellige GB, beim Kernel 0.
+- **Gefundener Fehler:** Die erste Version löschte die `touched`-Maske im Kernel mit maskierten
+  Byte-Stores. Dabei wurden auf der RX 9070 Zeilen benachbarter Programme gelöscht, bevor diese sie
+  gelesen hatten (Folge: 60–133 gelesene Zeilen ohne Update). Der Test hat das gefunden. Die Maske wird
+  jetzt nach dem Kernel mit einem `zero_()` gelöscht.
+- **Tests:** 3 Schritte gegen `LazyRowAdam` bei 262k / 1M / 4M Zeilen, mit Clipping-Faktor:
+  - ungelesene Zeilen bitgleich
+  - gelesene Zeilen und beide Momente innerhalb rtol = atol = 1e-5
+  - Akkumulator und Maske danach leer
+
+  Auf GPUs < 40 GB mit 16 Spalten (sonst > 13 GB VRAM). 87 GPU-Tests grün, CPU-Interpreter 20 grün
+  (3 Graph-Tests nur GPU). VRAM-Spitze des ganzen Testlaufs 7,4 GiB.
+- **Tempo:** Tabellen-Optimizer 29,0 → 22,5 ms je Schritt, Trainingsschritt 584 → 575 ms
+  (57,0 k tok/s, 0,62× A). Gewinn < 10 %, wie erwartet; gebaut wegen des Speichers.

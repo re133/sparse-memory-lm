@@ -137,20 +137,39 @@ class LazyRowAdam(torch.optim.Optimizer):
     gradients, and the few unread rows (values, exp_avg, exp_avg_sq) are saved before and written back after.
     The result equals a row-wise lazy update exactly (see tests/test_sparse_values.py)."""
 
-    def __init__(self, params, lr, betas=(0.9, 0.95), eps=1e-8, name="memory_values"):
+    def __init__(self, params, lr, betas=(0.9, 0.95), eps=1e-8, name="memory_values", impl="torch"):
         params = list(params)
         super().__init__(params, dict(lr=lr, betas=betas, eps=eps, weight_decay=0.0))
         for g in self.param_groups:
             g["name"] = name
             g["base_lr"] = lr
+        assert impl in ("torch", "triton")
+        self.impl = impl                    # "triton": kernel 3 (smlm/kernels.py), in place, no copies
         fused = all(p.is_cuda for p in params)
         self._adam = {p: torch.optim.Adam([p], lr=lr, betas=betas, eps=eps, fused=fused or None) for p in params}
+
+    @torch.no_grad()
+    def _step_triton(self, group, p, st):
+        from .kernels import lazy_adam_step
+        state = self.state[p]
+        if not state:
+            state["step"] = torch.zeros((), dtype=torch.float32)
+            state["exp_avg"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+            state["exp_avg_sq"] = torch.zeros_like(p, memory_format=torch.preserve_format)
+        state["step"] += 1
+        b1, b2 = group["betas"]
+        lazy_adam_step(p, state["exp_avg"], state["exp_avg_sq"], st.acc, st.touched, st.grad_scale,
+                       int(state["step"]), group["lr"], b1, b2, group["eps"])
+        st.grad_scale = 1.0                 # the kernel has zeroed the read accumulator rows and the mask
 
     @torch.no_grad()
     def step(self):
         for group in self.param_groups:
             for p in group["params"]:
                 st = row_store(p)
+                if self.impl == "triton":
+                    self._step_triton(group, p, st)
+                    continue
                 if not bool(st.touched.any()):
                     continue
                 adam = self._adam[p]

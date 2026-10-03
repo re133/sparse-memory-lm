@@ -39,7 +39,9 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
         g["lr"] = g["base_lr"]
     opt = torch.optim.AdamW(groups, betas=betas, eps=eps, fused=True)
     if sparse_tables:
-        return OptimizerSet(opt, LazyRowAdam(sparse_tables, lr=value_lr, betas=betas, eps=eps))
+        impl = "triton" if any(getattr(m, "impl", "torch") == "triton" for m in model.modules()
+                               if getattr(m, "value_grad", None) == "row_sparse") else "torch"
+        return OptimizerSet(opt, LazyRowAdam(sparse_tables, lr=value_lr, betas=betas, eps=eps, impl=impl))
     return opt
 
 

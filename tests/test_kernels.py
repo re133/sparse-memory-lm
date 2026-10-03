@@ -35,6 +35,15 @@ else:
 TOL = dict(rtol=1e-5, atol=1e-5)
 
 
+@pytest.fixture(autouse=True)
+def _free_gpu_memory():
+    yield
+    if DEVICE == "cuda":
+        import gc
+        gc.collect()
+        torch.cuda.empty_cache()
+
+
 def close(a, b, msg="", chunk=1 << 18):
     """assert_close relative to the reference's scale, in row chunks (no full-size temporaries)."""
     scale = max(1.0, float(b.abs().max()))
@@ -236,3 +245,44 @@ def test_decode_graph_bit_identical(kind):
         graph2 = decode()                                   # replay of the captured graphs
         ker.set_memory_decode_graphs(False)
     assert torch.equal(graph, eager) and torch.equal(graph2, eager)
+
+
+# ----------------------------------------------------------------------------------------- kernel 3
+@pytest.mark.parametrize("rows,D,N", SIZES)
+def test_lazy_adam_kernel_matches_reference(rows, D, N):
+    if DEVICE == "cuda" and GPU_MEM_GIB < 40:
+        # two tables + accumulators + Adam states + the reference's copies of the unread rows: 4M x 384 would
+        # need > 40 GB, 1M x 384 ~13 GB; on small GPUs the rows stay, the columns shrink
+        D = 16
+    """Three steps of the fused lazy Adam against LazyRowAdam (reference): read rows updated identically up to
+    rounding, unread rows (values and both moments) bit-identical, accumulator and mask cleared."""
+    from smlm.sparse_values import LazyRowAdam, row_store
+    gen = torch.Generator().manual_seed(11)
+    base = (torch.randn(rows, D, generator=gen) * D ** -0.5).to(DEVICE)
+    tabs = {impl: torch.nn.Parameter(base.clone()) for impl in ("torch", "triton")}
+    opts = {impl: LazyRowAdam([tabs[impl]], lr=2.4e-3, betas=(0.9, 0.95), eps=1e-8, impl=impl)
+            for impl in ("torch", "triton")}
+    for step in range(3):
+        idx = skewed_indices(rows, min(N, 1024), 128, gen).to(DEVICE)
+        grad_rows = torch.randn(idx.numel(), D, generator=gen).to(DEVICE)
+        scale = 0.5 if step == 1 else 1.0
+        before = {impl: (tabs[impl].detach().clone()) for impl in tabs}
+        for impl in ("torch", "triton"):
+            st = row_store(tabs[impl])
+            st.acc.index_put_((idx.reshape(-1),), grad_rows, accumulate=True)
+            st.touched[idx.reshape(-1)] = True
+            st.grad_scale = torch.tensor(scale, device=DEVICE) if impl == "triton" else scale
+            opts[impl].step()
+            assert not st.touched.any() and torch.count_nonzero(st.acc) == 0
+        t0, t1 = tabs["torch"].detach(), tabs["triton"].detach()
+        read = torch.zeros(rows, dtype=torch.bool, device=DEVICE)
+        read[idx.reshape(-1)] = True
+        assert torch.equal(t1[~read], before["triton"][~read])                 # unread rows untouched
+        close(t1, t0, "values")
+        s0, s1 = opts["torch"].state[tabs["torch"]], opts["triton"].state[tabs["triton"]]
+        close(s1["exp_avg"], s0["exp_avg"], "exp_avg")
+        close(s1["exp_avg_sq"], s0["exp_avg_sq"], "exp_avg_sq")
+        assert int(s1["step"]) == step + 1
+    del tabs, opts
+    if DEVICE == "cuda":
+        torch.cuda.empty_cache()

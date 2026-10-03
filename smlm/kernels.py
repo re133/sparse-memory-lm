@@ -369,3 +369,57 @@ def bag_infer(indices, weights, table, scales=None, pre=None, out_bf16=False, bl
                             pre.contiguous() if pre is not None else out, out, K=K, D=D, BLOCK_J=bj,
                             BLOCK_D=block_d, Q4=q4, SWILU=pre is not None, OUT_BF16=out_bf16, num_warps=4)
     return out
+
+
+# ---------------------------------------------------------------------------------------------------------
+# Kernel 3: lazy Adam on the value table, fused and in place
+#
+# Same update as sparse_values.LazyRowAdam (torch Adam formula, global step for the bias correction, no
+# weight decay) for the rows marked in `touched`; afterwards their accumulator rows are zero and the mask is
+# cleared (the mask with one memset after the kernel). Rows that were not read are not loaded at all, and no
+# copies are made: the reference
+# implementation saves and restores the unread rows (values + both moments), which costs 3 x 1.5 KB per
+# unread row of temporary memory - tens of GB for 16M rows.
+# ---------------------------------------------------------------------------------------------------------
+if HAVE_TRITON:
+    @triton.jit
+    def _lazy_adam_kernel(p_ptr, m_ptr, v_ptr, acc_ptr, touched_ptr, scale_ptr, n_rows, lr, beta1, beta2, eps,
+                          step_size, bc2_sqrt, D: tl.constexpr, BR: tl.constexpr, BLOCK_D: tl.constexpr):
+        rows = tl.program_id(0) * BR + tl.arange(0, BR)
+        rm = rows < n_rows
+        t = tl.load(touched_ptr + rows, mask=rm, other=0) != 0
+        scale = tl.load(scale_ptr).to(tl.float32)
+        r64 = rows.to(tl.int64)
+        for d0 in range(0, D, BLOCK_D):
+            d = d0 + tl.arange(0, BLOCK_D)
+            msk = t[:, None] & (d < D)[None, :]
+            off = r64[:, None] * D + d[None, :]
+            g = tl.load(acc_ptr + off, mask=msk, other=0.0) * scale
+            m = tl.load(m_ptr + off, mask=msk, other=0.0)
+            v = tl.load(v_ptr + off, mask=msk, other=0.0)
+            p = tl.load(p_ptr + off, mask=msk, other=0.0)
+            m = beta1 * m + (1.0 - beta1) * g
+            v = beta2 * v + (1.0 - beta2) * g * g
+            p = p - step_size * m / (tl.sqrt(v) / bc2_sqrt + eps)
+            tl.store(m_ptr + off, m, mask=msk)
+            tl.store(v_ptr + off, v, mask=msk)
+            tl.store(p_ptr + off, p, mask=msk)
+            tl.store(acc_ptr + off, tl.zeros_like(g), mask=msk)
+
+
+def lazy_adam_step(param, exp_avg, exp_avg_sq, acc, touched, grad_scale, step, lr, beta1, beta2, eps,
+                   rows_per_program=8, block_d=128):
+    """In-place lazy Adam step (see above). grad_scale: 0-d tensor (clip factor) or float; step: the step
+    number after this update (1 for the first)."""
+    rows, D = param.shape
+    if not torch.is_tensor(grad_scale):
+        grad_scale = torch.tensor(float(grad_scale), device=param.device)
+    bc1 = 1 - beta1 ** step
+    bc2 = 1 - beta2 ** step
+    grid = (triton.cdiv(rows, rows_per_program),)
+    _lazy_adam_kernel[grid](param, exp_avg, exp_avg_sq, acc, touched.view(torch.uint8),
+                            grad_scale.reshape(1).float(), rows, lr, beta1, beta2, eps, lr / bc1, bc2 ** 0.5,
+                            D=D, BR=rows_per_program, BLOCK_D=block_d, num_warps=4)
+    # cleared here, not in the kernel: a masked byte store of the mask from inside the kernel cleared rows
+    # of neighbouring programs before they had read them (seen on the RX 9070 with 8+ rows per program)
+    touched.zero_()
