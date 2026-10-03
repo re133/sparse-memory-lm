@@ -948,3 +948,20 @@ Rohdaten: `report/profile_k4_infer.json`.
   (3 Graph-Tests nur GPU). VRAM-Spitze des ganzen Testlaufs 7,4 GiB.
 - **Tempo:** Tabellen-Optimizer 29,0 → 22,5 ms je Schritt, Trainingsschritt 584 → 575 ms
   (57,0 k tok/s, 0,62× A). Gewinn < 10 %, wie erwartet; gebaut wegen des Speichers.
+
+<!-- CLOUD-STATUS:BEGIN -->
+
+**Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-03 17:11)
+
+| Lauf | Status | GPU | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s | VRAM Train | Nutzung | max. Temp. GPU / Speicher | max. Leistung |
+|---|---|---|---|---|---|---|---|---|---|---|
+| B-1M-sparse s0 zu Hause (RX 9070, PyTorch-Referenz) | fertig | AMD Radeon RX 9070 | 21,837 | 65,51 | 216 min | 38.517 | 10,5 GiB | 100,0 % | 48 / 80 °C | 238 W |
+| B-1M (Cloud, Kontrolle) | ausstehend | – | – | – | – | – | – | – | – | – |
+| B-4M (Cloud) | ausstehend | – | – | – | – | – | – | – | – | – |
+| B-16M (Cloud) | ausstehend | – | – | – | – | – | – | – | – | – |
+
+| Kriterium (vorher festgelegt) | Messwert | Ergebnis |
+|---|---|---|
+| lohnt sich: B-4M ≥ 3 % besser als B-1M (Cloud) und B-16M besser als B-4M | – | ausstehend |
+
+<!-- CLOUD-STATUS:END -->

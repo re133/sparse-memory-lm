@@ -1,0 +1,41 @@
+{
+  "runs": {
+    "home": {
+      "status": "done",
+      "total_tokens": 499974144,
+      "gpu": "AMD Radeon RX 9070",
+      "params_total": 444895872,
+      "git": "4bd11af",
+      "thermal": {
+        "edge_c": 48.0,
+        "junction_c": 79.0,
+        "mem_c": 80.0,
+        "power_w": 238.0,
+        "vram_used_gib": 12.03,
+        "sclk_mhz_median_load": 3120.0,
+        "sclk_mhz_max": 3147.0,
+        "n_samples": 1377
+      },
+      "last_eval_tokens": 499974144.0,
+      "last_eval_ppl": 21.83686880526545,
+      "val_ppl": 21.83686880526545,
+      "val2_ppl": 65.51131860369753,
+      "train_time_s": 12956.6,
+      "duration_s": 13767.9,
+      "tok_s": 38517.40955175412,
+      "peak_train_vram_gib": 10.521557331085205,
+      "usage": 0.9999990463256836
+    },
+    "B1": {
+      "status": "ausstehend"
+    },
+    "B4": {
+      "status": "ausstehend"
+    },
+    "B16": {
+      "status": "ausstehend"
+    }
+  },
+  "criteria": null,
+  "verdict": "ausstehend"
+}

@@ -1,0 +1,162 @@
+"""Cloud queue (IONOS H200-S): B-1M (control), B-4M, B-16M, back to back, then stop the VM.
+
+  python scripts/run_cloud.py            (started by cloud/setup.sh in tmux session "queue"; resumable)
+
+Every run: settings and data of B-1M-sparse s0 (500 M Wikipedia tokens, data seed 1234, init seed 0, value LR
+2.4e-3, micro-batch 4, eval every 10 M tokens, WikiText-103 val as second set), Triton kernels
+(--mem_impl triton). GPU temperature / power / clocks every 10 s in <run>/gpu_thermal.csv.
+After every run: status block in REPORT.md (scripts/cloud_status.py), commit + push of the small run files
+(run-info, metrics, logs, thermal CSV; checkpoints stay on the disk), optional phone notification (ntfy).
+At the end: sha256 manifest of all checkpoints (pushed), then the VM is stopped through the IONOS Cloud API so
+that compute billing stops (cloud/ionos_stop.sh; an OS shutdown would NOT stop billing). The disk with the
+checkpoints stays.
+
+Safety: a run whose logs have not changed for STALL_MIN minutes is terminated (and the queue goes on); after
+MAX_HOURS in total the queue stops what is running and stops the VM.
+"""
+import json
+import os
+import subprocess
+import sys
+import threading
+import time
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from smlm.gpu_monitor import log_until  # noqa: E402
+
+OUT = os.path.join(ROOT, "runs", "cloud")
+RUNS = [("B-1M-s0", "B-1M-sparse"), ("B-4M-s0", "B-4M-sparse"), ("B-16M-s0", "B-16M-sparse")]
+ARGS = ["--mem_impl", "triton", "--value_lr", "2.4e-3", "--data", "wikipedia", "--tokens", "500e6",
+        "--extra_val", "wikitext103", "--eval_every_tokens", "10e6", "--seed", "0", "--data_seed", "1234"]
+STALL_MIN = float(os.environ.get("SMLM_STALL_MIN", 30))
+MAX_HOURS = float(os.environ.get("SMLM_MAX_HOURS", 12))
+TRAILER = ("\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
+           "Claude-Session: https://claude.ai/code/session_019qFk4hJ98tAkLc3kBY5njm")
+T_START = time.time()
+
+
+def log(msg):
+    line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}"
+    print(line, flush=True)
+    with open(os.path.join(OUT, "queue.log"), "a") as f:
+        f.write(line + "\n")
+
+
+def notify(msg):
+    topic = os.environ.get("NTFY_TOPIC")
+    if topic:
+        subprocess.run(["curl", "-s", "-m", "20", "-d", msg, f"https://ntfy.sh/{topic}"], capture_output=True)
+
+
+def git_push(message, paths):
+    for p in paths:
+        subprocess.run(["git", "add", "-f", p], cwd=ROOT, capture_output=True)
+    subprocess.run(["git", "commit", "-q", "-m", message + TRAILER], cwd=ROOT, capture_output=True)
+    for attempt in range(5):
+        r = subprocess.run(["git", "push", "-q", "origin", "HEAD"], cwd=ROOT, capture_output=True, text=True)
+        if r.returncode == 0:
+            return True
+        log(f"git push failed (attempt {attempt + 1}): {r.stderr.strip()[:200]}")
+        time.sleep(30)
+    return False
+
+
+def small_files(run_dir):
+    keep = ("run-info.json", "metrics.csv", "train_log.csv", "stdout.log", "gpu_thermal.csv")
+    return [os.path.join(run_dir, f) for f in keep if os.path.exists(os.path.join(run_dir, f))]
+
+
+def status(name):
+    p = os.path.join(OUT, name, "run-info.json")
+    return json.load(open(p)).get("status") if os.path.exists(p) else None
+
+
+def run(name, model):
+    out = os.path.join(OUT, name)
+    if status(name) == "done":
+        log(f"skip {name} (done)")
+        return "done"
+    os.makedirs(out, exist_ok=True)
+    cmd = [sys.executable, "-m", "smlm.train", "--model", model, "--out_dir", out, *ARGS]
+    log("start " + name + ": " + " ".join(cmd[1:]))
+    stop = threading.Event()
+    th = threading.Thread(target=log_until, args=(os.path.join(out, "gpu_thermal.csv"), stop), daemon=True)
+    th.start()
+    env = dict(os.environ, PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True")
+    with open(os.path.join(out, "stdout.log"), "w") as fh:
+        p = subprocess.Popen(cmd, cwd=ROOT, stdout=fh, stderr=subprocess.STDOUT, env=env)
+        result = None
+        while p.poll() is None:
+            time.sleep(30)
+            newest = max(os.path.getmtime(f) for f in small_files(out) if not f.endswith("gpu_thermal.csv"))
+            if time.time() - newest > STALL_MIN * 60:
+                result = "stalled"
+            if time.time() - T_START > MAX_HOURS * 3600:
+                result = "time limit"
+            if result:
+                log(f"{name}: {result}, terminating")
+                p.terminate()
+                try:
+                    p.wait(120)
+                except subprocess.TimeoutExpired:
+                    p.kill()
+                break
+    stop.set()
+    th.join()
+    st = status(name)
+    log(f"end {name} rc={p.returncode} status={st}" + (f" ({result})" if result else ""))
+    subprocess.run([sys.executable, os.path.join(ROOT, "scripts", "cloud_status.py")], cwd=ROOT)
+    info = json.load(open(os.path.join(out, "run-info.json"))) if os.path.exists(os.path.join(out, "run-info.json")) else {}
+    ppl = info.get("results", {}).get("val_ppl")
+    pushed = git_push(f"Cloud: {name} {st or 'failed'}" + (f", val PPL {ppl:.3f}" if ppl else ""),
+                      small_files(out) + [os.path.join(OUT, "queue.log"), "REPORT.md",
+                                          os.path.join("report", "cloud_status.json")])
+    notify(f"SMLM cloud: {name} {st or 'failed'}" + (f", val PPL {ppl:.3f}" if ppl else "") +
+           ("" if pushed else " (git push FAILED)"))
+    return result or st or "failed"
+
+
+def manifest():
+    """sha256 of every checkpoint / large artefact on the disk -> runs/cloud/checkpoints.sha256 (pushed)."""
+    lines = []
+    for name, _ in RUNS:
+        d = os.path.join(OUT, name)
+        if not os.path.isdir(d):
+            continue
+        for f in sorted(os.listdir(d)):
+            if f.endswith((".pt", ".npy", ".npz")):
+                r = subprocess.run(["sha256sum", os.path.join("runs", "cloud", name, f)], cwd=ROOT,
+                                   capture_output=True, text=True)
+                lines.append(r.stdout.strip())
+    path = os.path.join(OUT, "checkpoints.sha256")
+    with open(path, "w") as fh:
+        fh.write("\n".join(lines) + "\n")
+    return path
+
+
+def main():
+    os.makedirs(OUT, exist_ok=True)
+    log("queue start")
+    notify("SMLM cloud: queue started (B-1M, B-4M, B-16M)")
+    for name, model in RUNS:
+        r = run(name, model)
+        if r == "time limit":
+            break
+    m = manifest()
+    pushed = git_push("Cloud: queue finished, checkpoint manifest", [m, os.path.join(OUT, "queue.log")])
+    log("QUEUE DONE" + ("" if pushed else " (final git push FAILED - results only on this disk)"))
+    stop = os.path.join(ROOT, "cloud", "ionos_stop.sh")
+    r = subprocess.run(["bash", stop], cwd=ROOT, capture_output=True, text=True)
+    if r.returncode == 0:
+        notify("SMLM cloud: queue done, results pushed; VM stop requested via IONOS API (compute billing stops, "
+               "disk with checkpoints stays)")
+        log("IONOS stop requested: " + r.stdout.strip()[:300])
+    else:
+        notify("SMLM cloud: queue done, but the VM could NOT be stopped automatically - stop it in the DCD now "
+               "(Power > Stop), otherwise billing continues!")
+        log("IONOS stop FAILED: " + (r.stdout + r.stderr).strip()[:300])
+
+
+if __name__ == "__main__":
+    main()
