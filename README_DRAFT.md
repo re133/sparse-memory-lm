@@ -19,13 +19,13 @@ such.
 | 3 memory layers sharing a 1 M-row table, 500 M fresh Wikipedia tokens | **−15 % val PPL** (25.67 → 21.84) at +4 % multiply-adds per token; stable over 2 seeds | „Stufe 1b/1c“ |
 | …at equal *training time* instead of equal tokens (consumer AMD GPU) | only −3.0 % (21.84 vs 22.51): the memory layers make training slower | „Stufe 1c“ |
 | Bigger tables (same 500 M tokens, H200) | 4 M rows: −4.75 % vs 1 M; 16.8 M rows: −8.6 % vs 1 M | „Cloud-Läufe“ |
-| How big a plain dense model matches them? | (pending: dense models with 50–400 M non-embedding parameters on the same data) | „Schritt 1“ |
+| How big a plain dense model matches them? | B-1M ≈ 60 M, B-4M ≈ 83 M, B-16M ≈ **114 M** non-embedding parameters (dense models of 50–400 M trained on the same data), at 47–57 M instead of ≈ 105–165 M multiply-adds per token. On WikiText-103 the advantage is smaller (≈ 48 / 65 / 95 M) | „Schritt 1“ |
 | Must the table live in GPU memory? | No, not for generating text: from RAM 139–154 tok/s, from an NVMe SSD 114–138 tok/s (vs 212 tok/s in VRAM), bit-identical output, 0.5 GB VRAM. Reading long prompts, however, is 2–70× slower outside VRAM | „Schritt 2“ |
 | Does it help a real pretrained LM (Qwen3.5-0.8B, frozen, memory as add-on)? | (pending: prepared, not run) | „Schritt 3“ |
 
 ![Validation perplexity, stage 1b](report/s1b_val_ppl.png)
 
-*(pending: `report/dense_equiv.png`, val PPL against dense model size with the three tables marked)*
+![Equivalent dense size](report/dense_equiv.png)
 
 ![Table outside the GPU](report/offload_cache.png)
 
