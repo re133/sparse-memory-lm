@@ -1601,3 +1601,37 @@ Nur berichtet:
   - Nach Schritt 1 (≈ 17–18 $) bleiben ≈ 16 $; das reicht.
 - **Noch zu bauen nach der Freigabe:** Cloud-Ablauf für Schritt 3 (Setup wie Schritt 1, Daten von der Box,
   Ergebnisse und Tabelle zurück auf die Box) und das kleine Verblindungs-Skript für die Chat-Antworten.
+
+### Schritt 3: Freigabe und Faktentest (2026-10-04, vor jedem Training)
+
+**Freigabe:**
+- Die Kriterien oben sind grundsätzlich freigegeben, die PPL- und „Schadet es?“-Kriterien gelten unverändert.
+- Die swilu-Projektionen werden mittrainiert.
+- Trainiert wird in der Cloud auf einer H100.
+- **Ergänzung (Vorgabe, sinngemäß):**
+  - Die zurückgehaltenen Artikel prüfen nur, ob die Tabelle allgemein hilft.
+  - Ob sie Wissen einpflanzt, zeigt nur ein Faktentest auf den *Trainingsartikeln*.
+  - Dazu dieselbe Art Lückentexte aus den zurückgehaltenen Artikeln als Gegenprobe.
+  - Verglichen werden Q, Q+T und Q+D.
+
+**Faktentest** (`scripts/make_fact_cloze.py` → `data/qwen_fact_cloze.jsonl`; Bewertung `scripts/eval_fact_cloze.py`):
+- **Umfang:** 500 Lücken aus Trainingsartikeln (`train_new`) und 500 aus zurückgehaltenen Artikeln (`val_new`),
+  je eine Lücke pro Artikel, Artikel per festem Hash zufällig gewählt.
+- **Mischung:** 40 % Namen (2–4 großgeschriebene Wörter), 30 % Daten/Jahre, 30 % andere Zahlen (≥ 2 Ziffern;
+  nur Tagesangaben nach einem Monatsnamen oder gezählte Mengen vor einem kleingeschriebenen Wort).
+- **Lücke:** Titel + Leerzeile + der Satz mit dem Fakt, abgeschnitten direkt vor dem Fakt.
+- **Filter:**
+  - Die Antwort steht nicht im Prompt und nicht im Titel.
+  - Satzanfang vor der Lücke ≥ 5 Wörter; der Fakt steht nicht am Satzanfang.
+  - Die Jahre 2025 und 2026 sind ausgeschlossen, weil sie in neuen Artikeln fast immer erratbar sind.
+- **Bewertung:** gierige Fortsetzung (bis 16 Tokens, ohne Chat-Vorlage). Richtig ist ein exakter Treffer am Anfang
+  der Fortsetzung, danach kein Buchstabe und keine Ziffer.
+- **Auswertung:** Genauigkeit je Teil und Art mit 95-%-Wilson-Intervall; der Vergleich zweier Modelle läuft
+  paarweise über dieselben Lücken.
+
+**Hauptkriterium „Wissen eingepflanzt“:**
+- Genauigkeit(Q+T) − Genauigkeit(Q+D) auf den Trainings-Lücken ≥ **10 Prozentpunkte**,
+- **und** bei der Gegenprobe ist Q+T nicht schlechter als Q+D.
+- Operationalisiert heißt „nicht schlechter“: höchstens 2 Prozentpunkte weniger. Das liegt im Bereich des
+  Zufallsrauschens eines paarweisen Vergleichs mit 500 Lücken. **(Bitte bestätigen.)**
+- Q allein wird mitberichtet.
