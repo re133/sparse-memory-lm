@@ -1,0 +1,10 @@
+2026-10-04 18:55:35 dense queue start: cap 18.0 $ at 3.49 $/h = 5.16 h, Pod uptime 0.31 h
+2026-10-04 18:55:35 ntfy: Dense-Läufe: Setup fertig, Probelauf startet (Pod 0.31 h)
+2026-10-04 18:55:35 start D-50M-s0: -m smlm.train --model D-50M --out_dir /workspace/AngryAnt/runs/cloud_dense_preflight/D-50M-s0 --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234
+2026-10-04 18:57:15 preflight D-50M-s0: 295416 tok/s alone, peak 9.2 GiB
+2026-10-04 18:57:15 start D-100M-s0: -m smlm.train --model D-100M --out_dir /workspace/AngryAnt/runs/cloud_dense_preflight/D-100M-s0 --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234
+2026-10-04 18:59:05 preflight D-100M-s0: 208334 tok/s alone, peak 11.7 GiB
+2026-10-04 18:59:05 start D-200M-s0: -m smlm.train --model D-200M --out_dir /workspace/AngryAnt/runs/cloud_dense_preflight/D-200M-s0 --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234
+2026-10-04 19:01:05 preflight D-200M-s0: 143105 tok/s alone, peak 15.7 GiB
+2026-10-04 19:01:05 start D-400M-s0: -m smlm.train --model D-400M --out_dir /workspace/AngryAnt/runs/cloud_dense_preflight/D-400M-s0 --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234
+2026-10-04 19:03:35 preflight D-400M-s0: 82986 tok/s alone, peak 15.2 GiB

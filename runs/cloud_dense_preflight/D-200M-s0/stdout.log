@@ -1,0 +1,21 @@
+{"model_name": "D-200M", "params": {"total": 253920256, "embedding": 51511296, "non_embedding": 202408960, "memory_values": 0, "dense_body": 202408960, "active_non_embedding_per_token": 202408960, "bn_running_stats": 0}, "seeds": {"init_seed": 0, "data_seed": 1234}}
+steps=91 warmup=5 eval_every=92 accum=4
+[eval] step 0 tokens 0.0M val_ppl 59873.876 train_loss  
+[eval] step 91 tokens 3.0M val_ppl 1186.288 train_loss 7.6384 
+{
+ "val_loss": 7.078584164366749,
+ "val_ppl": 1186.2877404828905,
+ "val_word_ppl": 40288.3530050088,
+ "val2_dataset": "wikitext103",
+ "val2_loss": 7.859385838590168,
+ "val2_ppl": 2589.9292522584337,
+ "val2_word_ppl": 7588.630050211869,
+ "train_tok_s_mean": 143047.4353483431,
+ "train_tok_s_median": 143104.93368836457,
+ "peak_train_vram_gib": 15.693471431732178,
+ "weights_gib_fp32": 0.9459266662597656,
+ "decode_b1_tok_s": 168.86843752906327,
+ "decode_peak_vram_gib": 2.2819933891296387,
+ "prefill_tok_s": 536994.0299427537,
+ "prefill_peak_vram_gib": 3.9681200981140137
+}
