@@ -4,3 +4,5 @@
 2026-10-03 22:01:05 adopted running B-1M-s0 (pid 1679); its first GPU log stopped with run_cloud.py, continued in gpu_thermal_cont.csv
 2026-10-03 22:01:05 start B-16M-s0 (parallel scheduler, free GPU memory 127.904296875 GiB): -m smlm.train --model B-16M-sparse --out_dir /workspace/AngryAnt/runs/cloud/B-16M-s0 --mem_impl triton --value_lr 2.4e-3 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --seed 0 --data_seed 1234
 2026-10-04 00:08:11 end B-1M-s0 rc=n/a (adopted) status=done
+2026-10-04 00:08:18 start B-4M-s0 (parallel scheduler, free GPU memory 36.953125 GiB): -m smlm.train --model B-4M-sparse --out_dir /workspace/AngryAnt/runs/cloud/B-4M-s0 --mem_impl triton --value_lr 2.4e-3 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --seed 0 --data_seed 1234
+2026-10-04 00:59:49 end B-16M-s0 rc=0 status=done

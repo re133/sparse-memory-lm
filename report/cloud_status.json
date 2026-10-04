@@ -52,25 +52,47 @@
       "usage": 0.9999923706054688
     },
     "B4": {
-      "status": "ausstehend"
+      "status": "running",
+      "total_tokens": 499974144,
+      "gpu": "NVIDIA H200",
+      "params_total": 1656001152,
+      "git": "6f8dfff",
+      "thermal": {
+        "edge_c": 46.0,
+        "mem_c": 47.0,
+        "power_w": 379.2,
+        "vram_used_gib": 133.53,
+        "sclk_mhz_median_load": 1980.0,
+        "sclk_mhz_max": 1980.0,
+        "n_samples": 308
+      },
+      "last_eval_tokens": 149913600.0,
+      "last_eval_ppl": 32.05821932513961
     },
     "B16": {
-      "status": "running",
+      "status": "done",
       "total_tokens": 499974144,
       "gpu": "NVIDIA H200",
       "params_total": 6494130816,
       "git": "12a5a5d",
       "thermal": {
-        "edge_c": 46.0,
+        "edge_c": 47.0,
         "mem_c": 48.0,
         "power_w": 403.51,
-        "vram_used_gib": 115.28,
+        "vram_used_gib": 133.02,
         "sclk_mhz_median_load": 1980.0,
         "sclk_mhz_max": 1980.0,
-        "n_samples": 758
+        "n_samples": 1066
       },
-      "last_eval_tokens": 359792640.0,
-      "last_eval_ppl": 21.917766121349796
+      "last_eval_tokens": 499974144.0,
+      "last_eval_ppl": 19.959968526876676,
+      "val_ppl": 19.959968526876676,
+      "val2_ppl": 59.97290543072956,
+      "train_time_s": 9283.2,
+      "duration_s": 10707.1,
+      "tok_s": 52683.97599118528,
+      "peak_train_vram_gib": 100.91404438018799,
+      "usage": 0.9125260710716248
     }
   },
   "criteria": null,

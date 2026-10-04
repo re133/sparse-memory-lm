@@ -1,0 +1,219 @@
+{
+  "status": "done",
+  "model_name": "B-16M-sparse",
+  "started": "2026-10-03T22:03:52",
+  "git": {
+    "commit": "12a5a5dd7a4595ec4d35bdd7141cf0d3ef00ac1a",
+    "dirty": false,
+    "dirty_files": []
+  },
+  "hardware": {
+    "gpu": "NVIDIA H200",
+    "gpu_arch": "NVIDIA H200",
+    "gpu_mem_gib": 139.81,
+    "torch": "2.11.0+cu128",
+    "hip": null,
+    "python": "3.12.3",
+    "kernel": "6.8.0-94-generic",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8568Y+",
+    "ram_gib": 2015.4
+  },
+  "seeds": {
+    "init_seed": 0,
+    "data_seed": 1234
+  },
+  "train_config": {
+    "model": "B-16M-sparse",
+    "out_dir": "/workspace/AngryAnt/runs/cloud/B-16M-s0",
+    "tokens": 500000000.0,
+    "epochs": 0.990072026474596,
+    "seed": 0,
+    "data_seed": 1234,
+    "seq_len": 1024,
+    "batch_seqs": 32,
+    "micro_bs": 4,
+    "lr": 0.0006,
+    "value_lr": 0.0024,
+    "weight_decay": 0.1,
+    "warmup_frac": 0.05,
+    "min_lr_ratio": 0.1,
+    "clip": 1.0,
+    "eval_every_tokens": 10000000.0,
+    "log_every": 10,
+    "sample_windows": 64,
+    "mem_query_norm": "batchnorm",
+    "mem_score_scale_init": null,
+    "data": "wikipedia",
+    "extra_val": "wikitext103",
+    "mem_impl": "triton",
+    "abort_ref": null,
+    "abort_at_tokens": 100000000.0,
+    "stop_after_tokens": null,
+    "abort_max_rel": 0.05,
+    "total_steps": 15258,
+    "warmup_steps": 763,
+    "tokens_per_step": 32768,
+    "grad_accum": 8,
+    "total_tokens": 499974144,
+    "eval_every_steps": 305,
+    "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip; value table: row-sparse gradients + LazyRowAdam (only rows read in the step are updated, values and Adam state of unread rows unchanged)",
+    "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
+    "precision": "bf16 autocast, fp32 weights / optimizer state"
+  },
+  "model_config": {
+    "vocab_size": 50304,
+    "d_model": 384,
+    "n_layers": 12,
+    "n_heads": 6,
+    "ffn_hidden": 1024,
+    "max_seq_len": 1024,
+    "rope_theta": 10000.0,
+    "norm_eps": 1e-05,
+    "init_std": 0.02,
+    "mem_layers": [
+      2,
+      6,
+      10
+    ],
+    "mem_n_keys": 4096,
+    "mem_heads": 4,
+    "mem_knn": 32,
+    "mem_k_dim": 256,
+    "mem_v_dim": -1,
+    "mem_query_norm": "batchnorm",
+    "mem_swilu": true,
+    "mem_value_impl": "embedding_bag",
+    "mem_keys_weight_decay": true,
+    "mem_score_scale": "none",
+    "mem_score_scale_init": 1.0,
+    "mem_share_values": true,
+    "mem_value_grad": "row_sparse",
+    "mem_impl": "triton"
+  },
+  "params": {
+    "total": 6494130816,
+    "embedding": 19316736,
+    "non_embedding": 6474814080,
+    "memory_values": 6442450944,
+    "dense_body": 32363136,
+    "active_non_embedding_per_token": 32510592,
+    "bn_running_stats": 6144
+  },
+  "macs_per_token": {
+    "attn_proj": 7077888,
+    "attn_scores": 4718592.0,
+    "ffn": 10616832,
+    "memory": 14795904,
+    "lm_head": 19316736,
+    "total": 56525952.0
+  },
+  "data": {
+    "dataset": "wikipedia",
+    "data_dir": "/workspace/AngryAnt/data/wikipedia_en_gpt2",
+    "source": "wikimedia/wikipedia 20231101.en (HF parquet, 41 files)",
+    "tokenizer": "tiktoken/gpt2",
+    "vocab_size": 50257,
+    "seed": 20231101,
+    "val_frac": 0.0003,
+    "train_frac": 0.125,
+    "articles_in_dump": 6407814,
+    "doc_format": "title + '\\n\\n' + text + <|endoftext|>",
+    "wikitext_val_test_titles": 122,
+    "wikitext_titles_found_and_excluded": 14,
+    "splits": {
+      "validation": {
+        "n_tokens": 1484010,
+        "n_articles": 1917,
+        "n_candidate_articles": 1917,
+        "candidate_tokens": 1484010,
+        "n_words": 990651
+      },
+      "train": {
+        "n_tokens": 505000000,
+        "n_articles": 689951,
+        "n_candidate_articles": 800138,
+        "candidate_tokens": 584857875,
+        "n_words": null
+      }
+    },
+    "extra_val": "wikitext103"
+  },
+  "finished": "2026-10-04T00:59:40",
+  "duration_s": 10707.1,
+  "train_time_s": 9283.2,
+  "results": {
+    "val_loss": 2.993728694072289,
+    "val_ppl": 19.959968526876676,
+    "val_word_ppl": 88.64567935611342,
+    "val2_dataset": "wikitext103",
+    "val2_loss": 4.093892884076376,
+    "val2_ppl": 59.97290543072956,
+    "val2_word_ppl": 104.9897475246702,
+    "train_tok_s_mean": 54438.69746482251,
+    "train_tok_s_median": 52683.97599118528,
+    "peak_train_vram_gib": 100.91404438018799,
+    "weights_gib_fp32": 24.192522525787354,
+    "decode_b1_tok_s": 131.40804209076,
+    "decode_peak_vram_gib": 25.112954139709473,
+    "prefill_tok_s": 282460.3430067592,
+    "prefill_peak_vram_gib": 27.258919715881348,
+    "mem_val": {
+      "usage": 0.9125260710716248,
+      "kl": 1.3498459958298383,
+      "top1pct_share": 0.23434821093852307,
+      "eff_entries_per_head": 29.863656617444107,
+      "top1_weight": 0.07696137639497065
+    },
+    "mem_val_per_layer": [
+      {
+        "usage": 0.3973603844642639,
+        "kl": 2.7952978845959144,
+        "top1pct_share": 0.46652589897534313,
+        "eff_entries_per_head": 30.054149097510106,
+        "top1_weight": 0.07472204104160673
+      },
+      {
+        "usage": 0.6351526379585266,
+        "kl": 1.7120371733238429,
+        "top1pct_share": 0.2666347384432978,
+        "eff_entries_per_head": 29.933703122691536,
+        "top1_weight": 0.07566511424750617
+      },
+      {
+        "usage": 0.5313474535942078,
+        "kl": 2.1411630068305936,
+        "top1pct_share": 0.32809250251346184,
+        "eff_entries_per_head": 29.603117632130683,
+        "top1_weight": 0.08049697389579906
+      }
+    ],
+    "mem_train_usage_total": 1.0,
+    "mem_score_scale_per_head": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mem_score_scale_per_layer_head": [
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    ],
+    "mem_key_norm_mean": 0.4340760111808777
+  }
+}

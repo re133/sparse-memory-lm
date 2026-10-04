@@ -1182,14 +1182,14 @@ wird, und stoppt den Pod bei einem Fehler:
 
 <!-- CLOUD-STATUS:BEGIN -->
 
-**Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-04 00:08)
+**Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-04 00:59)
 
 | Lauf | Status | GPU | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s | VRAM Train | Nutzung | max. Temp. GPU / Speicher | max. Leistung |
 |---|---|---|---|---|---|---|---|---|---|---|
 | B-1M-sparse s0 zu Hause (RX 9070, PyTorch-Referenz) | fertig | AMD Radeon RX 9070 | 21,837 | 65,51 | 216 min | 38.517 | 10,5 GiB | 100,0 % | 48 / 80 °C | 238 W |
 | B-1M (Cloud, Kontrolle) | fertig | NVIDIA H200 | 21,837 | 65,87 | 138 min | 55.226 | 10,4 GiB | 100,0 % | 41 / 40 °C | 343 W |
-| B-4M (Cloud) | ausstehend | – | – | – | – | – | – | – | – | – |
-| B-16M (Cloud) | läuft (360 M Tokens, PPL 21,92) | NVIDIA H200 | – | – | – | – | – | – | 46 / 48 °C | 404 W |
+| B-4M (Cloud) | läuft (150 M Tokens, PPL 32,06) | NVIDIA H200 | – | – | – | – | – | – | 46 / 47 °C | 379 W |
+| B-16M (Cloud) | fertig | NVIDIA H200 | 19,960 | 59,97 | 155 min | 52.684 | 100,9 GiB | 91,3 % | 47 / 48 °C | 404 W |
 
 | Kriterium (vorher festgelegt) | Messwert | Ergebnis |
 |---|---|---|
