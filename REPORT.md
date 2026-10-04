@@ -1242,7 +1242,8 @@ Verlauf, Val-PPL bei gleicher Tokenzahl:
   sind 500 M Tokens für 16,8 M Einträge wenig (B-16M: ≈ 11 k Lesezugriffe pro Eintrag, B-1M: ≈ 180 k).
 - **Gleiche Tokens, nicht gleiche Kosten:**
   - B-16M hat 6,5 Mrd. Parameter, davon 6,44 Mrd. Tabelle.
-  - Pro Token rechnet B-16M nur etwa 8 % mehr als B-1M (Teil-Scores über 4096 statt 1024 Keys).
+  - Pro Token rechnet B-16M 20 % mehr als B-1M, B-4M 7 % mehr (Teil-Scores über 4096 bzw. 2048 statt
+    1024 Keys je Hälfte: 56,5 / 50,2 / 47,1 M MACs).
   - Die Tabelle braucht aber 26 GB in fp32, mit 4 Bit ≈ 3,3 GB, und im Training ≈ 100 GiB GPU-Speicher
     (Werte, Akkumulator, Adam).
   - Ein Vergleich bei gleicher Rechenzeit gegen A wurde für die großen Tabellen nicht gemacht.
