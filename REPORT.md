@@ -1355,3 +1355,107 @@ FFN-Breite ist ≈ 8/3 · d, gerundet auf ein Vielfaches von 64 (wie A: 384 → 
 - **Seeds:** ein Seed je dichter Größe.
 - **Instabilität:** Wird ein großes Modell mit LR 6e-4 instabil (NaN bricht ab; eine Loss-Explosion ohne NaN
   ist in den Kurven sichtbar), wird das berichtet, nicht wiederholt.
+
+## Schritt 2: B-16M zu Hause – die Tabelle muss nicht im Grafikspeicher liegen (gemessen 2026-10-04)
+
+**Frage:** Lässt sich B-16M (Tabelle 16,8 M Zeilen × 384) auf einem normalen PC betreiben, wenn die Tabelle nicht im
+teuren Grafikspeicher liegt? Messung ohne Bestanden-Kriterium.
+
+**Rechner:**
+- GPU: RX 9070 (16 GB)
+- CPU: Ryzen 9 5900XT
+- RAM: 125 GB
+- NVMe: Samsung 990 PRO (`/home`)
+- Der Desktop lief mit ≈ 0,6–1 GB VRAM. Sonst lief nichts.
+
+**Vorbereitung:**
+- `scripts/convert_table.py` zerlegt den Cloud-Checkpoint in den kleinen Rest (`rest.pt`, 71 M Parameter) und die
+  Tabelle als flache Dateien: bf16 12,9 GB, 4 Bit 3,2 GB plus 32 MB Skalen.
+- Die 4-Bit-Quantisierung auf der CPU ist bitgleich mit `quantize_q4` auf der GPU (geprüft an 1 M Zeilen).
+
+**Varianten** (`smlm/offload.py`, `scripts/bench_offload.py`, ein Prozess je Variante):
+- **a) Tabelle im Grafikspeicher:** bf16 oder 4 Bit. Der Kernel liest direkt; Decode-Graphen sind möglich.
+- **b) Tabelle im RAM:** bf16, fp32 oder 4 Bit.
+  - Pro Speicherschicht und Aufruf gehen die gelesenen Zeilen-Indizes zur CPU.
+  - Die CPU sammelt die Zeilen in einen gepinnten Puffer, von dort gehen sie zur GPU.
+  - Dort läuft derselbe Kernel wie in a) auf der kompakten Tabelle.
+  - Das sind drei Hin- und Rückwege pro Token. Decode-Graphen sind dadurch nicht möglich.
+- **c) 4-Bit-Datei auf der NVMe:**
+  - Zugriff per mmap; Readahead ist aus (`MADV_RANDOM`).
+  - Fehlende Zeilen werden je Aufruf gesammelt mit `MADV_WILLNEED` angefordert.
+  - RAM-Cache: fest die im Training meistgelesenen x % der Zeilen, optional zusätzlich ein FIFO-Teil für zuletzt
+    verfehlte Zeilen.
+  - **Kalt:** Die Datei wird vorher ohne root mit `posix_fadvise(DONTNEED)` aus dem Seiten-Cache geworfen;
+    `fincore` bestätigt 0 Byte.
+  - **„Begrenzt“:** Der Prozess läuft in einer systemd-Scope mit `MemoryMax=4G`. Damit kann Linux die 3,2-GB-Datei
+    nicht ganz im Seiten-Cache halten. Gemessen hält die Scope 1,4–2,0 GB der Datei, `memory.current` bleibt bei
+    4,0 GB.
+
+**Messungen:**
+- **Schreiben (Batch 1):** greedy, 128-Token-Prompt + 256 neue Tokens, drei verschiedene Prompts; der erste ist
+  bei c) kalt.
+- **Einlesen:** 4 × 1024 Tokens Val-Text, Median über 3 Batches nach einem Aufwärm-Batch.
+- **Val-PPL:** auf dem ganzen Wikipedia-Val-Set (wie am Trainingsende, Batch 1) und auf den ersten 64 Fenstern
+  (für den Bitvergleich).
+
+**Ergebnisse** (`report/offload/*.json`, `report/offload_summary.json`, Grafik `report/offload_cache.png`):
+
+| Variante | Schreiben tok/s (ms/Token, 1. Prompt) | Einlesen tok/s | Cache-Treffer Schreiben / Einlesen | NVMe beim Einlesen | VRAM belegt (gesamt, mit Desktop) | RAM-Spitze (RSS) | Val-PPL ganz |
+|---|---|---|---|---|---|---|---|
+| a) bf16 im VRAM, mit Graphen | 216 (4,6) | 108.000 | – | – | 13,1 GB | 12,9 GB¹ | 19,9615 |
+| a) bf16, ohne Graphen | 171 (5,8) | 108.000 | – | – | | | |
+| a) 4 Bit im VRAM, mit Graphen | 212 (4,7) | 107.500 | – | – | 3,6 GB | 4,0 GB | 19,9795 |
+| a) 4 Bit, ohne Graphen | 173 (5,8) | 107.400 | – | – | | | |
+| b) bf16 im RAM | 139 (7,2) | 31.200 | – | – | 0,53 GB | 14,7 GB | 19,9615 |
+| b) fp32 im RAM | 143 (7,0) | 18.900 | – | – | 0,53 GB | 48,8 GB¹ | **19,9601** |
+| b) 4 Bit im RAM | 154 (6,5) | 61.700 | – | – | 0,53 GB | 5,0 GB | = a) 4 Bit² |
+| c) NVMe, ohne Cache | 114 (8,7) | 4.900 | 0 / 0 % | 57 k Lesezugriffe/s, 235 MiB/s | 0,53 GB | 5,1 GB³ | = a) 4 Bit² |
+| c) NVMe, Cache 5 % (155 MB) | 120 (8,3) | 4.500 | 38 / 28 % | 75 k/s | 0,53 GB | 5,3 GB³ | = a) 4 Bit² |
+| c) NVMe, Cache 10 % (310 MB) | 127 (7,8) | 4.400 | 53 / 41 % | 86 k/s | 0,53 GB | 5,5 GB³ | = a) 4 Bit² |
+| c) Cache 10 % + FIFO 20 % | 127 (7,8) | 4.500 | 73 / 52 % | 89 k/s | 0,53 GB | 6,1 GB³ | = a) 4 Bit² |
+| c) NVMe, Cache 30 % (930 MB) | 137 (7,3) | 4.800 | 80 / 72 % | 110 k/s, 469 MiB/s | 0,53 GB | 6,1 GB³ | 19,9795 |
+| c) NVMe, Cache 50 % (1,55 GB) | 138 (7,2) | 6.500 | 92 / 87 % | 111 k/s | 0,53 GB | 6,5 GB³ | = a) 4 Bit² |
+| c) Cache 10 %, **RAM begrenzt 4 GB** | 124 (8,0) | **1.500** | 53 / 41 % | 65 k/s | 0,53 GB | ≤ 4 GB (Scope) | = a) 4 Bit² |
+| c) Cache 30 %, **RAM begrenzt 4 GB** | 133 (7,5) | **2.600** | 80 / 72 % | 84 k/s | 0,53 GB | ≤ 4 GB (Scope) | = a) 4 Bit² |
+
+¹ Beim Laden: Datei bzw. Checkpoint wird einmal komplett gelesen. Bei b) fp32 zählen die gemappten
+Checkpoint-Seiten mit; die Tabelle selbst belegt 25,8 GB.
+² Auf den 64 Vergleichsfenstern **bitgleich** zu a) 4 Bit: gleiche NLL-Summe 205849,488. Das ganze Val-Set wurde
+nur für c) mit 30 % gerechnet und ergibt ebenfalls genau 19,9795.
+³ RSS enthält die gemappten Seiten der 4-Bit-Datei. Ohne RAM-Grenze lag die Datei am Ende zu 2–3 GB im
+Seiten-Cache von Linux.
+
+**Was das zeigt:**
+- **Qualität: gleich.**
+  - b) und c) rechnen bitgleich zu a) mit derselben Genauigkeit: bf16 19,9615 in a) und b); 4 Bit 19,9795 in
+    a), b) und c).
+  - Gegenüber fp32 aus der Cloud (19,9600) kostet bf16 +0,007 % und 4 Bit +0,10 %.
+  - fp32 aus dem RAM trifft den Cloud-Wert auf 0,001 % (19,9601). Der Rest ist die andere GPU.
+- **Wort für Wort schreiben geht ohne Tabelle im Grafikspeicher:**
+  - Aus dem RAM: 139–154 tok/s. Aus der NVMe: 114–138 tok/s, kalt und mit nur 4 GB RAM 124–133 tok/s.
+  - Mit der Tabelle im VRAM: 171–173 tok/s ohne Graphen, 212–216 mit Graphen.
+  - Der Abstand kommt vor allem von den drei CPU-Hin- und Rückwegen pro Token, nicht von der NVMe: Selbst ohne
+    jeden Cache verliert c) nur 18 % gegenüber RAM (114 gegenüber 139 tok/s).
+  - Der Grafikspeicher sinkt dabei von 13,1 bzw. 3,6 GB auf 0,53 GB.
+- **Lange Texte einlesen geht nur aus dem Grafikspeicher schnell:**
+
+  | Ort der Tabelle | Einlesen tok/s |
+  |---|---|
+  | VRAM | 108.000 |
+  | RAM | 19.000–62.000 (je nach Bytes pro Zeile) |
+  | NVMe | 4.400–6.500 |
+  | NVMe, RAM auf 4 GB begrenzt | 1.500–2.600 |
+
+  Beim Einlesen braucht jedes Token ≈ 270 verschiedene Zeilen. Jede verfehlte Zeile kostet eine 4-KB-Seite, also
+  21-mal mehr Daten als nötig. Die NVMe liefert dabei 57.000–111.000 Lesezugriffe/s, und das reicht nicht.
+- **Cache:** Die Trefferquoten sind so, wie aus den Trainingszugriffen vorhergesagt (30 % Cache → 80 % Treffer
+  beim Schreiben, vorhergesagt 79 %). Ein FIFO-Teil erhöht die Treffer, aber nicht das Tempo.
+
+**Grenzen:**
+- **Umfang:** Jede Variante wurde einmal gemessen, mit drei Prompts zu 256 Tokens und drei Einlese-Batches.
+- **Implementierung:** Die Lesewege sind in Python/NumPy geschrieben. Ein C-/io_uring-Pfad oder eine
+  Zeilenanordnung, die zusammen gelesene Zeilen auf dieselbe Seite legt, könnte das Einlesen von der NVMe
+  deutlich beschleunigen; das ist nicht gemessen.
+- **Was „kalt“ heißt:** Kalt bezieht sich nur auf den Seiten-Cache. Den festen RAM-Cache füllt das Programm beim
+  Start; das dauerte 0,7–8 s.
+- **Speicherbedarf beim Laden:** Die RAM-Spitzen von a) bf16 und b) fp32 enthalten das einmalige Einlesen.

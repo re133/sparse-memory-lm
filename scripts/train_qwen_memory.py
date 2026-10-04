@@ -54,9 +54,12 @@ def chunked_ce(hidden, weight, targets, chunk=2048):
     return total / t.numel()
 
 
+CE_CHUNK = 1024
+
+
 def forward_loss(model, x, y):
     hidden = model.model(input_ids=x).last_hidden_state
-    return chunked_ce(hidden, model.lm_head.weight, y)
+    return chunked_ce(hidden, model.lm_head.weight, y, chunk=CE_CHUNK)
 
 
 @torch.no_grad()
@@ -104,7 +107,11 @@ def main():
     ap.add_argument("--eval_windows", type=int, default=None, help="limit evaluation windows (probes)")
     ap.add_argument("--eval_only", action="store_true")
     ap.add_argument("--save", type=int, default=1)
+    ap.add_argument("--ce_chunk", type=int, default=1024, help="tokens per logits chunk in the loss")
+    ap.add_argument("--grad_ckpt", type=int, default=0, help="recompute the frozen Qwen layers in the backward pass")
     args = ap.parse_args()
+    global CE_CHUNK
+    CE_CHUNK = args.ce_chunk
     os.makedirs(args.out_dir, exist_ok=True)
     from transformers import AutoModelForCausalLM
 
@@ -118,6 +125,8 @@ def main():
     else:
         for p in model.parameters():
             p.requires_grad_(False)
+    if args.grad_ckpt:
+        model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     meta = json.load(open(os.path.join(args.data_dir, "meta.json")))
     evals = {k: load_tokens(args.data_dir, k) for k in ("val_new", "val_known", "mem_probe")}
     info = {"status": "running", "args": vars(args), "addon_cfg": acfg.to_dict() if acfg else None,

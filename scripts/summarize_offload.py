@@ -67,7 +67,7 @@ def main():
     for k, st in (("a-q4", ":"), ("b-q4", "-.")):
         if k in ref:
             ax[0].axhline(ref[k]["decode_tok_s_median"], ls=st, color="gray", label=f"{k}")
-    ax[0].set(xlabel="RAM-Cache (% der Zeilen)", ylabel="Tokens/s", title="Schreiben (Batch 1)")
+    ax[0].set(xlabel="RAM-Cache (% der Zeilen)", ylabel="Tokens/s", title="Schreiben (Batch 1)", ylim=(0, 240))
     ax[0].legend(fontsize=7)
     ax[1].plot(x, [r["prefill_tok_s_median"] for r in cs], "o-", label="c")
     for k, st in (("a-q4", ":"), ("b-q4", "-.")):
