@@ -1,0 +1,107 @@
+{
+ "phase": "runs",
+ "peaks": {
+  "D-50M-s0": 9.168670177459717,
+  "D-100M-s0": 11.675775051116943,
+  "D-200M-s0": 15.693471431732178,
+  "D-400M-s0": 15.170495510101318
+ },
+ "runs_end": {
+  "D-50M-s0": "done"
+ },
+ "cap_h": 6.304,
+ "preflight_tok_s": {
+  "D-50M-s0": 295416.4114383437,
+  "D-100M-s0": 208334.2769642293,
+  "D-200M-s0": 143104.93368836457,
+  "D-400M-s0": 82986.41896762676
+ },
+ "admitted": [
+  "D-50M-s0",
+  "D-100M-s0",
+  "D-200M-s0",
+  "D-400M-s0"
+ ],
+ "dropped": [],
+ "projected_hours": 5.72,
+ "projected_cost_usd": 19.98,
+ "runs": {
+  "D-50M-s0": {
+   "model": "D-50M",
+   "status": "done",
+   "val_ppl": 22.4519768243042,
+   "val2_ppl": 65.36954710310538,
+   "params": {
+    "total": 81769600,
+    "embedding": 32194560,
+    "non_embedding": 49575040,
+    "memory_values": 0,
+    "dense_body": 49575040,
+    "active_non_embedding_per_token": 49575040,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": 66968.7249866424,
+   "preflight_tok_s": 295416.4114383437,
+   "preflight_peak_vram_gib": 9.168670177459717
+  },
+  "D-100M-s0": {
+   "model": "D-100M",
+   "status": "running",
+   "val_ppl": null,
+   "val2_ppl": null,
+   "params": {
+    "total": 137746176,
+    "embedding": 38633472,
+    "non_embedding": 99112704,
+    "memory_values": 0,
+    "dense_body": 99112704,
+    "active_non_embedding_per_token": 99112704,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": null,
+   "preflight_tok_s": 208334.2769642293,
+   "preflight_peak_vram_gib": 11.675775051116943
+  },
+  "D-200M-s0": {
+   "model": "D-200M",
+   "status": "running",
+   "val_ppl": null,
+   "val2_ppl": null,
+   "params": {
+    "total": 253920256,
+    "embedding": 51511296,
+    "non_embedding": 202408960,
+    "memory_values": 0,
+    "dense_body": 202408960,
+    "active_non_embedding_per_token": 202408960,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": null,
+   "preflight_tok_s": 143104.93368836457,
+   "preflight_peak_vram_gib": 15.693471431732178
+  },
+  "D-400M-s0": {
+   "model": "D-400M",
+   "status": "running",
+   "val_ppl": null,
+   "val2_ppl": null,
+   "params": {
+    "total": 460934400,
+    "embedding": 64389120,
+    "non_embedding": 396545280,
+    "memory_values": 0,
+    "dense_body": 396545280,
+    "active_non_embedding_per_token": 396545280,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": null,
+   "preflight_tok_s": 82986.41896762676,
+   "preflight_peak_vram_gib": 15.170495510101318
+  }
+ },
+ "pod_hours": 2.584,
+ "price_usd_h": 3.49,
+ "cap_usd": 22.0,
+ "est_cost_usd": 9.02,
+ "updated": "2026-10-04 21:12:06"
+}
