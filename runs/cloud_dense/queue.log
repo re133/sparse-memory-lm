@@ -29,3 +29,6 @@
 2026-10-04 21:12:16 backup ok: 6 files verified on storagebox:smlm
 2026-10-04 21:12:17 ntfy: D-50M-s0 done, val PPL 22.452; Pod 2.59 h ≈ 9.03 $
 2026-10-04 21:57:18 end D-100M-s0 status=done val_ppl 20.270
+2026-10-04 21:57:32 backup ok: 6 files verified on storagebox:smlm
+2026-10-04 21:57:32 ntfy: D-100M-s0 done, val PPL 20.270; Pod 3.34 h ≈ 11.66 $
+2026-10-04 22:38:03 end D-200M-s0 status=done val_ppl 18.758

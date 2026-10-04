@@ -8,7 +8,8 @@
  },
  "runs_end": {
   "D-50M-s0": "done",
-  "D-100M-s0": "done"
+  "D-100M-s0": "done",
+  "D-200M-s0": "done"
  },
  "cap_h": 6.304,
  "preflight_tok_s": {
@@ -65,9 +66,9 @@
   },
   "D-200M-s0": {
    "model": "D-200M",
-   "status": "running",
-   "val_ppl": null,
-   "val2_ppl": null,
+   "status": "done",
+   "val_ppl": 18.75783204069875,
+   "val2_ppl": 51.62629469377915,
    "params": {
     "total": 253920256,
     "embedding": 51511296,
@@ -77,7 +78,7 @@
     "active_non_embedding_per_token": 202408960,
     "bn_running_stats": 0
    },
-   "train_tok_s_median": null,
+   "train_tok_s_median": 43014.19527176105,
    "preflight_tok_s": 143104.93368836457,
    "preflight_peak_vram_gib": 15.693471431732178
   },
@@ -100,9 +101,9 @@
    "preflight_peak_vram_gib": 15.170495510101318
   }
  },
- "pod_hours": 3.337,
+ "pod_hours": 4.017,
  "price_usd_h": 3.49,
  "cap_usd": 22.0,
- "est_cost_usd": 11.65,
- "updated": "2026-10-04 21:57:18"
+ "est_cost_usd": 14.02,
+ "updated": "2026-10-04 22:38:03"
 }
