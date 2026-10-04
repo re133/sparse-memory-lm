@@ -1182,7 +1182,7 @@ wird, und stoppt den Pod bei einem Fehler:
 
 <!-- CLOUD-STATUS:BEGIN -->
 
-**Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-04 02:16)
+**Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-04 04:28)
 
 | Lauf | Status | GPU | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s | VRAM Train | Nutzung | max. Temp. GPU / Speicher | max. Leistung |
 |---|---|---|---|---|---|---|---|---|---|---|
