@@ -1,6 +1,12 @@
-"""Step 3: memory add-on on a frozen Qwen3.5 (tiny random config, CPU). Needs transformers (.venv-qwen)."""
+"""Step 3: memory add-on on a frozen Qwen3.5 (tiny random config, CPU). Needs transformers (.venv-qwen).
+The PyTorch reference of Gated DeltaNet is forced (flash-linear-attention, if installed, only runs on the GPU);
+the real model with the fast kernels is checked on the GPU by scripts/check_qwen_addon_gpu.py."""
+import sys
+
 import pytest
 import torch
+
+sys.modules["fla"] = None              # import fla -> ImportError -> transformers uses its PyTorch implementation
 
 transformers = pytest.importorskip("transformers")
 from transformers import Qwen3_5ForCausalLM, Qwen3_5TextConfig  # noqa: E402

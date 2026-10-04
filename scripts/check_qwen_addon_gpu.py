@@ -28,16 +28,22 @@ def main(model_dir=os.environ.get("QWEN_DIR", "/workspace/models/Qwen3.5-0.8B"),
         with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
             model.eval()
             want_eval = model(x[:, :-1]).logits
+            noise = (model(x[:, :-1]).logits - want_eval).abs().max().item()   # run-to-run noise of the base model
             model.train()
             want_train = model(x[:, :-1]).logits
+        print(f"{kind}: plain Qwen run-to-run max |diff| = {noise:.3g}" +
+              (" (deterministic)" if noise == 0 else " (non-deterministic kernels: compared within this noise)"),
+              flush=True)
         frozen = {n: p.detach().clone() for n, p in model.named_parameters()}
         attach(model, AddOnConfig(kind=kind, n_keys=256))
         with torch.no_grad(), torch.autocast("cuda", dtype=torch.bfloat16):
             model.eval()
-            e = torch.equal(model(x[:, :-1]).logits, want_eval)
+            de = (model(x[:, :-1]).logits - want_eval).abs().max().item()
             model.train()
-            t = torch.equal(model(x[:, :-1]).logits, want_train)
-        print(f"{kind}: gate 0 bit-identical eval={e} train={t}", flush=True)
+            dt = (model(x[:, :-1]).logits - want_train).abs().max().item()
+        e, t = de <= noise, dt <= max(noise, 0.0)
+        print(f"{kind}: gate 0 vs plain max |diff| eval={de:.3g} train={dt:.3g} -> "
+              f"{'bit-identical' if de == dt == 0 else 'within run-to-run noise' if e and t else 'DIFFERENT'}", flush=True)
         ok &= e and t
         opt = build_optimizer(model.addons, 6e-4, 2.4e-3, 0.1)
         for _ in range(3):
