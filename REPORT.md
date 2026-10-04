@@ -13,6 +13,11 @@
 > liegt B-1M bei gleicher Tokenzahl stabil 15 % vor A (2 Seeds je Modell). Ein sparsamer Optimizer
 > liefert dieselbe Qualität und ist 1,15× schneller. Bei **gleicher Trainingszeit** schrumpft der Vorsprung
 > aber auf 3 % („konkurrenzfähig“, der „klare Vorteil“ von 5 % wurde verfehlt). Details: Abschnitte Stufe 1b und 1c.
+>
+> **Nachtrag Cloud (2026-10-04, Runpod H200):** Größere Tabellen bringen bei gleicher Tokenzahl deutlich mehr.
+> B-4M ist 4,75 % besser als B-1M, B-16M weitere 4,0 % (gegenüber B-1M −8,6 %). Das vorher festgelegte
+> Kriterium „lohnt sich“ ist erfüllt. B-1M in der Cloud trifft den Wert von zu Hause exakt (21,837), die
+> Triton-Kernels verändern also nichts. Ein Seed je Größe, Kosten 21 $.
 
 Die Erfolgskriterien wurden festgelegt, bevor ein Lauf gestartet wurde (Commit `51176ad`, präzisiert in
 `49f1202` vor dem ersten Ergebnis).
@@ -1198,3 +1203,58 @@ wird, und stoppt den Pod bei einem Fehler:
 Kontrolle: B-1M in der Cloud (Triton-Kernels, H200) gegenüber zu Hause (PyTorch-Referenz, RX 9070): 21,837 gegenüber 21,837 (−0,00 %; Seed-Spanne zu Hause 0,39 %).
 
 <!-- CLOUD-STATUS:END -->
+
+### Ergebnis der Cloud-Läufe (Auswertung von Hand, 2026-10-04)
+
+**Urteil nach den vorher festgelegten Kriterien: „lohnt sich“.** B-4M ist 4,75 % besser als B-1M (Cloud),
+gefordert waren ≥ 3 %, und B-16M ist nochmal 4,0 % besser als B-4M.
+
+| | Einträge | Val-PPL Wikipedia | gegenüber B-1M | Val-PPL WikiText | Nutzung (Val) | Top-1 %-Anteil | KL | VRAM Train |
+|---|---|---|---|---|---|---|---|---|
+| B-1M-sparse s0 zu Hause (RX 9070, PyTorch) | 1,05 M | 21,837 | | 65,51 | 100 % | 11,7 % | 0,62 | 10,5 GiB |
+| **B-1M** (H200, Triton, Kontrolle) | 1,05 M | **21,837** | – | 65,87 | 100 % | 11,8 % | 0,62 | 10,4 GiB |
+| **B-4M** | 4,19 M | **20,799** | **−4,75 %** | 63,07 (−4,3 %) | 99,7 % | 18,9 % | 0,99 | 28,5 GiB |
+| **B-16M** | 16,8 M | **19,960** | **−8,6 %** (gegenüber B-4M −4,0 %) | 59,97 (−9,0 %) | 91,3 % | 23,4 % | 1,35 | 100,9 GiB |
+
+Verlauf, Val-PPL bei gleicher Tokenzahl:
+
+| Tokens | B-1M | B-4M | B-16M | B-4M / B-1M | B-16M / B-4M |
+|---|---|---|---|---|---|
+| 100 M | 39,18 | 38,12 | 37,36 | 0,973 | 0,980 |
+| 200 M | 29,62 | 28,64 | 27,78 | 0,967 | 0,970 |
+| 300 M | 25,46 | 24,43 | 23,65 | 0,959 | 0,968 |
+| 400 M | 22,93 | 21,90 | 21,09 | 0,955 | 0,963 |
+| 500 M | 21,84 | 20,80 | 19,96 | 0,953 | 0,960 |
+
+**Einordnung (nichts schönreden):**
+
+- **Kontrolle bestanden:** B-1M in der Cloud (H200, Triton-Kernels) und zu Hause (RX 9070, PyTorch-Referenz)
+  liegen 0,00 % auseinander (21,8365 gegenüber 21,8369). Kernels und Hardware verändern das Ergebnis nicht,
+  auch nicht über die Gleichstände bei der bf16-Auswahl.
+- **Belastbar trotz eines Seeds:** Die Abstände (4,75 % und 4,0 %) sind rund sechsmal so groß wie zwei
+  Seed-Spannen von B-1M-sparse (2 × 0,39 %). Auf dem nie trainierten WikiText-Val-Set sind sie gleich groß.
+  Trotzdem bleibt es ein Seed je Größe.
+- **Der Vorsprung wächst noch:** Bei 100 M Tokens bringt die 4-fache Tabelle 2,7 %, bei 500 M 4,7 %; für
+  B-16M gegenüber B-4M wachsen die Werte von 2,0 % auf 4,0 %. Mit mehr Daten dürfte der Abstand weiter
+  steigen; gemessen ist das nicht.
+- **Die großen Tabellen werden ungleichmäßiger genutzt:** Bei B-16M wurden 8,7 % der 16,8 M Einträge auf dem
+  Val-Set nie gelesen, das meistgelesene 1 % bekommt 23 % der Zugriffe (B-1M: 12 %). Pro Eintrag gesehen
+  sind 500 M Tokens für 16,8 M Einträge wenig (B-16M: ≈ 11 k Lesezugriffe pro Eintrag, B-1M: ≈ 180 k).
+- **Gleiche Tokens, nicht gleiche Kosten:**
+  - B-16M hat 6,5 Mrd. Parameter, davon 6,44 Mrd. Tabelle.
+  - Pro Token rechnet B-16M nur etwa 8 % mehr als B-1M (Teil-Scores über 4096 statt 1024 Keys).
+  - Die Tabelle braucht aber 26 GB in fp32, mit 4 Bit ≈ 3,3 GB, und im Training ≈ 100 GiB GPU-Speicher
+    (Werte, Akkumulator, Adam).
+  - Ein Vergleich bei gleicher Rechenzeit gegen A wurde für die großen Tabellen nicht gemacht.
+- **Tempo-Werte nicht vergleichbar:** B-1M und B-16M teilten sich zeitweise die GPU, später B-16M und B-4M.
+  Trainzeit, tok/s und die Inferenz-Benchmarks in den `run-info.json` der Cloud-Läufe sind deshalb nicht
+  vergleichbar.
+- **Kosten:** 21,01 $ für alles laut Runpod-Abrechnung (GPU 20,89 $, Platte 0,12 $), einschließlich des
+  ersten Versuchs mit dem Testfehler. Der gestoppte Pod kostet für sein 150-GB-Volume ≈ 1 $/Tag, bis er
+  gelöscht wird.
+- **Ablauf:**
+  - Alle Checkpoints wurden per `rsync` geholt und mit `runs/cloud/checkpoints.sha256` geprüft: 12 von 12 OK.
+  - Der Pod hat sich am Ende **doch selbst gestoppt**: Ein POST-Stop mit dem Pod-Schlüssel ging, obwohl das
+    Lesen 403 lieferte. Danach wurde er noch einmal kurz gestartet, um den Rest des B-4M-Downloads zu holen,
+    und dann über das MCP gestoppt.
+  - GPU-Höchstwerte: 48 °C, 404 W.
