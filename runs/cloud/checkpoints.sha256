@@ -1,0 +1,12 @@
+99c96cfb3eca90aa1cb84889e066a3365de03f11e98e7939648408145a8dd067  runs/cloud/B-1M-s0/mem_access_train.npy
+b217068d3a70bfca54bb9f826db6dc7ef4d0981a266c7193b7181bb851c6c5f4  runs/cloud/B-1M-s0/mem_access_val.npz
+2356bf4b9ae5b2dbd4dcc2d21bbf813ec1a8cc4bf9d939bc85f42d4e23817eb1  runs/cloud/B-1M-s0/mem_index_sample.npz
+ad0b8d945102b630abd331a029d85b299af225aa7fe0bbf4ee2245cea92ecd94  runs/cloud/B-1M-s0/model.pt
+9659204b5eba387c978e38c662219b923ec1caacbca90ed8a7ac33cb7bd6772d  runs/cloud/B-4M-s0/mem_access_train.npy
+d60a9fc4bd1f4819e6ce9d795c5e15ef26da1dcb304fc85752c58f8ed1fbce56  runs/cloud/B-4M-s0/mem_access_val.npz
+418f46aebff4829721e4596704efe81bc4b4b9838cff0f951d6d4fd40c0933e0  runs/cloud/B-4M-s0/mem_index_sample.npz
+e5d8ea563da19a0cd9e2063e517ba8b1a133640b0f3985852d4935ade262b913  runs/cloud/B-4M-s0/model.pt
+49ecd71835343e4c529b17ba6c5714e169a0031572ee84edf16876ceaa655a9f  runs/cloud/B-16M-s0/mem_access_train.npy
+d83905c9d9023f601ca11113033edb20064bc5c715c0d2479aa29bcc7d1928f4  runs/cloud/B-16M-s0/mem_access_val.npz
+b40ea927a17833aa6da093dd47878fe6216ae269b24a9ad63fbca7c419215686  runs/cloud/B-16M-s0/mem_index_sample.npz
+dc4d25fb5f805a8ffd8c6e4c7231a5c4f76919585ef596e2273a4d1f509af454  runs/cloud/B-16M-s0/model.pt
