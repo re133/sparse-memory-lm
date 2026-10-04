@@ -141,6 +141,11 @@ def main():
     ax[1].set(xscale="log", yscale="log", xlabel="MACs pro Token (vorwärts)", ylabel="Val-PPL Wikipedia",
               title="Qualität gegen Rechenaufwand pro Token")
     ax[1].legend(fontsize=7)
+    from matplotlib.ticker import FixedLocator, NullFormatter, ScalarFormatter
+    for a in ax:
+        a.yaxis.set_major_locator(FixedLocator([16, 18, 20, 22, 24, 26, 28]))
+        a.yaxis.set_major_formatter(ScalarFormatter())
+        a.yaxis.set_minor_formatter(NullFormatter())
     fig.tight_layout()
     fig.savefig(os.path.join(ROOT, "report", "dense_equiv.png"), dpi=120)
 

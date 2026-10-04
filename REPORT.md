@@ -1645,3 +1645,61 @@ Nur berichtet:
   - Kostendeckel 13 $: Guthaben nach Schritt 1 ≈ 16 $ minus Puffer.
   - Ausgangswert Q, zu Hause gemessen (`report/qwen/facts_Q_home.json`): Trainings-Lücken 5,0 % [3,4; 7,3],
     Gegenprobe 3,8 % [2,4; 5,9]. Für die Entscheidung zählt die Messung auf derselben Cloud-GPU.
+
+### Ergebnis Schritt 1 (2026-10-05, Runpod H100, Pod 4,92 h ≈ 17,20 $)
+
+**Ablauf:**
+- **Budget-Wächter:** Er hat D-400M zuerst wie festgelegt weggelassen (Hochrechnung 5,44 h > 5,16 h bei 18 $).
+  Auf deine Freigabe hin wurde der Deckel auf 22 $ erhöht; D-400M lief ab Pod-Stunde 0,7 mit.
+- **Laufzeit:** ≈ 4,9 h insgesamt, genauso lange wie die vorsichtige Hochrechnung. Vier Läufe gleichzeitig auf
+  einer GPU waren nicht schneller als nacheinander; der Wirkungsgrad lag bei ≈ 0,9.
+- **Setup:** Wegen eines harmlosen rsync-Rechtefehlers fiel das Setup zunächst auf den Daten-Neubau aus Hugging
+  Face zurück. Ich habe ihn nach Prüfung der Box-Daten (7/7 sha256 OK) beendet; das kostete ≈ 10 min. Der Fehler
+  ist für künftige Läufe behoben (`rsync -rt`).
+- **Sicherung:** Alle vier Checkpoints liegen auf der Storage Box und zu Hause, per sha256 geprüft (4/4). Der Pod
+  ist gelöscht.
+
+| Modell | Parameter ohne Emb. | Val-PPL Wikipedia (entscheidend) | Val-PPL WikiText-103 (Nebenwert) | MACs/Token vorwärts |
+|---|---|---|---|---|
+| A | 21,2 M | 25,665 | 78,38 | 45,3 M |
+| D-50M | 49,6 M | 22,452 | 65,37 | 88,3 M |
+| D-100M | 99,1 M | 20,270 | 59,66 | 148,7 M |
+| D-200M | 202,4 M | 18,758 | 51,63 | 270,7 M |
+| D-400M | 396,5 M | 17,598 | 47,16 | 487,1 M |
+
+**Fit:** PPL = 13,60 + 7.361 · N^(−0,380), RMSE in log PPL 0,0024. Die fünf dichten Punkte liegen sehr glatt auf
+einer Kurve.
+
+**Gleichwertige dichte Größe** (Regeln wie oben festgelegt; `scripts/dense_equiv.py`, `report/dense_equiv.json`):
+
+| | Val-PPL | **gleichwertige dichte Größe** | Bereich (±0,4 %, inkl. Fit) | Fit allein | MACs/Token | Parameter aktiv pro Token / Tabelle |
+|---|---|---|---|---|---|---|
+| B-1M | 21,837 | **60 M** | 57–63 M | 58 M | 47,1 M | 23,1 M / 0,40 Mrd. |
+| B-4M | 20,799 | **83 M** | 79–88 M | 83 M | 50,2 M | 26,2 M / 1,61 Mrd. |
+| B-16M | 19,960 | **114 M** | 106–123 M | 116 M | 56,5 M | 32,5 M / 6,44 Mrd. |
+
+Alle drei liegen innerhalb des gemessenen Bereichs; eine Extrapolation war nicht nötig.
+
+![Gegenwert der Tabelle](report/dense_equiv.png)
+
+**Was das heißt:**
+- **B-16M** ist so gut wie ein dichtes Modell mit ≈ 114 M Parametern, also gut fünfmal so viele wie sein
+  Rechenkern (21 M). Pro Token rechnet es aber nur 56,5 M MACs; das gleichwertige dichte Modell bräuchte ≈ 165 M,
+  also ≈ 2,9× so viel.
+- **Jede Vervierfachung der Tabelle** bringt ≈ 1,4× gleichwertige Größe (60 → 83 → 114 M). Der Gewinn je
+  Verdopplung bleibt in diesem Bereich etwa gleich und flacht noch nicht ab.
+- **Der Preis dafür ist Speicher:** Die Tabelle von B-16M hat 6,44 Mrd. Parameter, dreißigmal so viele wie das
+  gleichwertige dichte Modell. Im Training brauchte B-16M ≈ 101 GB GPU-Speicher, D-200M 16 GB. Zum Schreiben muss
+  die Tabelle aber nicht im Grafikspeicher liegen (Schritt 2).
+
+**Nebenwert WikiText-103, nicht vorab als Kriterium festgelegt:**
+- Auf diesem anders formatierten Set ist der Vorteil kleiner. Log-log interpoliert entspricht B-1M ≈ 48 M, B-4M
+  ≈ 65 M und B-16M ≈ 95 M.
+- Die Tabelle hilft also auf Text wie dem Trainingsmaterial (Wikipedia-Artikel) stärker als auf anderer
+  Aufbereitung derselben Quelle.
+
+**Grenzen** (wie vorab genannt):
+- Ein Seed je dichter Größe.
+- 500 M Tokens sind für 200–400 M Parameter wenig; N_eq gilt nur für dieses Token-Budget.
+- Die LR ist nicht je Größe abgestimmt. Das lässt die Tabelle eher zu gut aussehen.
+- Tempo-Werte nicht vergleichbar: Die Läufe teilten sich die GPU.
