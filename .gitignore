@@ -1,5 +1,6 @@
 # no trailing slash: also matches the symlinks used in extra worktrees
 /.venv
+/.venv-qwen
 /data
 __pycache__/
 .pytest_cache/

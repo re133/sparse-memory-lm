@@ -25,7 +25,8 @@ import torch.nn.functional as F
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
-from smlm.data import load_split  # noqa: E402
+from smlm.data import load_meta, load_split  # noqa: E402
+from smlm.train import evaluate  # noqa: E402
 from smlm.offload import HostTable, MmapQ4Table, load_model  # noqa: E402
 
 SEQ = 1024
@@ -142,13 +143,15 @@ def main():
     ap.add_argument("--cache_frac", type=float, default=0.3)
     ap.add_argument("--fifo_frac", type=float, default=0.0)
     ap.add_argument("--cold", type=int, default=1, help="c: drop the file from the page cache before measuring")
-    ap.add_argument("--ppl", default="subset", choices=["none", "subset", "full"])
+    ap.add_argument("--ppl", default="subset", help="comma list of none / subset / full")
+    ap.add_argument("--tag", default="", help="suffix of the result name (e.g. the memory limit of the scope)")
     ap.add_argument("--graphs", type=int, default=1, help="a: decode graphs (b/c: never possible)")
     ap.add_argument("--min_free_vram_gib", type=float, default=2.0)
     ap.add_argument("--out", default=None)
     args = ap.parse_args()
     name = args.variant + (f"-cache{args.cache_frac:g}-fifo{args.fifo_frac:g}" + ("-cold" if args.cold else "")
-                           if args.variant == "c" else "")
+                           if args.variant == "c" else "") + ("-nographs" if args.variant[0] == "a" and not args.graphs
+                                                              else "") + (f"-{args.tag}" if args.tag else "")
     out_path = args.out or os.path.join(ROOT, "report", "offload", name + ".json")
     os.makedirs(os.path.dirname(out_path), exist_ok=True)
     meta = json.load(open(os.path.join(args.tables, "meta.json")))
@@ -220,11 +223,18 @@ def main():
         with Phase(f"prefill_{k}", res, table, dev, qfile):
             nll(model, val, list(range(first, first + 4)), batch=4)
         res[f"prefill_{k}"]["tok_s"] = 4 * SEQ / res[f"prefill_{k}"]["seconds"]
-    if args.ppl != "none":
-        windows = list(range(64)) if args.ppl == "subset" else list(range(n_win))
-        with Phase("ppl", res, table, dev, qfile):
-            s, c = nll(model, val, windows)
-        res["ppl"].update({"windows": len(windows), "tokens": c, "nll_sum": s, "ppl": math.exp(s / c)})
+    for kind in args.ppl.split(","):
+        if kind == "none":
+            continue
+        if kind == "subset":
+            with Phase("ppl", res, table, dev, qfile):
+                s, c = nll(model, val, list(range(64)))
+            res["ppl"].update({"windows": 64, "tokens": c, "nll_sum": s, "ppl": math.exp(s / c)})
+        else:                       # exactly as at the end of training (smlm.train.evaluate), batch 1
+            meta_w = load_meta("wikipedia")["splits"]["validation"]["n_words"]
+            with Phase("ppl_full", res, table, dev, qfile):
+                ev = evaluate(model, "validation", SEQ, meta_w, batch=1, dataset="wikipedia")
+            res["ppl_full"].update({"tokens": ev["n_tokens"], "ppl": ev["ppl"], "loss": ev["loss"]})
     used, total = vram_used_gib()
     res["end"] = {"vram_used_total_gib": used, **proc_mem()}
     res["finished"] = time.strftime("%Y-%m-%d %H:%M:%S")
