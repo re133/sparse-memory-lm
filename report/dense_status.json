@@ -1,5 +1,5 @@
 {
- "phase": "runs",
+ "phase": "end",
  "peaks": {
   "D-50M-s0": 9.168670177459717,
   "D-100M-s0": 11.675775051116943,
@@ -102,9 +102,9 @@
    "preflight_peak_vram_gib": 15.170495510101318
   }
  },
- "pod_hours": 4.898,
+ "pod_hours": 4.917,
  "price_usd_h": 3.49,
  "cap_usd": 22.0,
- "est_cost_usd": 17.1,
- "updated": "2026-10-04 23:30:56"
+ "est_cost_usd": 17.16,
+ "updated": "2026-10-04 23:32:02"
 }

@@ -1,0 +1,4 @@
+ce822abee2cdf91cffaf716c8b6a348f87e58d13296ea05cf572212837fa4e5e  runs/cloud_dense/D-50M-s0/model.pt
+744379afa8fe8d97d60e312285afc52883afa836c8367326c58c21a23c8d7ead  runs/cloud_dense/D-100M-s0/model.pt
+82df2f7902fc5b08bcb5191f8801aaeac80bef31d6f44f31c446b0cf5c97bf32  runs/cloud_dense/D-200M-s0/model.pt
+67ff6fb7204d6170662a4667c0c542d42ae20f4eba79eed439dc1074d12309e6  runs/cloud_dense/D-400M-s0/model.pt
