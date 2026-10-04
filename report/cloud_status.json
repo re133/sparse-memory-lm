@@ -52,7 +52,7 @@
       "usage": 0.9999923706054688
     },
     "B4": {
-      "status": "running",
+      "status": "done",
       "total_tokens": 499974144,
       "gpu": "NVIDIA H200",
       "params_total": 1656001152,
@@ -64,10 +64,17 @@
         "vram_used_gib": 133.53,
         "sclk_mhz_median_load": 1980.0,
         "sclk_mhz_max": 1980.0,
-        "n_samples": 308
+        "n_samples": 769
       },
-      "last_eval_tokens": 149913600.0,
-      "last_eval_ppl": 32.05821932513961
+      "last_eval_tokens": 499974144.0,
+      "last_eval_ppl": 20.799428693505916,
+      "val_ppl": 20.799428693505916,
+      "val2_ppl": 63.06863362390097,
+      "train_time_s": 7122.9,
+      "duration_s": 7700.1,
+      "tok_s": 77551.23843574461,
+      "peak_train_vram_gib": 28.51560688018799,
+      "usage": 0.9974362850189209
     },
     "B16": {
       "status": "done",
@@ -95,6 +102,9 @@
       "usage": 0.9125260710716248
     }
   },
-  "criteria": null,
-  "verdict": "ausstehend"
+  "criteria": {
+    "b4_over_b1": 0.952505462835468,
+    "b16_over_b4": 0.9596402295947993
+  },
+  "verdict": "lohnt sich"
 }

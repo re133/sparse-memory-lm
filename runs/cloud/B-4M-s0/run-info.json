@@ -1,0 +1,219 @@
+{
+  "status": "done",
+  "model_name": "B-4M-sparse",
+  "started": "2026-10-04T00:09:03",
+  "git": {
+    "commit": "6f8dffffe88d96b7ee945ce8fcb977c77b91bc80",
+    "dirty": false,
+    "dirty_files": []
+  },
+  "hardware": {
+    "gpu": "NVIDIA H200",
+    "gpu_arch": "NVIDIA H200",
+    "gpu_mem_gib": 139.81,
+    "torch": "2.11.0+cu128",
+    "hip": null,
+    "python": "3.12.3",
+    "kernel": "6.8.0-94-generic",
+    "cpu": "INTEL(R) XEON(R) PLATINUM 8568Y+",
+    "ram_gib": 2015.4
+  },
+  "seeds": {
+    "init_seed": 0,
+    "data_seed": 1234
+  },
+  "train_config": {
+    "model": "B-4M-sparse",
+    "out_dir": "/workspace/AngryAnt/runs/cloud/B-4M-s0",
+    "tokens": 500000000.0,
+    "epochs": 0.990072026474596,
+    "seed": 0,
+    "data_seed": 1234,
+    "seq_len": 1024,
+    "batch_seqs": 32,
+    "micro_bs": 4,
+    "lr": 0.0006,
+    "value_lr": 0.0024,
+    "weight_decay": 0.1,
+    "warmup_frac": 0.05,
+    "min_lr_ratio": 0.1,
+    "clip": 1.0,
+    "eval_every_tokens": 10000000.0,
+    "log_every": 10,
+    "sample_windows": 64,
+    "mem_query_norm": "batchnorm",
+    "mem_score_scale_init": null,
+    "data": "wikipedia",
+    "extra_val": "wikitext103",
+    "mem_impl": "triton",
+    "abort_ref": null,
+    "abort_at_tokens": 100000000.0,
+    "stop_after_tokens": null,
+    "abort_max_rel": 0.05,
+    "total_steps": 15258,
+    "warmup_steps": 763,
+    "tokens_per_step": 32768,
+    "grad_accum": 8,
+    "total_tokens": 499974144,
+    "eval_every_steps": 305,
+    "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip; value table: row-sparse gradients + LazyRowAdam (only rows read in the step are updated, values and Adam state of unread rows unchanged)",
+    "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
+    "precision": "bf16 autocast, fp32 weights / optimizer state"
+  },
+  "model_config": {
+    "vocab_size": 50304,
+    "d_model": 384,
+    "n_layers": 12,
+    "n_heads": 6,
+    "ffn_hidden": 1024,
+    "max_seq_len": 1024,
+    "rope_theta": 10000.0,
+    "norm_eps": 1e-05,
+    "init_std": 0.02,
+    "mem_layers": [
+      2,
+      6,
+      10
+    ],
+    "mem_n_keys": 2048,
+    "mem_heads": 4,
+    "mem_knn": 32,
+    "mem_k_dim": 256,
+    "mem_v_dim": -1,
+    "mem_query_norm": "batchnorm",
+    "mem_swilu": true,
+    "mem_value_impl": "embedding_bag",
+    "mem_keys_weight_decay": true,
+    "mem_score_scale": "none",
+    "mem_score_scale_init": 1.0,
+    "mem_share_values": true,
+    "mem_value_grad": "row_sparse",
+    "mem_impl": "triton"
+  },
+  "params": {
+    "total": 1656001152,
+    "embedding": 19316736,
+    "non_embedding": 1636684416,
+    "memory_values": 1610612736,
+    "dense_body": 26071680,
+    "active_non_embedding_per_token": 26219136,
+    "bn_running_stats": 6144
+  },
+  "macs_per_token": {
+    "attn_proj": 7077888,
+    "attn_scores": 4718592.0,
+    "ffn": 10616832,
+    "memory": 8504448,
+    "lm_head": 19316736,
+    "total": 50234496.0
+  },
+  "data": {
+    "dataset": "wikipedia",
+    "data_dir": "/workspace/AngryAnt/data/wikipedia_en_gpt2",
+    "source": "wikimedia/wikipedia 20231101.en (HF parquet, 41 files)",
+    "tokenizer": "tiktoken/gpt2",
+    "vocab_size": 50257,
+    "seed": 20231101,
+    "val_frac": 0.0003,
+    "train_frac": 0.125,
+    "articles_in_dump": 6407814,
+    "doc_format": "title + '\\n\\n' + text + <|endoftext|>",
+    "wikitext_val_test_titles": 122,
+    "wikitext_titles_found_and_excluded": 14,
+    "splits": {
+      "validation": {
+        "n_tokens": 1484010,
+        "n_articles": 1917,
+        "n_candidate_articles": 1917,
+        "candidate_tokens": 1484010,
+        "n_words": 990651
+      },
+      "train": {
+        "n_tokens": 505000000,
+        "n_articles": 689951,
+        "n_candidate_articles": 800138,
+        "candidate_tokens": 584857875,
+        "n_words": null
+      }
+    },
+    "extra_val": "wikitext103"
+  },
+  "finished": "2026-10-04T02:16:45",
+  "duration_s": 7700.1,
+  "train_time_s": 7122.9,
+  "results": {
+    "val_loss": 3.0349255196716873,
+    "val_ppl": 20.799428693505916,
+    "val_word_ppl": 94.28863962571958,
+    "val2_dataset": "wikitext103",
+    "val2_loss": 4.144223556002972,
+    "val2_ppl": 63.06863362390097,
+    "val2_word_ppl": 111.17190443156038,
+    "train_tok_s_mean": 73417.22830987888,
+    "train_tok_s_median": 77551.23843574461,
+    "peak_train_vram_gib": 28.51560688018799,
+    "weights_gib_fp32": 6.1690850257873535,
+    "decode_b1_tok_s": 165.7540881939886,
+    "decode_peak_vram_gib": 6.805106163024902,
+    "prefill_tok_s": 717846.5456675497,
+    "prefill_peak_vram_gib": 8.387825965881348,
+    "mem_val": {
+      "usage": 0.9974362850189209,
+      "kl": 0.9922711911092392,
+      "top1pct_share": 0.18905682245974698,
+      "eff_entries_per_head": 29.32272391585093,
+      "top1_weight": 0.08455648846308818
+    },
+    "mem_val_per_layer": [
+      {
+        "usage": 0.6143343448638916,
+        "kl": 2.4686697204899453,
+        "top1pct_share": 0.4256643238012707,
+        "eff_entries_per_head": 29.53250250290661,
+        "top1_weight": 0.08190923382039927
+      },
+      {
+        "usage": 0.9236977100372314,
+        "kl": 1.1596438316688236,
+        "top1pct_share": 0.1881785778421829,
+        "eff_entries_per_head": 29.452324150562134,
+        "top1_weight": 0.08234921424749592
+      },
+      {
+        "usage": 0.8565077781677246,
+        "kl": 1.5591255465515044,
+        "top1pct_share": 0.23517563425322893,
+        "eff_entries_per_head": 28.98334509408404,
+        "top1_weight": 0.08941101732136934
+      }
+    ],
+    "mem_train_usage_total": 1.0,
+    "mem_score_scale_per_head": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mem_score_scale_per_layer_head": [
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    ],
+    "mem_key_norm_mean": 0.49379128217697144
+  }
+}
