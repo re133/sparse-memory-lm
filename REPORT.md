@@ -1182,17 +1182,19 @@ wird, und stoppt den Pod bei einem Fehler:
 
 <!-- CLOUD-STATUS:BEGIN -->
 
-**Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-03 18:12)
+**Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-04 00:08)
 
 | Lauf | Status | GPU | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s | VRAM Train | Nutzung | max. Temp. GPU / Speicher | max. Leistung |
 |---|---|---|---|---|---|---|---|---|---|---|
 | B-1M-sparse s0 zu Hause (RX 9070, PyTorch-Referenz) | fertig | AMD Radeon RX 9070 | 21,837 | 65,51 | 216 min | 38.517 | 10,5 GiB | 100,0 % | 48 / 80 °C | 238 W |
-| B-1M (Cloud, Kontrolle) | ausstehend | – | – | – | – | – | – | – | – | – |
+| B-1M (Cloud, Kontrolle) | fertig | NVIDIA H200 | 21,837 | 65,87 | 138 min | 55.226 | 10,4 GiB | 100,0 % | 41 / 40 °C | 343 W |
 | B-4M (Cloud) | ausstehend | – | – | – | – | – | – | – | – | – |
-| B-16M (Cloud) | ausstehend | – | – | – | – | – | – | – | – | – |
+| B-16M (Cloud) | läuft (360 M Tokens, PPL 21,92) | NVIDIA H200 | – | – | – | – | – | – | 46 / 48 °C | 404 W |
 
 | Kriterium (vorher festgelegt) | Messwert | Ergebnis |
 |---|---|---|
 | lohnt sich: B-4M ≥ 3 % besser als B-1M (Cloud) und B-16M besser als B-4M | – | ausstehend |
+
+Kontrolle: B-1M in der Cloud (Triton-Kernels, H200) gegenüber zu Hause (PyTorch-Referenz, RX 9070): 21,837 gegenüber 21,837 (−0,00 %; Seed-Spanne zu Hause 0,39 %).
 
 <!-- CLOUD-STATUS:END -->
