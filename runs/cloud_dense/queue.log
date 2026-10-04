@@ -26,3 +26,6 @@
 2026-10-04 19:20:32 adopted running D-50M-s0 (pid 2916)
 2026-10-04 19:20:32 start D-400M-s0: -m smlm.train --model D-400M --out_dir /workspace/AngryAnt/runs/cloud_dense/D-400M-s0 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --seed 0 --data_seed 1234
 2026-10-04 21:12:06 end D-50M-s0 status=done val_ppl 22.452
+2026-10-04 21:12:16 backup ok: 6 files verified on storagebox:smlm
+2026-10-04 21:12:17 ntfy: D-50M-s0 done, val PPL 22.452; Pod 2.59 h ≈ 9.03 $
+2026-10-04 21:57:18 end D-100M-s0 status=done val_ppl 20.270
