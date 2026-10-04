@@ -1262,3 +1262,96 @@ Verlauf, Val-PPL bei gleicher Tokenzahl:
     Lesen 403 lieferte. Danach wurde er noch einmal kurz gestartet, um den Rest des B-4M-Downloads zu holen,
     und dann über das MCP gestoppt.
   - GPU-Höchstwerte: 48 °C, 404 W.
+
+## Schritt 1: Gegenwert der Tabelle – dichte Vergleichsmodelle (Plan vor dem Lauf festgelegt, 2026-10-04)
+
+**Frage:** Wie groß müsste ein normales dichtes Modell ohne Tabelle sein, um bei denselben 500 M Tokens so gut
+zu sein wie B-1M (21,84), B-4M (20,80) und B-16M (19,96)? Das ist eine **Messung ohne Bestanden-Kriterium**.
+
+**Modelle:** Llama-Stil wie A, ohne Speicherschicht. Breite und Tiefe wachsen gemeinsam. `head_dim = 64`; die
+FFN-Breite ist ≈ 8/3 · d, gerundet auf ein Vielfaches von 64 (wie A: 384 → 1024). Presets in `smlm/train.py`.
+
+| Modell | d | Layer | Köpfe | FFN | Parameter ohne Emb. | Emb. | MACs/Token vorwärts | Mikro-Batch |
+|---|---|---|---|---|---|---|---|---|
+| A (vorhanden, RX 9070) | 384 | 12 | 6 | 1024 | 21,24 M | 19,32 M | 45,3 M | 8 |
+| D-50M | 640 | 10 | 10 | 1728 | 49,58 M | 32,19 M | 88,3 M | 8 |
+| D-100M | 768 | 14 | 12 | 2048 | 99,11 M | 38,63 M | 148,7 M | 8 |
+| D-200M | 1024 | 16 | 16 | 2752 | 202,41 M | 51,51 M | 270,7 M | 8 |
+| D-400M | 1280 | 20 | 20 | 3456 | 396,55 M | 64,39 M | 487,1 M | 4 |
+| *zum Vergleich:* B-1M / B-4M / B-16M | 384 | 12 | 6 | 1024 | aktiv 23,1 / 26,2 / 32,5 M | 19,32 M | 47,1 / 50,2 / 56,5 M | 4 |
+
+**Training:** wie A und B, ohne Abweichung.
+- Daten:
+  - 500 M Wikipedia-Tokens, jede Sequenz genau einmal
+  - Daten-Seed 1234, Init-Seed 0
+  - Validierung: Wikipedia-Val-Set (1,48 M Tokens); WikiText-103-Val nur als Nebenwert
+- Optimierung:
+  - AdamW (0,9 / 0,95), LR 6e-4, Warmup 5 %, Cosine auf 10 %
+  - Weight Decay 0,1, Clip 1,0
+  - 32.768 Tokens/Schritt, bf16-Autocast
+- Der Mikro-Batch wird nur an den Speicher angepasst, die Gradient-Akkumulation füllt auf 32.768 Tokens auf.
+  `tests/test_dense.py` prüft, dass das die Gradienten nicht ändert.
+- **A** geht als kleinster Punkt mit seinem vorhandenen Lauf ein: Seed 0, PPL 25,665, gleiche Daten, gleiches
+  Val-Set, zu Hause gerechnet. Dass zu Hause und in der Cloud dasselbe herauskommt, zeigt B-1M: 21,8369
+  gegenüber 21,8365.
+
+**Auswertung (festgelegt):**
+1. **Kurve:** Val-PPL (Wikipedia) gegen Parameter ohne Embeddings, log–log. Punkte: A, D-50M, D-100M, D-200M,
+   D-400M, soweit gelaufen.
+2. **Gleichwertige Größe N_eq** für B-1M, B-4M und B-16M:
+   - Hauptwert: stückweise lineare Interpolation von log PPL über log N zwischen den beiden benachbarten
+     dichten Punkten.
+   - Vergleichswert: Fit PPL = E + a · N^(−α) über alle dichten Punkte, kleinste Quadrate in log PPL.
+3. **Unsicherheit:**
+   - Die PPL von B und die der beiden Nachbarpunkte werden um ±0,4 % verschoben. Das ist die Seed-Spanne aus
+     Stufe 1c: A s0/s1 0,35 %, B-1M s0/s1 0,39 %.
+   - Die Extremfälle ergeben einen Bereich für N_eq.
+   - Weicht der Fit-Wert stärker ab, wird der Bereich bis zu ihm erweitert.
+4. **Einklammerung:**
+   - Ist B besser als das größte gelaufene dichte Modell, wird nur „> N_max“ berichtet. Eine
+     Fit-Extrapolation erscheint höchstens als gekennzeichneter Hinweis.
+   - Ist B schlechter als A, lautet das Ergebnis „< 21 M“.
+5. **Rechenaufwand pro Token:**
+   - Vorwärts-MACs (`macs_per_token`, Kontext 1024) für alle Modelle; Training ≈ 3×.
+   - Für B zusätzlich die gelesenen Tabellenwerte pro Token: 3 Schichten × 4 Köpfe × 32 Zeilen × 384 Werte
+     = 147.456 Werte, also 295 KB in bf16 bzw. 74 KB in 4 Bit.
+   - Dazu die Größe der Tabelle.
+
+**Durchführung (Runpod, 1 × H100 SXM 80 GB, Secure Cloud, 3,49 $/h; `cloud/setup_dense.sh`,
+`scripts/run_dense.py`):**
+- **Daten:** Die Token-Dateien kommen von der Hetzner Storage Box. Sie werden per sha256 gegen
+  `cloud/data_sha256.txt` geprüft, sind also bytegleich mit zu Hause.
+- **Tests:** `tests/test_dense.py` und `tests/test_stage1b.py`, auf der GPU.
+- **Probelauf:** Jede Größe läuft allein 3 M Tokens. Gemessen werden tok/s, VRAM-Spitze, Auswertung, Speichern
+  und Inferenz.
+- **Budget-Wächter (Deckel 18 $ für den ganzen Pod):**
+  - Hochrechnung = Pod-Laufzeit + 0,1 h + 1,15 × Σ (500 M Tokens + Auswertungs-Tokens / 3) / (tok/s allein)
+    + 0,4 h.
+  - Zugelassen wird in der Reihenfolge 50M, 100M, 200M, 400M, solange die Hochrechnung ≤ 18 $ / 3,49 $/h
+    = 5,16 h bleibt.
+  - Was wegfällt, wird gemeldet. Ein größeres Modell wird dann nicht mehr zugelassen.
+- **Parallelbetrieb:** Die zugelassenen Läufe laufen gleichzeitig, das größte startet zuerst.
+- **Abbruch:**
+  - Ab 5,16 h − 0,3 h Laufzeit wird beendet, was noch läuft, und gesichert.
+  - Ein unabhängiger Watchdog stoppt den Pod bei 5,16 h − 6 min.
+  - Abgebrochene oder abgestürzte Läufe werden berichtet, nicht neu gestartet (keine Zwischen-Checkpoints).
+- **Nach jedem Lauf:**
+  - kleine Dateien auf GitHub
+  - Laufordner samt Checkpoint per rsync auf die Storage Box, dort per sha256 geprüft
+  - ntfy-Nachricht
+- **Ende:**
+  - Prüfsummenliste gepusht, alles noch einmal gesichert und geprüft.
+  - Danach stoppt und löscht Claude den Pod.
+  - Schlägt das Sichern fehl, wird der Pod nur gestoppt, und es geht eine Nachricht raus.
+- **Messwerte:** GPU-Temperatur, Leistung und Takt alle 10 s je Lauf (`gpu_thermal.csv`). Weil sich die Läufe
+  die Karte teilen, zeigen diese Dateien die ganze GPU; tok/s und Trainzeit sind **nicht** mit Einzelläufen
+  vergleichbar.
+
+**Grenzen (vorab bekannt):**
+- **Token-Budget:** 500 M Tokens sind für 200–400 M Parameter wenig (Chinchilla-optimal wären ≈ 20 Tokens
+  pro Parameter). N_eq gilt **nur für dieses Token-Budget**.
+- **Lernrate:** Der LR-Plan ist für A gewählt und nicht je Größe abgestimmt. Größere dichte Modelle wären mit
+  angepasster LR vermutlich etwas besser; das lässt die Tabelle eher **zu gut** aussehen.
+- **Seeds:** ein Seed je dichter Größe.
+- **Instabilität:** Wird ein großes Modell mit LR 6e-4 instabil (NaN bricht ab; eine Loss-Explosion ohne NaN
+  ist in den Kurven sichtbar), wird das berichtet, nicht wiederholt.
