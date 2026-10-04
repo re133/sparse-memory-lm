@@ -1459,3 +1459,145 @@ Seiten-Cache von Linux.
 - **Was „kalt“ heißt:** Kalt bezieht sich nur auf den Seiten-Cache. Den festen RAM-Cache füllt das Programm beim
   Start; das dauerte 0,7–8 s.
 - **Speicherbedarf beim Laden:** Die RAM-Spitzen von a) bf16 und b) fp32 enthalten das einmalige Einlesen.
+
+## Schritt 3: Tabelle als Zusatzgedächtnis für Qwen3.5-0.8B (vorbereitet; Kriterien zur Freigabe, 2026-10-04)
+
+**Nichts davon ist trainiert.** Hier stehen Aufbau, Daten, Basis-Messungen, der Kriterien-Vorschlag und die
+Abschätzung. Trainiert wird erst nach Freigabe der Kriterien.
+
+**Basis:**
+- **Modell:** `Qwen/Qwen3.5-0.8B`, Revision `2fc06364715b967f1860aea9cf38778875588b17`, veröffentlicht am
+  02.03.2026.
+- **Lizenz:** **Apache 2.0** laut Modellkarte und `LICENSE` im Repo (sha256 `bbedc3fd…e57a`, Standardtext Apache 2.0).
+- **Variante:** die nachtrainierte, multimodale Fassung; genutzt wird nur der Textteil (`Qwen3_5ForCausalLM`).
+  Es gibt auch `Qwen3.5-0.8B-Base`.
+- **Textteil:** 752,4 M Parameter; davon 254 M Embedding, an den Ausgang gekoppelt.
+  - 24 Blöcke: 18 × Gated DeltaNet (lineare Attention), 6 × Gated Attention
+  - d = 1024, FFN 3584
+  - Vokabular 248.320
+- **Umgebung:** eigene Python-Umgebung `.venv-qwen` mit transformers 5.18.0, lm-eval 0.4.13 und accelerate. Die
+  bestehende `.venv` bleibt unverändert.
+
+**Einbau** (`smlm/qwen_memory.py`, `tests/test_qwen_memory.py`):
+- **Position:** hinter Block 6, 12 und 18 je ein **zusätzlicher** Block, per Forward-Hook; Qwens Modulbaum bleibt
+  unverändert.
+- **Formel:** h ← h + g · M(RMSNorm(h)). g ist ein Skalar je Block und startet bei 0; RMSNorm hat keine
+  Parameter.
+- **M (Q+T):** Speicherschicht wie in B.
+  - Eine gemeinsame Tabelle mit 1024² = 1.048.576 Zeilen × 1024 (1,07 Mrd. Werte).
+  - Je Block: 4 Köpfe, Top-32, Query-Projektion 1024 → 4 × 256 mit BatchNorm, Sub-Keys 4 × 2 × 1024 × 128.
+  - Die swilu-Projektionen (Memory+) 1024 × 1024, zweimal je Block, gehören zur Speicherschicht wie in B.
+    **Bitte bestätigen**, dass sie als Teil der Speicherschicht mittrainiert werden dürfen. Alternative: ohne
+    swilu, dann trainieren wirklich nur Tabelle, Suche und Regler.
+  - Tabelle mit zeilenweisen Gradienten und Lazy Adam wie bei B (Triton-Kernel).
+  - Trainierbar: ≈ 1,09 Mrd. Parameter, davon 1,07 Mrd. Tabelle.
+- **Kontrolle Q+D:** ein SwiGLU-Block mit Breite 1408 an denselben Stellen.
+  - Gleiche MACs pro Token wie ein Speicherblock (4,33 M), gleicher Regler, gleiche Daten und Schritte.
+  - Trainierbar 13 M Parameter.
+- **Tests** (CPU, kleine Zufalls-Qwen-Konfiguration; alle grün):
+  - Bei g = 0 sind die Logits **bitgleich** zu Qwen allein, im Train- und im Eval-Modus.
+  - Im ersten Schritt bewegt sich nur g, ab dem zweiten auch die Blöcke.
+  - Eingefrorene Gewichte bleiben unverändert.
+  - Die MACs der Kontrolle stimmen.
+
+**Daten** (`scripts/prepare_qwen_data.py`, Qwen-Tokenizer, uint32; auf der Storage Box per sha256 geprüft):
+- **Neue Artikel:** aus dem enwiki-Dump vom 01.09.2026, nur die letzten Teildateien (Seiten-IDs ≥ 77,5 M).
+  Hauptnamensraum, keine Weiterleitungen und Begriffsklärungen, ≥ 300 Zeichen Klartext (mwparserfromhell).
+  - Anlege-Monat über Seiten-ID-Schwellen aus dem Anlege-Log der Wikipedia-API, gespeichert in
+    `page_id_months.json`.
+  - 286.766 Artikel, angelegt ab 01/2025.
+
+| Teil | Artikel | Tokens | Zweck |
+|---|---|---|---|
+| `train_new` | 79.864 | 55,3 M | Training: angelegt 03–08/2026, nach Qwens Veröffentlichung |
+| `val_new` | 1.500 | 1,02 M | **entscheidend:** zurückgehaltene neue Artikel |
+| `mem_probe` | 1.000 | 0,66 M | Teil des Trainings: wie viel die Tabelle speichert |
+| `val_known` | 1.917 | 1,54 M | Val-Set von Stufe 1b (Wikipedia 2023, HF-Aufbereitung) |
+| `val_known_same` | 1.500 | 1,62 M | alte Artikel (Seiten-IDs 4,0–5,4 M, ≈ 2006) aus demselben 2026-Dump, gleich aufbereitet wie die neuen |
+| `curve_YYYY-MM` | je 150 | je 0,08–0,19 M | Stichtags-Kurve 01/2025–08/2026 (nie trainiert) |
+
+**Basis-Messung: Qwen allein, zu Hause** (`runs/qwen/Q-base`, `report/qwen/cutoff_curve.json` und `.png`):
+- **Token-PPL, Fenster 2048:**
+
+  | Set | PPL |
+  |---|---|
+  | `val_new` | 12,98 |
+  | `mem_probe` | 13,36 |
+  | `val_known` | 13,94 |
+
+- **Median-PPL je Artikel** (erste 1024 Tokens, 90-%-Bootstrap-Intervall):
+
+  | Set | Median-PPL | Intervall |
+  |---|---|---|
+  | Neue Artikel je Monat, 2025–2026 | 10,9–12,8 | |
+  | `val_new` | 11,47 | [10,63; 12,07] |
+  | `val_known` | 13,07 | |
+  | `val_known_same` | 13,72 | [13,24; 14,53] |
+
+- **Ehrliche Folgerung:**
+  - **Ein Wissens-Stichtag ist nicht zu sehen.** Artikel aus der Zeit nach Qwens Veröffentlichung sind für Qwen
+    nicht schwerer als solche aus 2025, und sie sind *leichter* als alte, gleich aufbereitete Artikel.
+  - Bei einem 0,8B-Modell misst die Wikipedia-PPL also vor allem Sprache und Stil (neue Artikel sind kürzer und
+    gleichförmiger), kaum Faktenwissen.
+  - Ein Gewinn auf `val_new` ist deshalb nicht automatisch „neues Wissen“. Er kann auch Anpassung an den
+    Wikipedia-Stil sein, und genau die misst der Kontrolllauf Q+D mit.
+  - Zusätzlich wird die PPL nur über „Wissens-Tokens“ berichtet: Ziffern und großgeschriebene Wörter, die nicht
+    am Satzanfang stehen; das sind ≈ 29 % der Tokens.
+- **Standard-Tests zu Hause:** nicht möglich. Qwen3.5 stürzt unter ROCm auf der RX 9070 reproduzierbar ab
+  („illegal instruction“ in lm-eval, „memory access fault“ mit Gradient-Checkpointing). Die Standard-Tests laufen
+  deshalb für Q, Q+T und Q+D auf derselben Cloud-GPU.
+
+**Training (Vorschlag):**
+- **Umfang:** 2 Durchgänge über `train_new` (110,5 M Tokens), Sequenzlänge 2048, 16 Sequenzen pro Schritt
+  (32.768 Tokens, 3.373 Schritte).
+- **Optimierung:** wie B: LR 6e-4, Tabelle 2,4e-3, Warmup 5 %, Cosine auf 10 %, Weight Decay 0,1, Clip 1,0,
+  bf16. Qwen bleibt in bf16 eingefroren.
+- **Loss:** stückweise über das 248k-Vokabular, mit Neuberechnung im Rückwärtsschritt.
+- **Läufe:** je 1 Seed für Q+T und Q+D (`scripts/train_qwen_memory.py`).
+
+**Kriterien (Vorschlag zur Freigabe; Q = Qwen allein, Messung auf derselben GPU):**
+
+*Hilft es?* Entscheidend ist die Token-PPL auf `val_new`:
+
+| Urteil | Bedingung |
+|---|---|
+| **hilft deutlich** | PPL(Q+T) ≤ 0,95 × PPL(Q) **und** PPL(Q+T) ≤ 0,98 × PPL(Q+D) |
+| **hilft etwas** | PPL(Q+T) ≤ 0,98 × PPL(Q), aber nicht „deutlich“ |
+| **hilft nicht** | sonst |
+
+Nur berichtet:
+- Wissens-Token-PPL auf `val_new`
+- `mem_probe` (gespeichertes Wissen)
+- `val_known_same`
+- die Monatskurve
+
+*Schadet es?* „Schadet nicht“ verlangt alle drei Punkte, je für Q+T (und Q+D) gegenüber Q:
+1. **Standard-Test** (lm-eval 0.4.13, zero-shot, je Aufgabe die ersten 500 Beispiele, MMLU je Fach; Aufgaben
+   MMLU, ARC-Easy, ARC-Challenge, HellaSwag, PIQA, WinoGrande):
+   - Der Mittelwert der sechs Genauigkeiten fällt um höchstens 1,0 Prozentpunkte.
+   - Keine Aufgabe fällt um mehr als max(2 Pp., 2 × Standardfehler).
+2. **Bekannte Texte:** PPL auf `val_known` und `val_known_same` höchstens +1 %.
+3. **Chat:** 12 feste Fragen (`scripts/eval_qwen_general.py`, 6 deutsch, 6 englisch), Chat-Vorlage ohne
+   Denkmodus, gierig, 200 Tokens.
+   - Je Frage zwei Antworten verblindet in zufälliger Reihenfolge; du urteilst besser / gleich / schlechter.
+   - „Schadet“, wenn Q+T bei mehr als 3 von 12 Fragen schlechter ist.
+
+**Abschätzung:**
+- **Zu Hause** (Probe mit 30 Schritten, verworfen; Sequenz 2048, Mikro-Batch 1):
+
+  | Variante | Tempo | Speicher |
+  |---|---|---|
+  | Qwen + Speicher (65 k Zeilen) | 2.990 tok/s | 10,7 GiB |
+  | Qwen + dichter Block | 3.060 tok/s | 9,6 GiB |
+
+  - Die geplante Tabelle braucht mit Adam-Zuständen ≈ 17 GB und passt nicht neben Qwen in 16 GB.
+  - Zwei Läufe mit kleiner Tabelle würden zu Hause ≈ 20 h dauern, bei instabilem ROCm.
+  - **Nicht empfohlen.**
+- **H100 SXM (3,49 $/h):**
+  - Speicher ≈ 45 GB: Tabelle mit Optimierer 17 GB, Qwen, Aktivierungen bei Mikro-Batch 4.
+  - Tempo unsicher: 25.000–60.000 tok/s, je nachdem, ob die schnellen DeltaNet-Kernel
+    (flash-linear-attention) laufen. Das ergibt 0,5–1,2 h je Lauf.
+  - Mit Setup, Q-Messungen, zwei Läufen und allen Auswertungen 1,7–3,2 h ≈ 6–11 $ (5,30–9,90 €).
+  - Nach Schritt 1 (≈ 17–18 $) bleiben ≈ 16 $; das reicht.
+- **Noch zu bauen nach der Freigabe:** Cloud-Ablauf für Schritt 3 (Setup wie Schritt 1, Daten von der Box,
+  Ergebnisse und Tabelle zurück auf die Box) und das kleine Verblindungs-Skript für die Chat-Antworten.

@@ -62,24 +62,62 @@ def forward_loss(model, x, y):
     return chunked_ce(hidden, model.lm_head.weight, y, chunk=CE_CHUNK)
 
 
+def knowledge_token_ids(tok):
+    """Token ids that carry facts rather than language: any digit, or a word-initial capital letter
+    ("Ġ"/space-prefixed or bare). Sentence-initial capitals are removed later via the previous token."""
+    vocab = tok.convert_ids_to_tokens(list(range(len(tok))))
+    digit = np.zeros(len(vocab), bool)
+    cap = np.zeros(len(vocab), bool)
+    end = np.zeros(len(vocab), bool)
+    for i, t in enumerate(vocab):
+        if t is None:
+            continue
+        s = tok.convert_tokens_to_string([t])
+        digit[i] = any(ch.isdigit() for ch in s)
+        st = s.lstrip(" ")
+        cap[i] = bool(st) and st[0].isupper() and (s.startswith(" ") or len(st) == len(s))
+        end[i] = s.rstrip(" ").endswith((".", "!", "?", ":", "\n")) or s.endswith("\n")
+    return digit, cap, end
+
+
+def knowledge_mask(tokens, ids):
+    """mask[j] for target position j (token tokens[j + 1]): digit token, or capitalised word not after a sentence end."""
+    digit, cap, end = ids
+    t = np.asarray(tokens, dtype=np.int64)
+    tgt, prev = t[1:], t[:-1]
+    return digit[tgt] | (cap[tgt] & ~end[prev])
+
+
 @torch.no_grad()
-def evaluate(model, tokens, seq_len, max_windows=None, batch=4):
+def evaluate(model, tokens, seq_len, max_windows=None, batch=4, mask=None):
+    """Token PPL over non-overlapping windows; with `mask` (bool per target position, see knowledge_mask) also the
+    PPL over the masked ("knowledge") tokens only."""
     model.eval()
     n = (len(tokens) - 1) // seq_len
     if max_windows:
         n = min(n, max_windows)
-    nll, count = 0.0, 0
+    nll, count, knll, kcount = 0.0, 0, 0.0, 0
     for a in range(0, n, batch):
         idx = range(a, min(n, a + batch))
         x = torch.from_numpy(np.stack([tokens[i * seq_len:(i + 1) * seq_len] for i in idx]).astype(np.int64)).cuda()
         y = torch.from_numpy(np.stack([tokens[i * seq_len + 1:(i + 1) * seq_len + 1] for i in idx])
                              .astype(np.int64)).cuda()
         with torch.autocast("cuda", dtype=torch.bfloat16):
-            loss = forward_loss(model, x, y)
-        nll += float(loss) * y.numel()
-        count += y.numel()
+            h = model.model(input_ids=x).last_hidden_state.reshape(-1, model.lm_head.weight.shape[1])
+            per = torch.cat([F.cross_entropy((h[c:c + CE_CHUNK] @ model.lm_head.weight.t()).float(),
+                                             y.reshape(-1)[c:c + CE_CHUNK], reduction="none")
+                             for c in range(0, h.shape[0], CE_CHUNK)])
+        nll += float(per.sum())
+        count += per.numel()
+        if mask is not None:
+            m = torch.from_numpy(np.concatenate([mask[i * seq_len:(i + 1) * seq_len] for i in idx])).cuda()
+            knll += float(per[m].sum())
+            kcount += int(m.sum())
     model.train()
-    return {"loss": nll / count, "ppl": math.exp(nll / count), "tokens": count}
+    out = {"loss": nll / count, "ppl": math.exp(nll / count), "tokens": count}
+    if mask is not None and kcount:
+        out.update({"knowledge_ppl": math.exp(knll / kcount), "knowledge_tokens": kcount})
+    return out
 
 
 def main():
@@ -128,7 +166,8 @@ def main():
     if args.grad_ckpt:
         model.gradient_checkpointing_enable(gradient_checkpointing_kwargs={"use_reentrant": False})
     meta = json.load(open(os.path.join(args.data_dir, "meta.json")))
-    evals = {k: load_tokens(args.data_dir, k) for k in ("val_new", "val_known", "mem_probe")}
+    evals = {k: load_tokens(args.data_dir, k) for k in ("val_new", "val_known", "val_known_same", "mem_probe")
+             if os.path.exists(os.path.join(args.data_dir, k + ".bin"))}
     info = {"status": "running", "args": vars(args), "addon_cfg": acfg.to_dict() if acfg else None,
             "trainable_params": sum(p.numel() for p in trainable_parameters(model)) if acfg else 0,
             "data": {k: {kk: vv for kk, vv in v.items() if kk != "pages"} for k, v in meta["splits"].items()},
@@ -137,8 +176,12 @@ def main():
     def write_info():
         json.dump(info, open(os.path.join(args.out_dir, "run-info.json"), "w"), indent=1)
 
+    from transformers import AutoTokenizer
+    kid = knowledge_token_ids(AutoTokenizer.from_pretrained(args.model_dir))
+    masks = {k: knowledge_mask(v, kid) for k, v in evals.items()}
+
     def eval_all(final=False):
-        out = {k: evaluate(model, v, args.seq_len, args.eval_windows) for k, v in evals.items()}
+        out = {k: evaluate(model, v, args.seq_len, args.eval_windows, mask=masks[k]) for k, v in evals.items()}
         if final:
             for k in sorted(meta["splits"]):
                 if k.startswith("curve_"):
@@ -176,6 +219,7 @@ def main():
         ev = eval_all()
         row = {"step": step, "tokens": step * tok_per_step,
                **{f"{k}_ppl": v["ppl"] for k, v in ev.items()},
+               **{f"{k}_knowledge_ppl": v.get("knowledge_ppl") for k, v in ev.items()},
                "gates": " ".join(f"{float(a.gate):.4f}" for a in model.addons)}
         if mcsv is None:
             mcsv = csv.DictWriter(mfile, fieldnames=list(row))

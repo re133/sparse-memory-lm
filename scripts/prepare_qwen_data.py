@@ -155,6 +155,28 @@ def known_articles():
     return out
 
 
+def add_known_same(args):
+    from transformers import AutoTokenizer
+    raw = parse_part((args.known_same_part, 0))
+    raw = sorted(raw, key=lambda r: unit_hash(r[0], SEED))[:6000]        # random subset before the slow cleaning
+    with Pool(min(30, os.cpu_count())) as pool:
+        pages = [p for p in pool.imap(clean_one, raw, chunksize=16) if p is not None][:1500]
+    tok = AutoTokenizer.from_pretrained(args.tokenizer)
+    eot = tok.convert_tokens_to_ids("<|endoftext|>")
+    docs = [f"{t}\n\n{x}" for _, t, x in pages]
+    ids = tok(docs, add_special_tokens=False)["input_ids"]
+    arr = np.fromiter((i for d in ids for i in d + [eot]), dtype=np.uint32)
+    arr.tofile(os.path.join(args.out, "val_known_same.bin"))
+    meta_path = os.path.join(args.out, "meta.json")
+    meta = json.load(open(meta_path))
+    meta["splits"]["val_known_same"] = {"n_articles": len(pages), "n_tokens": int(arr.size),
+                                        "n_words": int(sum(len(d.split()) for d in docs)),
+                                        "source": os.path.basename(args.known_same_part),
+                                        "pages": [[int(p), t] for p, t, _ in pages]}
+    json.dump(meta, open(meta_path, "w"))
+    print(f"val_known_same: {len(pages)} articles, {arr.size / 1e6:.2f} M tokens")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dump_dir", required=True)
@@ -162,9 +184,15 @@ def main():
     ap.add_argument("--tokenizer", default="/home/leon/smlm-models/Qwen3.5-0.8B")
     ap.add_argument("--train_from", default="2026-03")
     ap.add_argument("--curve_per_month", type=int, default=150)
+    ap.add_argument("--known_same_part", default=None,
+                    help="only add val_known_same: 1,500 hash-sampled articles of this (old) dump part, cleaned exactly "
+                         "like the new articles (control for the different text preparation of val_known)")
     args = ap.parse_args()
     os.makedirs(args.out, exist_ok=True)
     t0 = time.time()
+    if args.known_same_part:
+        add_known_same(args)
+        return
     thr = month_thresholds(os.path.join(args.out, "page_id_months.json"))
     parts = sorted(glob.glob(os.path.join(args.dump_dir, "*multistream27.xml-p*.bz2")))
     with Pool(len(parts)) as pool:

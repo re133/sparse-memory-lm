@@ -1,0 +1,271 @@
+{
+ "status": "done",
+ "args": {
+  "model_dir": "/home/leon/smlm-models/Qwen3.5-0.8B",
+  "data_dir": "/home/leon/smlm-data/qwen_wiki",
+  "out_dir": "runs/qwen/Q-base",
+  "kind": "none",
+  "n_keys": 1024,
+  "layers": "5,11,17",
+  "epochs": 2.0,
+  "max_steps": null,
+  "seq_len": 2048,
+  "batch_seqs": 16,
+  "micro_bs": 4,
+  "lr": 0.0006,
+  "value_lr": 0.0024,
+  "weight_decay": 0.1,
+  "warmup_frac": 0.05,
+  "min_lr_ratio": 0.1,
+  "clip": 1.0,
+  "seed": 0,
+  "data_seed": 1234,
+  "eval_every_tokens": 20000000.0,
+  "eval_windows": null,
+  "eval_only": true,
+  "save": 1
+ },
+ "addon_cfg": null,
+ "trainable_params": 0,
+ "data": {
+  "train_new": {
+   "n_articles": 79864,
+   "n_tokens": 55274538,
+   "n_words": 35722569
+  },
+  "val_new": {
+   "n_articles": 1500,
+   "n_tokens": 1016794,
+   "n_words": 670832
+  },
+  "mem_probe": {
+   "n_articles": 1000,
+   "n_tokens": 656546,
+   "n_words": 433765
+  },
+  "val_known": {
+   "n_articles": 1917,
+   "n_tokens": 1544789,
+   "n_words": 990651
+  },
+  "curve_2025-01": {
+   "n_articles": 150,
+   "n_tokens": 131807,
+   "n_words": 86863
+  },
+  "curve_2025-02": {
+   "n_articles": 150,
+   "n_tokens": 160314,
+   "n_words": 88184
+  },
+  "curve_2025-03": {
+   "n_articles": 150,
+   "n_tokens": 116863,
+   "n_words": 75390
+  },
+  "curve_2025-04": {
+   "n_articles": 150,
+   "n_tokens": 181480,
+   "n_words": 99760
+  },
+  "curve_2025-05": {
+   "n_articles": 150,
+   "n_tokens": 116095,
+   "n_words": 74443
+  },
+  "curve_2025-06": {
+   "n_articles": 150,
+   "n_tokens": 104523,
+   "n_words": 69500
+  },
+  "curve_2025-07": {
+   "n_articles": 150,
+   "n_tokens": 115965,
+   "n_words": 75118
+  },
+  "curve_2025-08": {
+   "n_articles": 150,
+   "n_tokens": 105170,
+   "n_words": 69127
+  },
+  "curve_2025-09": {
+   "n_articles": 150,
+   "n_tokens": 97231,
+   "n_words": 65240
+  },
+  "curve_2025-10": {
+   "n_articles": 150,
+   "n_tokens": 104046,
+   "n_words": 68833
+  },
+  "curve_2025-11": {
+   "n_articles": 150,
+   "n_tokens": 94526,
+   "n_words": 62462
+  },
+  "curve_2025-12": {
+   "n_articles": 150,
+   "n_tokens": 77554,
+   "n_words": 50438
+  },
+  "curve_2026-01": {
+   "n_articles": 150,
+   "n_tokens": 89314,
+   "n_words": 58870
+  },
+  "curve_2026-02": {
+   "n_articles": 150,
+   "n_tokens": 93673,
+   "n_words": 61116
+  },
+  "curve_2026-03": {
+   "n_articles": 150,
+   "n_tokens": 113879,
+   "n_words": 78133
+  },
+  "curve_2026-04": {
+   "n_articles": 150,
+   "n_tokens": 96775,
+   "n_words": 62280
+  },
+  "curve_2026-05": {
+   "n_articles": 150,
+   "n_tokens": 107585,
+   "n_words": 72174
+  },
+  "curve_2026-06": {
+   "n_articles": 150,
+   "n_tokens": 185451,
+   "n_words": 91518
+  },
+  "curve_2026-07": {
+   "n_articles": 150,
+   "n_tokens": 90922,
+   "n_words": 60588
+  },
+  "curve_2026-08": {
+   "n_articles": 150,
+   "n_tokens": 106026,
+   "n_words": 72974
+  }
+ },
+ "started": "2026-10-04 21:12:45",
+ "gpu": "AMD Radeon RX 9070",
+ "results": {
+  "val_new": {
+   "loss": 2.563152938119827,
+   "ppl": 12.976667512298603,
+   "tokens": 1015808
+  },
+  "val_known": {
+   "loss": 2.634367832138304,
+   "ppl": 13.934500734677302,
+   "tokens": 1544192
+  },
+  "mem_probe": {
+   "loss": 2.592511434853077,
+   "ppl": 13.363290528864841,
+   "tokens": 655360
+  },
+  "curve_2025-01": {
+   "loss": 2.615365207195282,
+   "ppl": 13.672208655206777,
+   "tokens": 131072
+  },
+  "curve_2025-02": {
+   "loss": 1.8136626344460707,
+   "ppl": 6.132868803054341,
+   "tokens": 159744
+  },
+  "curve_2025-03": {
+   "loss": 2.52965868146796,
+   "ppl": 12.549222123529834,
+   "tokens": 116736
+  },
+  "curve_2025-04": {
+   "loss": 1.803108885884285,
+   "ppl": 6.068484393780023,
+   "tokens": 180224
+  },
+  "curve_2025-05": {
+   "loss": 2.514336977686201,
+   "ppl": 12.358412159116863,
+   "tokens": 114688
+  },
+  "curve_2025-06": {
+   "loss": 2.589852912753236,
+   "ppl": 13.327811107976126,
+   "tokens": 104448
+  },
+  "curve_2025-07": {
+   "loss": 2.5669483968189786,
+   "ppl": 13.026013503993058,
+   "tokens": 114688
+  },
+  "curve_2025-08": {
+   "loss": 2.5665503529941334,
+   "ppl": 13.02082961153208,
+   "tokens": 104448
+  },
+  "curve_2025-09": {
+   "loss": 2.6627901665707854,
+   "ppl": 14.336233826915482,
+   "tokens": 96256
+  },
+  "curve_2025-10": {
+   "loss": 2.6413395500183103,
+   "ppl": 14.031987573104697,
+   "tokens": 102400
+  },
+  "curve_2025-11": {
+   "loss": 2.576887503914211,
+   "ppl": 13.15612597703099,
+   "tokens": 94208
+  },
+  "curve_2025-12": {
+   "loss": 2.6229518168681376,
+   "ppl": 13.776328825786123,
+   "tokens": 75776
+  },
+  "curve_2026-01": {
+   "loss": 2.6057884415914847,
+   "ppl": 13.541898090442055,
+   "tokens": 88064
+  },
+  "curve_2026-02": {
+   "loss": 2.528196589152018,
+   "ppl": 12.53088740908073,
+   "tokens": 92160
+  },
+  "curve_2026-03": {
+   "loss": 2.7029238614169033,
+   "ppl": 14.923301663548557,
+   "tokens": 112640
+  },
+  "curve_2026-04": {
+   "loss": 2.5735705862654017,
+   "ppl": 13.112560482109394,
+   "tokens": 96256
+  },
+  "curve_2026-05": {
+   "loss": 2.697278829721304,
+   "ppl": 14.839296481690248,
+   "tokens": 106496
+  },
+  "curve_2026-06": {
+   "loss": 1.9805074797736273,
+   "ppl": 7.246419463521863,
+   "tokens": 184320
+  },
+  "curve_2026-07": {
+   "loss": 2.638425350189209,
+   "ppl": 13.991155083232403,
+   "tokens": 90112
+  },
+  "curve_2026-08": {
+   "loss": 2.7800859516742182,
+   "ppl": 16.12040646440766,
+   "tokens": 104448
+  }
+ }
+}
