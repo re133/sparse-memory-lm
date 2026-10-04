@@ -113,8 +113,10 @@ EOF
 # ---- 5 data: token files from the storage box, byte-identical to home (sha256)
 if ! is_done data; then
   mkdir -p data
-  if rsync -a --partial storagebox:smlm/data/wikipedia_en_gpt2 storagebox:smlm/data/wikitext103_gpt2 data/ \
-     && (cd data && grep -E " (wikipedia_en_gpt2|wikitext103_gpt2)/" ../cloud/data_sha256.txt | sha256sum -c --quiet); then
+  # -rt instead of -a: /workspace is a network file system that refuses chown (rsync exit 23 although every byte
+  # arrived); whether the data is right is decided by sha256 alone
+  rsync -rt --partial storagebox:smlm/data/wikipedia_en_gpt2 storagebox:smlm/data/wikitext103_gpt2 data/ || true
+  if (cd data && grep -E " (wikipedia_en_gpt2|wikitext103_gpt2)/" ../cloud/data_sha256.txt | sha256sum -c --quiet); then
     say "data from the storage box, sha256 ok"
   else
     say "storage box data missing or wrong - rebuilding from Hugging Face"

@@ -205,7 +205,10 @@ class ProductKeyMemory(nn.Module):
             from .kernels import bag_infer
             pre = self.swilu_proj(x)                                    # bf16 under autocast
             t = getattr(self.values, "infer_table", None) or (self.values.weight, None)
-            out = bag_infer(indices.view(N, -1), weights.view(N, -1), t[0], t[1], pre=pre, out_bf16=True)
+            if hasattr(t, "bag"):                                       # table outside the GPU (smlm/offload.py)
+                out = t.bag(indices.view(N, -1), weights.view(N, -1), pre)
+            else:
+                out = bag_infer(indices.view(N, -1), weights.view(N, -1), t[0], t[1], pre=pre, out_bf16=True)
             return self.value_proj(out)
         out = self.read_values(indices.view(N, -1), weights.view(N, -1))
         if self.swilu:

@@ -120,7 +120,7 @@ def backup(paths):
     host, rdir = BOX.split(":", 1) if remote else (None, BOX)
     ssh = ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=30"]
     for attempt in range(3):
-        cmd = ["rsync", "-a", "--partial", "-R", *(["-e", " ".join(ssh)] if remote else []), *paths, BOX + "/"]
+        cmd = ["rsync", "-rt", "--partial", "-R",              # no owner/group: the box (and /workspace) refuse chown *(["-e", " ".join(ssh)] if remote else []), *paths, BOX + "/"]
         if not remote:
             os.makedirs(BOX, exist_ok=True)
         r = subprocess.run(cmd, cwd=BASE, capture_output=True, text=True)
