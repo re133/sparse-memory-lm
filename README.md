@@ -9,11 +9,15 @@ What happens if you give a tiny language model a really big lookup table?
 I trained a small Llama-style model (21M parameters) and added a product-key memory to it: a table with up to
 16.8 million learned vectors, of which the model only reads a few hundred per token. Then I measured what that is
 actually worth, what it costs, and whether the table even has to sit in GPU memory. Most of this ran on my own PC
-(Radeon RX 9070). The big runs were on rented cloud GPUs, about 65 dollars in total.
+(Radeon RX 9070). The big runs were on rented cloud GPUs, about 70 dollars in total.
 
 Before every run I wrote down what would count as a success. Some things worked out, some didn't. Both are in
 here. The full lab notebook with every criterion, every number and every mishap is [REPORT.md](REPORT.md)
 (in German).
+
+**[Look inside the table](https://re133.github.io/sparse-memory-lm/explorer/)** ·
+**[Model on Hugging Face](https://huggingface.co/fechyy/sparse-memory-lm-B-16M)** ·
+**[Try it on your GPU](#try-it)** · **[I'm looking for bigger GPUs](#whats-next)**
 
 ## Short version
 
@@ -280,6 +284,26 @@ More in [docs/rocm-issues](docs/rocm-issues/README.md).
 - **BatchNorm on the query:** during training it normalises with the statistics of the whole batch, so a token's
   memory lookup is very slightly influenced by later tokens. All perplexities here are measured in eval mode with
   running statistics, where that doesn't happen, but training losses aren't strictly causal.
+
+## What's next
+
+Everything here ran on one gaming GPU and about 70 dollars of rented cloud time. The question I'd really like to
+answer is whether the table still pays off at a size people actually use: a model around 1B parameters, a table
+with tens of millions of rows, trained on tens of billions of tokens. That's beyond what I can rent. It needs a
+multi-GPU machine for a good while, and the table with its optimizer state doesn't fit on one GPU anymore (B-16M
+already needed 101 GB).
+
+What I'd do with more compute:
+- **Scale up:** a ~1B model from scratch, with and without the table, on the same data, compared at equal tokens
+  and at equal GPU hours.
+- **Bigger tables:** 64M rows and more, with the table split over several GPUs or kept off the GPU.
+- **More seeds** for the results above, so the ranges become real error bars.
+
+If you have GPUs to spare, AMD Instinct or anything else, I'd love to hear from you. The kernels already run on
+MI350X, H100 and H200 without changes. I'd run it the same way as here: success criteria written down before each
+run, and the results published whatever they turn out to be.
+
+**Contact:** open an issue in this repo.
 
 ## Related work
 
