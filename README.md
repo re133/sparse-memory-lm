@@ -73,7 +73,7 @@ with the kernels the table model trains at 65% of the speed of the model without
 
 ### B-16M writing text with its table on the SSD
 
-The trained B-16M model is on [Hugging Face](https://huggingface.co/re133/sparse-memory-lm-B-16M): the
+The trained B-16M model is on [Hugging Face](https://huggingface.co/fechyy/sparse-memory-lm-B-16M): the
 16.8M-row table in 4 bit (3.2 GB) plus the rest of the model. The 4-bit table scores 19.98 validation PPL, against
 19.96 for the full fp32 one.
 
@@ -295,5 +295,5 @@ More in [docs/rocm-issues](docs/rocm-issues/README.md).
 - **[data/qwen_fact_cloze.jsonl](data/qwen_fact_cloze.jsonl):** contains short excerpts from English Wikipedia
   articles (CC BY-SA 4.0, © Wikipedia contributors; titles and page ids included).
 - **Qwen3.5-0.8B:** used as is (Apache 2.0) and not redistributed.
-- **B-16M weights:** not in the repo, they're on [Hugging Face](https://huggingface.co/re133/sparse-memory-lm-B-16M)
+- **B-16M weights:** not in the repo, they're on [Hugging Face](https://huggingface.co/fechyy/sparse-memory-lm-B-16M)
   (Apache 2.0, trained on Wikipedia text).

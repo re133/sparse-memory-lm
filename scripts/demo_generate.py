@@ -27,7 +27,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 from smlm.offload import HostTable, MmapQ4Table, load_model  # noqa: E402
 
-HF_REPO = "re133/sparse-memory-lm-B-16M"
+HF_REPO = "fechyy/sparse-memory-lm-B-16M"
 FILES = ["rest.pt", "values_q4.bin", "scales_q4.bin", "hot_rows.npy", "meta.json"]
 EOT = 50256
 
