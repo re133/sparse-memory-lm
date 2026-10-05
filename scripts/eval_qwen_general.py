@@ -47,6 +47,15 @@ def load(model_dir, addons):
         attach(model, AddOnConfig(**ck["addon_cfg"]))
         model.addons.load_state_dict(ck["state_dict"])
         model.addons.eval()
+    # lm-eval wraps every model call in torch.autocast(enabled=False); the fp32 add-ons need bf16 autocast (as in
+    # training), so autocast is switched on inside forward - for Q, Q+T and Q+D alike, so all three see the same numerics
+    orig = model.forward
+
+    def forward_bf16(*a, **k):
+        with torch.autocast("cuda", dtype=torch.bfloat16):
+            return orig(*a, **k)
+
+    model.forward = forward_bf16
     return model, tok
 
 
