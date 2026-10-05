@@ -1703,3 +1703,99 @@ Alle drei liegen innerhalb des gemessenen Bereichs; eine Extrapolation war nicht
 - 500 M Tokens sind für 200–400 M Parameter wenig; N_eq gilt nur für dieses Token-Budget.
 - Die LR ist nicht je Größe abgestimmt. Das lässt die Tabelle eher zu gut aussehen.
 - Tempo-Werte nicht vergleichbar: Die Läufe teilten sich die GPU.
+
+### Ergebnis Schritt 3 (2026-10-05, Runpod H100; Auswertung `scripts/qwen_step3_eval.py` → `report/qwen/step3_summary.json`)
+
+**Ablauf, ehrlich:**
+- **Zwei gescheiterte Setups** (≈ 1,40 $):
+  - Die CPU-Tests riefen die GPU-only-Kernel von flash-linear-attention auf.
+  - Danach verweigerte fla 0.5.2 mit Triton 3.6 den Rückwärtsschritt auf Hopper-GPUs (bekannter Fehler). Behoben
+    mit Triton 3.7.1; geprüft mit den Unit-Tests und dem Test am echten Modell mit Regler 0: bitgleich, Training
+    läuft.
+- **Eigener Fehler, ≈ 7,40 $:** Ein Tippfehler aus einer ungetesteten Änderung an `run_dense.py` ließ die
+  Warteschlange beim Start abstürzen. Der Pod lief ≈ 2,1 h leer, weil mein Wächter nur Log-Zeilen beobachtete.
+  - Behoben: Vor dem Start werden alle Skripte kompiliert; 90 s nach dem Start wird geprüft, ob die Warteschlange
+    lebt; der Wächter meldet eine tote Warteschlange.
+- **Grenze erhöht:** Mit Freigabe von 13 $ auf 16,50 $ für den eigentlichen Lauf, nachdem die Tempo-Proben 13,50–15,70 $
+  hochrechneten.
+- **Standard-Tests von Q+T zunächst fehlgeschlagen:** lm-eval schaltet Autocast um den Modellaufruf ab, die
+  fp32-Zusatzblöcke passten dann nicht zu Qwen. Behoben; Q wurde mit derselben Einstellung wiederholt und ergab
+  exakt dieselben Werte.
+- **Laufender Pod:** 3,92 h ≈ 13,70 $.
+- **Schritt 3 insgesamt:** ≈ 22,50 $ (davon ≈ 7,40 $ Leerlauf durch meinen Fehler).
+- **Sicherung:** alles auf der Storage Box und zu Hause, sha256 geprüft. Der Pod ist gelöscht.
+
+**Tempo und Speicher (H100):**
+
+| Lauf | Training | Speicher | Dauer (110,5 M Tokens) |
+|---|---|---|---|
+| Q+T | 32.600 tok/s | 33 GB | 66 min |
+| Q+D | 35.800 tok/s | 17 GB | 64 min |
+
+Q ist auf der H100 (mit fla-Kerneln) und zu Hause (PyTorch-Weg) bei der PPL identisch (12,977).
+
+**PPL** (Token-PPL, Fenster 2048):
+
+| Set | Q (Qwen allein) | Q+T (Tabelle) | Q+D (dichte Kontrolle) |
+|---|---|---|---|
+| `val_new`: zurückgehaltene neue Artikel (entscheidend) | 12,977 | 10,093 (−22,2 %) | **10,014 (−22,8 %)** |
+| `val_new`, nur Wissens-Tokens | 16,32 | 12,57 | 12,73 |
+| `val_known`: Val-Set 2023, HF-Aufbereitung | 13,935 | **14,904 (+7,0 %)** | 13,730 (−1,5 %) |
+| `val_known_same`: alte Artikel, gleiche Aufbereitung | 14,282 | 14,029 (−1,8 %) | 12,930 (−9,5 %) |
+| `mem_probe`: trainierte Artikel | 13,362 | **5,638 (−58 %)** | 9,382 (−30 %) |
+
+**Standard-Test** (zero-shot, Genauigkeit in %, ± Standardfehler von lm-eval):
+
+| Aufgabe | Q | Q+T | Q+D |
+|---|---|---|---|
+| MMLU | 49,7 ± 0,4 | **47,0 (−2,7; Grenze −2,0)** | 49,6 (−0,1) |
+| ARC-Easy | 63,2 ± 2,2 | 65,8 (+2,6) | 65,0 (+1,8) |
+| ARC-Challenge | 31,0 ± 2,1 | 38,0 (+7,0) | 37,0 (+6,0) |
+| HellaSwag | 42,4 ± 2,2 | 41,6 (−0,8) | 42,0 (−0,4) |
+| PIQA | 70,2 ± 2,0 | 71,2 (+1,0) | 69,2 (−1,0) |
+| WinoGrande | 56,2 ± 2,2 | 58,8 (+2,6) | 57,0 (+0,8) |
+| Mittel | 52,1 | 53,7 (+1,6) | 53,3 (+1,2) |
+
+Die Grenze je Aufgabe ist max(2 Pp., 2 × Standardfehler der Differenz). Der Standardfehler der Differenz ist
+√(se_Q² + se_X²); so habe ich „2 × Standardfehler“ umgesetzt.
+
+**Faktentest** (exakter Treffer im ersten Versuch; 500 Lücken je Teil):
+
+| | Q | Q+T | Q+D | Q+T − Q+D (95-%-Bootstrap, paarweise) |
+|---|---|---|---|---|
+| Trainings-Lücken | 4,8 % | 10,2 % | 7,8 % | **+2,4 Pp. [0,4; 4,6]** |
+| Gegenprobe (nie gesehen) | 4,0 % | 10,2 % | 8,0 % | +2,2 Pp. [0,2; 4,2] |
+
+**Urteile nach den vorab festgelegten Kriterien:**
+
+| Kriterium | Ergebnis |
+|---|---|
+| **Hilft es?** (PPL `val_new`) | **„hilft etwas“.** Q+T ist 22 % besser als Q, aber **nicht besser als die dichte Kontrolle** (Q+T/Q+D = 1,008). Für „hilft deutlich“ hätte es ≤ 0,98 sein müssen. |
+| **Schadet es? Q+T** | **„schadet“**, ohne dass der Chat-Teil das noch ändern kann. MMLU fällt um 2,7 Pp. (Grenze 2,0), und die PPL auf `val_known` steigt um 7,0 % (Grenze 1 %). Der Mittelwert der sechs Aufgaben steigt dagegen (+1,6 Pp.). |
+| **Schadet es? Q+D** | „schadet nicht“ nach Standard-Test und bekannten Texten; der verblindete Chat-Vergleich steht noch aus. |
+| **Wissen eingepflanzt?** | **Nicht erreicht.** Q+T trifft nur 2,4 Pp. mehr Trainings-Fakten als Q+D (gefordert ≥ 10). Bei der Gegenprobe ist der Vorsprung genauso groß (+2,2 Pp.); die Tabelle wird also beim Ergänzen allgemein etwas besser, nicht gezielt bei den gesehenen Fakten. |
+
+**Was das bedeutet:**
+- **Kein Vorteil gegenüber einem gleich teuren Zusatzblock:** Als Zusatz zu einem fertigen, eingefrorenen Qwen
+  bringt die Tabelle in diesem Aufbau keinen Vorteil gegenüber einem kleinen dichten Block mit gleichem
+  Rechenaufwand. Beide passen Qwen gleich gut an neue Wikipedia-Texte an.
+- **Gespeichert, aber nicht abrufbar:** Die Tabelle speichert die Trainingsartikel als Text sehr stark (PPL auf
+  trainierten Artikeln −58 %, dichte Kontrolle −30 %). Dieses Gespeicherte ist aber kaum als einzelne Fakten
+  abrufbar: Exakte Lücken werden bei Trainings- und Gegenprobe-Artikeln gleich viel besser.
+- **Nebenwirkungen bei der Tabelle:**
+  - MMLU (Wissensfragen) sinkt.
+  - Auf dem anders aufbereiteten 2023er Val-Set wird Qwen schlechter.
+  - Beides tritt vor allem im 2. Durchgang auf; die Zwischenwerte bei 40 M Tokens waren besser
+    (`runs/qwen_cloud/QT-s0/metrics.csv`).
+  - Die dichte Kontrolle zeigt diese Nebenwirkungen nicht.
+
+**Grenzen:**
+- **Umfang:** ein Seed je Variante, eine Tabellengröße (1 M Zeilen), eine Position (hinter Block 6, 12, 18), ein
+  LR-Plan (wie B, nicht für Qwen abgestimmt) und 2 Durchgänge.
+- **Chat-Teil:** steht noch aus.
+- **Faktentest:**
+  - Exakter Treffer im ersten Versuch ist streng.
+  - Viele Lücken lassen auch für einen Menschen mehrere richtige Fortsetzungen zu.
+  - Ein kleiner Effekt kann darunter verschwinden; ein Vorsprung von 10 Pp. hätte aber sichtbar sein müssen.
+- **Wissens-Stichtag:** In der PPL war keiner sichtbar (siehe oben). „Neues Wissen“ ist bei 0,8B-Qwen schwer von
+  Stil zu trennen.
