@@ -124,7 +124,7 @@ def main():
         return
     fig, ax = plt.subplots(1, 2, figsize=(12, 4.3))
     ns = [d["n"] for _, d in dense]
-    ax[0].plot(ns, [d["ppl"] for _, d in dense], "o-", color="C0", label="dicht (A, D-50M … D-400M)")
+    ax[0].plot(ns, [d["ppl"] for _, d in dense], "o-", color="C0", label="dense (A, D-50M … D-400M)")
     for (name, d) in dense:
         ax[0].annotate(name, (d["n"], d["ppl"]), textcoords="offset points", xytext=(4, 4), fontsize=8)
     if f:
@@ -134,14 +134,14 @@ def main():
         ax[0].axhline(b["ppl"], color=f"C{i + 1}", ls="--", lw=1, label=f"{name} ({b['ppl']:.2f})")
         if b["n_eq"]:
             ax[0].plot([b["n_eq"]], [b["ppl"]], "s", color=f"C{i + 1}")
-    ax[0].set(xscale="log", yscale="log", xlabel="Parameter ohne Embeddings (dicht)", ylabel="Val-PPL Wikipedia",
-              title="Gegenwert der Tabelle (500 M Tokens)")
+    ax[0].set(xscale="log", yscale="log", xlabel="Non-embedding parameters (dense)", ylabel="Val PPL (Wikipedia)",
+              title="What the table is worth (500M tokens)")
     ax[0].legend(fontsize=7)
-    ax[1].plot([d["macs"] for _, d in dense], [d["ppl"] for _, d in dense], "o-", color="C0", label="dicht")
+    ax[1].plot([d["macs"] for _, d in dense], [d["ppl"] for _, d in dense], "o-", color="C0", label="dense")
     for i, (name, b) in enumerate(out["b"].items()):
         ax[1].plot([b["macs"]], [b["ppl"]], "s", color=f"C{i + 1}", label=name)
-    ax[1].set(xscale="log", yscale="log", xlabel="MACs pro Token (vorwärts)", ylabel="Val-PPL Wikipedia",
-              title="Qualität gegen Rechenaufwand pro Token")
+    ax[1].set(xscale="log", yscale="log", xlabel="MACs per token (forward)", ylabel="Val PPL (Wikipedia)",
+              title="Quality vs. compute per token")
     ax[1].legend(fontsize=7)
     from matplotlib.ticker import FixedLocator, NullFormatter, ScalarFormatter
     for a in ax:

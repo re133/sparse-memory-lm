@@ -39,8 +39,12 @@ def row(r):
     return out
 
 
+NAMES = {"a-q4": "4-bit table in VRAM", "b-q4": "4-bit table in RAM"}
+
+
 def main():
-    rows = [row(json.load(open(f))) for f in sorted(glob.glob(os.path.join(ROOT, "report", "offload", "*.json")))]
+    rows = [row(json.load(open(f))) for f in sorted(glob.glob(os.path.join(ROOT, "report", "offload", "*.json")))
+            if not os.path.basename(f).startswith("identical_check")]         # those come from check_offload_identical.py
     json.dump(rows, open(os.path.join(ROOT, "report", "offload_summary.json"), "w"), indent=1)
     cols = ["name", "decode_tok_s_first", "decode_tok_s_median", "prefill_tok_s_median", "hit_decode_first",
             "hit_prefill", "nvme_reads_s_prefill", "vram_used_total_gib_load", "rss_peak_gib", "ppl_subset", "ppl_full"]
@@ -62,24 +66,24 @@ def main():
     fig, ax = plt.subplots(1, 3, figsize=(13, 3.8))
     x = [100 * r["cache_frac"] for r in cs]
     ref = {r["variant"]: r for r in rows if r["variant"] in ("a-q4", "b-q4") and "nographs" not in r["name"]}
-    ax[0].plot(x, [r["decode_tok_s_first"] for r in cs], "o-", label="c, erster Durchgang (kalt)")
-    ax[0].plot(x, [r["decode_tok_s_median"] for r in cs], "s--", label="c, Median 3 Prompts")
+    ax[0].plot(x, [r["decode_tok_s_first"] for r in cs], "o-", label="NVMe, first prompt (cold)")
+    ax[0].plot(x, [r["decode_tok_s_median"] for r in cs], "s--", label="NVMe, median of 3 prompts")
     for k, st in (("a-q4", ":"), ("b-q4", "-.")):
         if k in ref:
-            ax[0].axhline(ref[k]["decode_tok_s_median"], ls=st, color="gray", label=f"{k}")
-    ax[0].set(xlabel="RAM-Cache (% der Zeilen)", ylabel="Tokens/s", title="Schreiben (Batch 1)", ylim=(0, 240))
+            ax[0].axhline(ref[k]["decode_tok_s_median"], ls=st, color="gray", label=NAMES[k])
+    ax[0].set(xlabel="RAM cache (% of rows)", ylabel="tokens/s", title="Writing (batch 1)", ylim=(0, 240))
     ax[0].legend(fontsize=7)
-    ax[1].plot(x, [r["prefill_tok_s_median"] for r in cs], "o-", label="c")
+    ax[1].plot(x, [r["prefill_tok_s_median"] for r in cs], "o-", label="NVMe")
     for k, st in (("a-q4", ":"), ("b-q4", "-.")):
         if k in ref:
-            ax[1].axhline(ref[k]["prefill_tok_s_median"], ls=st, color="gray", label=k)
-    ax[1].set(xlabel="RAM-Cache (% der Zeilen)", ylabel="Tokens/s", title="Einlesen (4 × 1024)", yscale="log")
+            ax[1].axhline(ref[k]["prefill_tok_s_median"], ls=st, color="gray", label=NAMES[k])
+    ax[1].set(xlabel="RAM cache (% of rows)", ylabel="tokens/s", title="Reading a prompt (4 × 1024)", yscale="log")
     ax[1].legend(fontsize=7)
-    ax[2].plot(x, [100 * r["hit_decode_first"] for r in cs], "o-", label="Schreiben, kalt")
-    ax[2].plot(x, [100 * r["hit_prefill"] for r in cs], "s--", label="Einlesen")
-    ax[2].set(xlabel="RAM-Cache (% der Zeilen)", ylabel="Trefferquote %", title="Cache-Treffer", ylim=(0, 100))
+    ax[2].plot(x, [100 * r["hit_decode_first"] for r in cs], "o-", label="writing, cold")
+    ax[2].plot(x, [100 * r["hit_prefill"] for r in cs], "s--", label="reading a prompt")
+    ax[2].set(xlabel="RAM cache (% of rows)", ylabel="hit rate (%)", title="RAM cache hits", ylim=(0, 100))
     ax[2].legend(fontsize=7)
-    fig.suptitle("B-16M zu Hause: 4-Bit-Tabelle auf der NVMe (Variante c) – RX 9070, Samsung 990 PRO")
+    fig.suptitle("B-16M on my PC: 4-bit table on the NVMe – RX 9070, Samsung 990 PRO")
     fig.tight_layout()
     fig.savefig(os.path.join(ROOT, "report", "offload_cache.png"), dpi=120)
 
