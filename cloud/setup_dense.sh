@@ -134,7 +134,9 @@ if ! is_done tests; then
   done_ tests
 fi
 
-# ---- 7 queue (preflight + budget gate + runs + backup are in run_dense.py)
+# ---- 7 queue (every script must at least compile: a syntax error once left a Pod idle for 2 h)
+for f in scripts/*.py smlm/*.py; do .venv/bin/python -m py_compile "$f" || fail "syntax error in $f"; done
+# (preflight + budget gate + runs + backup are in run_dense.py)
 bash "$KIT/stop_pod.sh" --check || say "WARNING: Runpod API not usable - the Pod will NOT stop by itself"
 trap - ERR
 if tmux has-session -t queue 2>/dev/null; then
@@ -142,4 +144,7 @@ if tmux has-session -t queue 2>/dev/null; then
 else
   tmux new-session -d -s queue "cd $REPO_DIR && set -a && . $KIT/cloud.env && set +a && SMLM_KIT=$KIT .venv/bin/python scripts/run_dense.py 2>&1 | tee -a runs/cloud_dense_queue_stdout.log"
   say "queue started: tmux attach -t queue   (log: $REPO_DIR/runs/cloud_dense/queue.log)"
+  sleep 90
+  pgrep -f "scripts/run_dense.py" >/dev/null || { trap 'fail "line $LINENO"' ERR; fail "queue died right after the start (see runs/*queue_stdout.log)"; }
+  say "queue alive after 90 s"
 fi
