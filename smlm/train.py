@@ -268,6 +268,7 @@ def main():
     ap.add_argument("--stop_after_tokens", type=float, default=None, help="end training early (after the evaluation "
                     "at this token count) but keep the schedule of --tokens/--epochs (kernel comparison runs)")
     ap.add_argument("--abort_max_rel", type=float, default=0.05)
+    ap.add_argument("--no_save", action="store_true", help="do not write model.pt (benchmark runs)")
     args = ap.parse_args()
 
     os.makedirs(args.out_dir, exist_ok=True)
@@ -479,8 +480,9 @@ def main():
                            dataset=args.data) if has_split("test", args.data) else None)
     final_val2 = (evaluate(model, "validation", args.seq_len, n_val2_words, batch=micro_bs,
                            dataset=args.extra_val) if args.extra_val else None)
-    torch.save({"model_config": mcfg.to_dict(), "state_dict": model.state_dict()},
-               os.path.join(args.out_dir, "model.pt"))
+    if not args.no_save:
+        torch.save({"model_config": mcfg.to_dict(), "state_dict": model.state_dict()},
+                   os.path.join(args.out_dir, "model.pt"))
     if mems:
         np.save(os.path.join(args.out_dir, "mem_access_train.npy"), acc_total.cpu().numpy())
         np.savez_compressed(os.path.join(args.out_dir, "mem_access_val.npz"),
