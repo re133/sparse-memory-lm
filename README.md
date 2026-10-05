@@ -44,7 +44,8 @@ python3 -m venv .venv
 .venv/bin/python scripts/kernel_speedup.py           # ~40 s
 ```
 
-What the last command printed on my card:
+What the last command printed on my card (the first run also shows a few gcc warnings while Triton compiles its
+launchers, those are harmless):
 
 ```
 AMD Radeon RX 9070 (gfx1201), 16 GB | PyTorch 2.14.1+rocm7.2 (HIP 7.2.53211) | Triton 3.8.0 | Python 3.14.7
@@ -80,6 +81,8 @@ The trained B-16M model is on [Hugging Face](https://huggingface.co/re133/sparse
 .venv/bin/python scripts/demo_generate.py --table vram -i            # table in VRAM, your own prompts
 ```
 
+On my PC (CachyOS's PyTorch 2.14.0; with the pip wheel the sampled text comes out different):
+
 ```
 loaded in 1.2 s, table in nvme: 0.27 GB VRAM, 1.8 GB RAM + 3.4 GB mapped files
 
@@ -95,7 +98,8 @@ Cambridge. [...]
 - **Memory:** the table has 6.4B parameters and stays on the SSD. The GPU only holds the rest of the model
   (0.3 GB) plus the rows the current token reads. "Mapped files" are pages of the table file in Linux's page cache, which Linux drops
   again when it needs the memory.
-- **Same text everywhere:** `--table ram` writes exactly the same text, and so does `--table vram`, at ~200 tok/s.
+- **Same text everywhere:** within one install, `--table ram` writes exactly the same text, and so does
+  `--table vram`, at ~200 tok/s.
 - **Quality:** fluent Wikipedia English, but the facts are made up. This Newton was born in 1803 and became a
   lawyer. It's a small model trained on 500M tokens, it's here to show what the table costs to run, not what it
   knows. Prompts work best like the training articles: `"Title\n\nFirst words"`.
@@ -260,10 +264,11 @@ More in [docs/rocm-issues](docs/rocm-issues/README.md).
 - Berges et al., *Memory Layers at Scale*, 2024. They showed memory layers beating dense models at much larger
   scale. This repo is a small, open counterpart, plus the offloading measurements and the Qwen experiment.
 - Cheng et al., *Conditional Memory via Scalable Lookup: A New Axis of Sparsity for Large Language Models*
-  (Engram), 2026. Also a big lookup table next to the model, but its rows are picked by hashing the last few input
-  tokens. So it's known before the layer runs which rows will be needed, and they can be prefetched from host
-  memory. Product keys pick the rows from the hidden state, so here that's only known once the layer is reached.
-  That is exactly why reading long prompts with the table on the SSD is slow in my measurements.
+  (Engram), 2026. Also a big lookup table next to the model, but its rows are picked by the last few input tokens
+  (n-grams). So it's known before the layer runs which rows will be needed, and they can be prefetched from host
+  memory while the GPU works on something else. Product keys pick the rows from the hidden state, so here that's
+  only known once the layer is reached. Prefetching would hide the waiting, though, not the reading: with the table
+  on the SSD, long prompts are slow here mainly because every missed row costs a whole 4 KB page.
 - Qwen Team, *Qwen3.5*, 2026 (Qwen3.5-0.8B, Apache 2.0).
 
 ## License

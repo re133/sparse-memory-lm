@@ -1946,4 +1946,4 @@ Ausführlich auf Englisch: `docs/kernels.md`.
 **Hugging-Face-Ordner:**
 - Dateien: `rest.pt`, `values_q4.bin`, `scales_q4.bin`, `hot_rows.npy` (Hardlinks auf die Tabellen-Dateien, sha256
   geprüft), dazu eine neue `meta.json` ohne lokale Pfade und eine Model Card.
-- Hochladen macht Leon.
+- Für den Upload vorbereitet (Stand 2026-10-05).
