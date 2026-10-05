@@ -1902,3 +1902,48 @@ Die Grenze je Aufgabe ist max(2 Pp., 2 × Standardfehler der Differenz). Der Sta
 - **Nicht je GPU abgestimmt**, und nur an kleinen Modellen gemessen.
 
 Ausführlich auf Englisch: `docs/kernels.md`.
+
+## Zum Ausprobieren: Benchmark-Skript, Demo und Hugging Face (2026-10-05)
+
+**Neu:**
+- `scripts/kernel_speedup.py`: Kernel gegen PyTorch-Referenz auf zufälligen Tokens, ohne Daten, ~35 s.
+- `scripts/demo_generate.py`: B-16M schreibt Text, Tabelle (4 Bit) auf der NVMe, im RAM oder im VRAM.
+- README-Abschnitt „Try it“. Die Gewichte (4-Bit-Tabelle + Rest, 3,7 GB) sollen auf Hugging Face.
+
+**Geprüft aus einem frischen Clone auf der RX 9070:**
+
+| PyTorch | Tests | Benchmark (Training / Einlesen / Schreiben) |
+|---|---|---|
+| CachyOS-Paket (2.14.0, HIP 7.2, Triton 3.5.1) | 106 ok, 2 übersprungen, 41 s | 1,47× / 1,70× / 1,26× |
+| offizielles Wheel `rocm7.2` (2.14.1, Triton 3.8.0) | 106 ok, 2 übersprungen, zweimal | 1,53× / 1,75× / 1,27× |
+| offizielles Wheel `rocm7.1` (2.13.0, Triton 3.7.1) | **Abbruch** in `test_decode_graph_bit_identical[fp32]` | 1,50× / 1,77× / 1,25× |
+
+Übersprungen werden der Qwen-Test (ohne transformers) und ein Test, der > 60 GB GPU-Speicher braucht.
+
+- **Benchmark-Zahlen:** Die Faktoren liegen nahe an `docs/kernels.md`. Dort wurde aber anders gemessen
+  (trainiertes Modell, bf16-Tabelle beim Einlesen), also keine 1:1-Wiederholung.
+- **Abbruch mit `rocm7.1`:**
+  - Meldung: `HSA_STATUS_ERROR_INVALID_PACKET_FORMAT` („The AQL packet is malformed“).
+  - Tritt nur auf, wenn der Test nach den anderen läuft. Allein oder nur mit `tests/test_kernels.py` besteht er.
+  - Ein `torch.cuda.synchronize()` vor dem Freigeben der Graphen hat nichts geändert, also wieder entfernt.
+  - Ursache nicht eingegrenzt. Auf der MI350X lief dasselbe Wheel ohne Fehler.
+  - README empfiehlt deshalb für Radeon `rocm7.2`.
+- **`expandable_segments:True`:** Mit `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` stürzte das Einlesen
+  nach dem Training im reinen PyTorch-Pfad ab (`HSA_STATUS_ERROR_EXCEPTION`). Das Skript ignoriert die Variable
+  jetzt. Ursache ebenfalls nicht eingegrenzt.
+
+**Demo (CachyOS-PyTorch):**
+
+| Tabelle | Tempo | GPU-Speicher (Spitze) |
+|---|---|---|
+| NVMe | 144 tok/s | 0,42 GB |
+| VRAM | 207 tok/s | 3,75 GB |
+
+- 200 Tokens, Page Cache warm. Gleicher Text in allen drei Modi.
+- Der Text ist flüssiges Wikipedia-Englisch, die Fakten sind erfunden („Sir Isaac Newton was born on
+  14 November 1803 …“). Das steht so auch im README.
+
+**Hugging-Face-Ordner:**
+- Dateien: `rest.pt`, `values_q4.bin`, `scales_q4.bin`, `hot_rows.npy` (Hardlinks auf die Tabellen-Dateien, sha256
+  geprüft), dazu eine neue `meta.json` ohne lokale Pfade und eine Model Card.
+- Hochladen macht Leon.
