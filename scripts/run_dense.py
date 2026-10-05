@@ -260,7 +260,8 @@ class Job:
 
 
 def write_status(state):
-    path = os.path.join(ROOT, "report", "dense_status.json")
+    # fake mode (local test) writes next to its runs, not over the real report
+    path = os.path.join(OUT, "dense_status.json") if FAKE else os.path.join(ROOT, "report", "dense_status.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     runs = {}
     for name, model in RUNS:
