@@ -5,3 +5,6 @@
 2026-10-05 06:46:39 ntfy: Qwen Q: fertig (Pod 0.42 h ≈ 1.47 $)
 2026-10-05 06:46:39 start Q_facts: scripts/eval_fact_cloze.py --model_dir /workspace/models/Qwen3.5-0.8B --out /workspace/AngryAnt/runs/qwen_cloud/Q/facts.json
 2026-10-05 06:55:09 end Q_facts rc=0  (8.5 min)
+2026-10-05 06:55:14 ntfy: Qwen Q_facts: fertig (Pod 0.56 h ≈ 1.97 $)
+2026-10-05 06:55:14 start Q_general: scripts/eval_qwen_general.py --model_dir /workspace/models/Qwen3.5-0.8B --batch_size 8 --out /workspace/AngryAnt/runs/qwen_cloud/Q/general.json
+2026-10-05 07:10:44 end Q_general rc=0  (15.5 min)
