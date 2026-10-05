@@ -1,52 +1,34 @@
-2026-10-04 23:35:04 [setup] start (kit /workspace/smlm-cloud-kit, repo /workspace/AngryAnt)
-2026-10-04 23:35:04 [setup] watchdog armed: Pod stops at uptime 13049 s (cap 13 $ at 3.49 $/h, now 55 s)
+2026-10-04 23:54:26 [setup] start (kit /workspace/smlm-cloud-kit, repo /workspace/AngryAnt)
+2026-10-04 23:54:26 [setup] watchdog armed: Pod stops at uptime 12327 s (cap 12.3 $ at 3.49 $/h, now 37 s)
 name, driver_version, memory.total [MiB]
-NVIDIA H100 80GB HBM3, 570.211.01, 81559 MiB
-2026-10-04 23:35:12 [setup] repo at c91a782
+NVIDIA H100 80GB HBM3, 580.126.09, 81559 MiB
+2026-10-04 23:54:34 [setup] repo at 36583b9
 torch 2.11.0+cu128 transformers 5.18.0 NVIDIA H100 80GB HBM3
 fla 0.5.2
 Fetching 13 files:   0%|          | 0/13 [00:00<?, ?it/s]Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-Fetching 13 files:   8%|▊         | 1/13 [00:00<00:03,  3.61it/s]Fetching 13 files:  46%|████▌     | 6/13 [00:00<00:00, 18.42it/s]Fetching 13 files:  85%|████████▍ | 11/13 [00:00<00:00, 22.47it/s]Fetching 13 files: 100%|██████████| 13/13 [00:04<00:00,  2.89it/s]
+Fetching 13 files:   8%|▊         | 1/13 [00:00<00:03,  3.13it/s]Fetching 13 files:  15%|█▌        | 2/13 [00:00<00:02,  4.77it/s]Fetching 13 files:  31%|███       | 4/13 [00:00<00:01,  8.41it/s]Fetching 13 files:  46%|████▌     | 6/13 [00:00<00:00,  7.83it/s]Fetching 13 files:  54%|█████▍    | 7/13 [00:00<00:00,  8.18it/s]Fetching 13 files:  77%|███████▋  | 10/13 [00:01<00:00, 10.98it/s]Fetching 13 files:  92%|█████████▏| 12/13 [00:01<00:00,  6.22it/s]Fetching 13 files: 100%|██████████| 13/13 [00:04<00:00,  1.54it/s]Fetching 13 files: 100%|██████████| 13/13 [00:04<00:00,  2.90it/s]
 model.safetensors-00001-of-00001.safetensors: OK
 LICENSE: OK
-_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
-
-self = <triton.backends.nvidia.driver.CudaLauncher object at 0x7b986799cf20>
-gridX = 23, gridY = 1, gridZ = 1, stream = 0, function = 534320528
-args = ((1, 1, 0), <triton.compiler.compiler.LazyDict object at 0x7b986780d6a0>, <triton.knobs.HookChain object at 0x7b9b3196...386e-02],
-        [ 1.9285e-01, -4.7533e-02, -3.3314e-03,  ..., -5.9108e-02,
-          3.6160e-02,  1.5394e-01]]), ...)
-
-    def __call__(self, gridX, gridY, gridZ, stream, function, *args):
-    
-        def allocate_scratch(size, align, allocator):
-            if size > 0:
-                grid_size = gridX * gridY * gridZ
-                alloc_size = grid_size * self.num_ctas * size
-                alloc_fn = allocator.get()
-                return alloc_fn(alloc_size, align, stream)
-            return None
-    
-        global_scratch = allocate_scratch(self.global_scratch_size, self.global_scratch_align, _allocation._allocator)
-        profile_scratch = allocate_scratch(self.profile_scratch_size, self.profile_scratch_align,
-                                           _allocation._profile_allocator)
->       self.launch(gridX, gridY, gridZ, stream, function, self.launch_cooperative_grid, self.launch_pdl,
-                    global_scratch, profile_scratch, *args)
-E       ValueError: Pointer argument (at 0) cannot be accessed from Triton (cpu tensor?)
-
-.venv-qwen/lib/python3.12/site-packages/triton/backends/nvidia/driver.py:713: ValueError
-=============================== warnings summary ===============================
-.venv-qwen/lib/python3.12/site-packages/torch/jit/_script.py:365: 14 warnings
-  /workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/jit/_script.py:365: DeprecationWarning: `torch.jit.script_method` is deprecated. Please switch to `torch.compile` or `torch.export`.
-    warnings.warn(
-
--- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-=========================== short test summary info ============================
-FAILED tests/test_qwen_memory.py::test_gate_zero_is_bit_identical[False-memory]
-FAILED tests/test_qwen_memory.py::test_gate_zero_is_bit_identical[False-dense]
-FAILED tests/test_qwen_memory.py::test_gate_zero_is_bit_identical[True-memory]
-FAILED tests/test_qwen_memory.py::test_gate_zero_is_bit_identical[True-dense]
-FAILED tests/test_qwen_memory.py::test_only_addons_train_and_first_step_moves_only_gates[memory]
-FAILED tests/test_qwen_memory.py::test_only_addons_train_and_first_step_moves_only_gates[dense]
-6 failed, 8 passed, 14 warnings in 42.35s
-2026-10-04 23:45:36 [setup] FAILED: tests (see /workspace/.smlm-setup/tests_qwen.log)
+..............                                                           [100%]
+14 passed in 86.89s (0:01:26)
+    return fn(*processed_args, **processed_kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/amp/autocast_mode.py", line 527, in decorate_bwd
+    return bwd(*args, **kwargs)  # pyrefly: ignore [not-callable]
+           ^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/fla/ops/gated_delta_rule/chunk.py", line 362, in backward
+    dq, dk, dv, db, dg, dh0, dA_log, ddt_bias = chunk_gated_delta_rule_bwd(
+                                                ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/fla/ops/gated_delta_rule/chunk.py", line 217, in chunk_gated_delta_rule_bwd
+    dq, dk, dw, dg = chunk_bwd_dqkwg(
+                     ^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/_dynamo/eval_frame.py", line 1263, in _fn
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/fla/ops/backends/__init__.py", line 214, in wrapper
+    return func(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/fla/ops/common/chunk_o.py", line 705, in chunk_bwd_dqkwg
+    raise RuntimeError(
+RuntimeError: Triton >= 3.4.0 and < 3.7.1 on Hopper GPUs produces incorrect results for gated chunk_bwd_dqkwg (see #640). Please upgrade Triton to >= 3.7.1 or install tilelang: `pip install tilelang`
+2026-10-05 00:06:03 [setup] FAILED: real-model add-on check
