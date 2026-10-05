@@ -12,3 +12,6 @@ Not reduced to a minimal case (so not reported): two crashes of Qwen3.5-0.8B wit
 DeltaNet under ROCm.
 - `HSA_STATUS_ERROR_ILLEGAL_INSTRUCTION` during lm-eval log-likelihood batches.
 - A GPU memory access fault with gradient checkpointing.
+
+Data-centre AMD: on an AMD Instinct MI350X (gfx950, ROCm 7.1, PyTorch 2.13, Triton 3.7.1) the whole test suite passes
+(107/107) without code changes (`runs/amd_mi350x`, REPORT.md section "AMD Instinct MI350X").

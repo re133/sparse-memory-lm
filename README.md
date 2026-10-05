@@ -140,10 +140,23 @@ python -m venv --system-site-packages .venv          # PyTorch with ROCm or CUDA
   `scripts/train_qwen_memory.py`. Evaluation: `scripts/eval_*.py`, `scripts/qwen_step3_eval.py`.
 - Model in `models/Qwen3.5-0.8B` or `QWEN_DIR`, data in `data/qwen_wiki` or `QWEN_DATA`.
 
+## Runs on AMD Instinct too
+
+I also ran the whole thing on an **AMD Instinct MI350X** (288 GB, rented for ~3 dollars):
+- **Tests:** all 107 tests pass, Triton kernels included, with no code changes.
+- **Same numbers:** the same training run gives the same validation curve as on my RX 9070 and on an H200.
+- **Kernels:** they make B-1M 1.6x faster to train and 1.9x faster at reading prompts than plain PyTorch on that
+  card.
+- **One card:** the full B-16M model trains on a single GPU at ~113k tokens/s.
+
+Details: [REPORT.md](REPORT.md), section "AMD Instinct MI350X".
+
+![B-1M on three GPUs](report/amd_crosscheck.png)
+
 ## Notes for AMD / ROCm
 
-Everything was built and tested on an RX 9070 (gfx1201, ROCm 7.2, Triton 3.5) and gives the same results on H100 and
-H200. Two things to know on consumer AMD cards:
+Everything was built and tested on an RX 9070 (gfx1201, ROCm 7.2, Triton 3.5) and gives the same results on an
+MI350X (gfx950, ROCm 7.1, Triton 3.7), an H100 and an H200. Two things to know on consumer AMD cards:
 
 - **Atomics are slow:** `tl.atomic_add` on fp32 compiles to the native instruction, but it's about 8x slower than a
   plain store ([repro](docs/rocm-issues/repro_atomic_add.py)). Sorting by row and only using atomics at program

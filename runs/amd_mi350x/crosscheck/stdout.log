@@ -1,0 +1,91 @@
+{"model_name": "B-1M-sparse", "params": {"total": 444895872, "embedding": 19316736, "non_embedding": 425579136, "memory_values": 402653184, "dense_body": 22925952, "active_non_embedding_per_token": 23073408, "bn_running_stats": 6144}, "seeds": {"init_seed": 0, "data_seed": 1234}}
+steps=15258 warmup=763 eval_every=61 accum=8
+[eval] step 0 tokens 0.0M val_ppl 52644.581 train_loss  usage 1.000 kl 0.561
+[eval] step 61 tokens 2.0M val_ppl 13373.789 train_loss 10.1493 usage 1.000 kl 1.562
+step 100/15258 loss 8.7226 tok/s 121146
+[eval] step 122 tokens 4.0M val_ppl 3198.871 train_loss 8.8159 usage 1.000 kl 2.279
+[eval] step 183 tokens 6.0M val_ppl 1180.821 train_loss 7.5106 usage 0.999 kl 2.243
+step 200/15258 loss 6.9635 tok/s 126494
+[eval] step 244 tokens 8.0M val_ppl 728.745 train_loss 6.8096 usage 1.000 kl 2.130
+step 300/15258 loss 6.2964 tok/s 101485
+[eval] step 305 tokens 10.0M val_ppl 520.816 train_loss 6.3969 usage 1.000 kl 1.912
+[eval] step 366 tokens 12.0M val_ppl 408.383 train_loss 6.101 usage 1.000 kl 1.753
+step 400/15258 loss 5.8939 tok/s 111221
+[eval] step 427 tokens 14.0M val_ppl 330.154 train_loss 5.8744 usage 1.000 kl 1.635
+[eval] step 488 tokens 16.0M val_ppl 280.493 train_loss 5.655 usage 0.999 kl 1.557
+step 500/15258 loss 5.5841 tok/s 131877
+[eval] step 549 tokens 18.0M val_ppl 236.483 train_loss 5.5034 usage 0.999 kl 1.493
+step 600/15258 loss 5.2920 tok/s 116370
+[eval] step 610 tokens 20.0M val_ppl 210.110 train_loss 5.351 usage 0.999 kl 1.449
+[eval] step 671 tokens 22.0M val_ppl 184.808 train_loss 5.2393 usage 0.999 kl 1.406
+{
+ "val_loss": 5.219317921116939,
+ "val_ppl": 184.80808737780717,
+ "val_word_ppl": 2486.449237462495,
+ "train_tok_s_mean": 124817.21723914865,
+ "train_tok_s_median": 125179.85684580971,
+ "peak_train_vram_gib": 10.474591255187988,
+ "weights_gib_fp32": 1.6573662757873535,
+ "decode_b1_tok_s": 205.89449063745593,
+ "decode_peak_vram_gib": 2.3071374893188477,
+ "prefill_tok_s": 1367096.0930840538,
+ "prefill_peak_vram_gib": 3.8907556533813477,
+ "mem_val": {
+  "usage": 0.9990863800048828,
+  "kl": 1.4064024221621292,
+  "top1pct_share": 0.2638661803657076,
+  "eff_entries_per_head": 31.44900995761927,
+  "top1_weight": 0.050577960051499275
+ },
+ "mem_val_per_layer": [
+  {
+   "usage": 0.9475479125976562,
+   "kl": 2.028987971573075,
+   "top1pct_share": 0.3974417176294079,
+   "eff_entries_per_head": 31.555207822703043,
+   "top1_weight": 0.04815783606811996
+  },
+  {
+   "usage": 0.8518867492675781,
+   "kl": 2.311234488677618,
+   "top1pct_share": 0.40439136803584075,
+   "eff_entries_per_head": 31.429898631005607,
+   "top1_weight": 0.05116678270410459
+  },
+  {
+   "usage": 0.8329153060913086,
+   "kl": 2.3618061009612816,
+   "top1pct_share": 0.4058245951085876,
+   "eff_entries_per_head": 31.36192341914916,
+   "top1_weight": 0.05240926138227329
+  }
+ ],
+ "mem_train_usage_total": 1.0,
+ "mem_score_scale_per_head": [
+  1.0,
+  1.0,
+  1.0,
+  1.0
+ ],
+ "mem_score_scale_per_layer_head": [
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ]
+ ],
+ "mem_key_norm_mean": 0.41003355383872986
+}

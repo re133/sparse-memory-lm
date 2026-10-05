@@ -1,0 +1,10 @@
+........................................................................ [ 67%]
+...................................                                      [100%]
+=============================== warnings summary ===============================
+tests/test_dense.py::test_dense_forward_backward[D-50M]
+  /workspace/AngryAnt/tests/test_dense.py:67: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+  Consider using tensor.detach() first. (Triggered internally at /__w/pytorch/pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:822.)
+    assert torch.isfinite(loss) and abs(float(loss) - 10.83) < 0.5      # ~ ln(50304) at initialisation
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+107 passed, 1 warning in 638.84s (0:10:38)

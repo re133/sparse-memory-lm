@@ -26,7 +26,7 @@ is_done() { [ -f "$STATE/$1.done" ]; }
 fail() {
   trap - ERR
   say "FAILED: $*"
-  rsync -rt "$LOG" storagebox:smlm/runs/amd_mi300x_setup_failed.log 2>/dev/null || true
+  rsync -rt "$LOG" storagebox:smlm/runs/amd_mi350x_setup_failed.log 2>/dev/null || true
   notify "MI300X-Setup FEHLGESCHLAGEN: $* - der Pod stoppt sich"
   bash "$KIT/stop_pod.sh" || notify "Pod konnte sich NICHT selbst stoppen - bitte in der Runpod-Konsole stoppen!"
   exit 1
@@ -117,7 +117,7 @@ if tmux has-session -t queue 2>/dev/null; then
   say "queue already running (tmux attach -t queue)"
 else
   tmux new-session -d -s queue "cd $REPO_DIR && set -a && . $KIT/cloud.env && set +a && SMLM_KIT=$KIT .venv/bin/python scripts/run_amd.py 2>&1 | tee -a runs/amd_queue_stdout.log"
-  say "queue started: tmux attach -t queue   (log: $REPO_DIR/runs/amd_mi300x/queue.log)"
+  say "queue started: tmux attach -t queue   (log: $REPO_DIR/runs/amd_mi350x/queue.log)"
   sleep 90
   pgrep -f "scripts/run_amd.py" >/dev/null || { trap 'fail "line $LINENO"' ERR; fail "queue died right after the start (see runs/amd_queue_stdout.log)"; }
   say "queue alive after 90 s"

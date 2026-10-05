@@ -1,0 +1,219 @@
+{
+  "status": "done",
+  "model_name": "B-1M-sparse",
+  "started": "2026-10-05T12:50:21",
+  "git": {
+    "commit": "2663746864cabc668a5e81f0e005cde698f3903d",
+    "dirty": false,
+    "dirty_files": []
+  },
+  "hardware": {
+    "gpu": "AMD Radeon Graphics",
+    "gpu_arch": "gfx950:sramecc+:xnack-",
+    "gpu_mem_gib": 287.98,
+    "torch": "2.13.0+rocm7.1",
+    "hip": "7.1.52802",
+    "python": "3.12.2",
+    "kernel": "6.12.107+deb13-amd64",
+    "cpu": "AMD EPYC 9755 128-Core Processor",
+    "ram_gib": 2267.4,
+    "gpu_state_at_start": [
+      "GPU[0]\t\t: GPU use (%): 0"
+    ]
+  },
+  "seeds": {
+    "init_seed": 0,
+    "data_seed": 1234
+  },
+  "train_config": {
+    "model": "B-1M-sparse",
+    "out_dir": "/workspace/AngryAnt/runs/amd_mi300x/crosscheck",
+    "tokens": 500000000.0,
+    "epochs": 0.990072026474596,
+    "seed": 0,
+    "data_seed": 1234,
+    "seq_len": 1024,
+    "batch_seqs": 32,
+    "micro_bs": 4,
+    "lr": 0.0006,
+    "value_lr": 0.0024,
+    "weight_decay": 0.1,
+    "warmup_frac": 0.05,
+    "min_lr_ratio": 0.1,
+    "clip": 1.0,
+    "eval_every_tokens": 2000000.0,
+    "log_every": 10,
+    "sample_windows": 0,
+    "mem_query_norm": "batchnorm",
+    "mem_score_scale_init": null,
+    "data": "wikipedia",
+    "extra_val": null,
+    "mem_impl": "triton",
+    "abort_ref": null,
+    "abort_at_tokens": 100000000.0,
+    "stop_after_tokens": 20000000.0,
+    "abort_max_rel": 0.05,
+    "no_save": true,
+    "total_steps": 15258,
+    "warmup_steps": 763,
+    "tokens_per_step": 32768,
+    "grad_accum": 8,
+    "total_tokens": 499974144,
+    "eval_every_steps": 61,
+    "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip; value table: row-sparse gradients + LazyRowAdam (only rows read in the step are updated, values and Adam state of unread rows unchanged)",
+    "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
+    "precision": "bf16 autocast, fp32 weights / optimizer state"
+  },
+  "model_config": {
+    "vocab_size": 50304,
+    "d_model": 384,
+    "n_layers": 12,
+    "n_heads": 6,
+    "ffn_hidden": 1024,
+    "max_seq_len": 1024,
+    "rope_theta": 10000.0,
+    "norm_eps": 1e-05,
+    "init_std": 0.02,
+    "mem_layers": [
+      2,
+      6,
+      10
+    ],
+    "mem_n_keys": 1024,
+    "mem_heads": 4,
+    "mem_knn": 32,
+    "mem_k_dim": 256,
+    "mem_v_dim": -1,
+    "mem_query_norm": "batchnorm",
+    "mem_swilu": true,
+    "mem_value_impl": "embedding_bag",
+    "mem_keys_weight_decay": true,
+    "mem_score_scale": "none",
+    "mem_score_scale_init": 1.0,
+    "mem_share_values": true,
+    "mem_value_grad": "row_sparse",
+    "mem_impl": "triton"
+  },
+  "params": {
+    "total": 444895872,
+    "embedding": 19316736,
+    "non_embedding": 425579136,
+    "memory_values": 402653184,
+    "dense_body": 22925952,
+    "active_non_embedding_per_token": 23073408,
+    "bn_running_stats": 6144
+  },
+  "macs_per_token": {
+    "attn_proj": 7077888,
+    "attn_scores": 4718592.0,
+    "ffn": 10616832,
+    "memory": 5358720,
+    "lm_head": 19316736,
+    "total": 47088768.0
+  },
+  "data": {
+    "dataset": "wikipedia",
+    "data_dir": "/workspace/AngryAnt/data/wikipedia_en_gpt2",
+    "source": "wikimedia/wikipedia 20231101.en (HF parquet, 41 files)",
+    "tokenizer": "tiktoken/gpt2",
+    "vocab_size": 50257,
+    "seed": 20231101,
+    "val_frac": 0.0003,
+    "train_frac": 0.125,
+    "articles_in_dump": 6407814,
+    "doc_format": "title + '\\n\\n' + text + <|endoftext|>",
+    "wikitext_val_test_titles": 122,
+    "wikitext_titles_found_and_excluded": 14,
+    "splits": {
+      "validation": {
+        "n_tokens": 1484010,
+        "n_articles": 1917,
+        "n_candidate_articles": 1917,
+        "candidate_tokens": 1484010,
+        "n_words": 990651
+      },
+      "train": {
+        "n_tokens": 505000000,
+        "n_articles": 689951,
+        "n_candidate_articles": 800138,
+        "candidate_tokens": 584857875,
+        "n_words": null
+      }
+    }
+  },
+  "stopped_early_at_step": 671,
+  "finished": "2026-10-05T12:54:07",
+  "duration_s": 233.0,
+  "train_time_s": 180.6,
+  "results": {
+    "val_loss": 5.219317921116939,
+    "val_ppl": 184.80808737780717,
+    "val_word_ppl": 2486.449237462495,
+    "train_tok_s_mean": 124817.21723914865,
+    "train_tok_s_median": 125179.85684580971,
+    "peak_train_vram_gib": 10.474591255187988,
+    "weights_gib_fp32": 1.6573662757873535,
+    "decode_b1_tok_s": 205.89449063745593,
+    "decode_peak_vram_gib": 2.3071374893188477,
+    "prefill_tok_s": 1367096.0930840538,
+    "prefill_peak_vram_gib": 3.8907556533813477,
+    "mem_val": {
+      "usage": 0.9990863800048828,
+      "kl": 1.4064024221621292,
+      "top1pct_share": 0.2638661803657076,
+      "eff_entries_per_head": 31.44900995761927,
+      "top1_weight": 0.050577960051499275
+    },
+    "mem_val_per_layer": [
+      {
+        "usage": 0.9475479125976562,
+        "kl": 2.028987971573075,
+        "top1pct_share": 0.3974417176294079,
+        "eff_entries_per_head": 31.555207822703043,
+        "top1_weight": 0.04815783606811996
+      },
+      {
+        "usage": 0.8518867492675781,
+        "kl": 2.311234488677618,
+        "top1pct_share": 0.40439136803584075,
+        "eff_entries_per_head": 31.429898631005607,
+        "top1_weight": 0.05116678270410459
+      },
+      {
+        "usage": 0.8329153060913086,
+        "kl": 2.3618061009612816,
+        "top1pct_share": 0.4058245951085876,
+        "eff_entries_per_head": 31.36192341914916,
+        "top1_weight": 0.05240926138227329
+      }
+    ],
+    "mem_train_usage_total": 1.0,
+    "mem_score_scale_per_head": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mem_score_scale_per_layer_head": [
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    ],
+    "mem_key_norm_mean": 0.41003355383872986
+  }
+}

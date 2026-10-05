@@ -1816,3 +1816,66 @@ Die Grenze je Aufgabe ist max(2 Pp., 2 × Standardfehler der Differenz). Der Sta
   - Ein kleiner Effekt kann darunter verschwinden; ein Vorsprung von 10 Pp. hätte aber sichtbar sein müssen.
 - **Wissens-Stichtag:** In der PPL war keiner sichtbar (siehe oben). „Neues Wissen“ ist bei 0,8B-Qwen schwer von
   Stil zu trennen.
+
+## AMD Instinct MI350X: Tests und Tempo auf AMDs Rechenzentrums-GPU (2026-10-05)
+
+**Frage:** Laufen Code und Triton-Kernel unverändert und korrekt auf einer AMD-Rechenzentrums-GPU? Wie schnell?
+
+**Aufbau:**
+- **GPU:** Runpod, 1× AMD Instinct **MI350X** (gfx950, 288 GB), Secure Cloud, 5,49 $/h. Geplant war eine MI300X
+  (2,39 $/h); die war nicht verfügbar, die MI350X wurde mit Freigabe genommen.
+- **Laufzeit und Kosten:** 0,6 h ≈ 3,30 $.
+- **Software:** PyTorch 2.13.0+rocm7.1, HIP 7.1, Triton 3.7.1, Python 3.12.
+- **Ablauf:** `cloud/setup_amd.sh`, `scripts/run_amd.py`, Auswertung `scripts/amd_summary.py`.
+- **Code:** Er wurde unverändert hochkopiert, ohne GitHub (die Historie wurde parallel bereinigt).
+- **Ergebnisse:** in `runs/amd_mi350x/`, auf der Storage Box gesichert und zu Hause per sha256 geprüft (62/62
+  Dateien gleich).
+
+**Tests:** **107 von 107 bestanden** (10,6 min), darunter:
+- alle Kernel-Tests mit Tabellen von 262k / 1M / 4M Zeilen
+- Auswahl mit 4096 Keys je Hälfte
+- Tabellen mit mehr als 2³¹ Elementen
+- Decode-Graphen und Lazy Adam
+- Tabelle außerhalb der GPU
+
+**Tempo:**
+- **Messaufbau:** jedes Modell allein, 3 M Tokens, gleiche Argumente wie der H100-Probelauf von Schritt 1.
+- **H100-Vergleichswerte:** aus `runs/cloud_dense_preflight`.
+- **RX 9070:** aus der Optimierung (Abschnitt „Ergebnis der Optimierung“); andere Messart, nur zur Einordnung.
+
+| Modell | Training tok/s | H100 | Speicher-Spitze | Schreiben (Batch 1) tok/s | H100 | Einlesen tok/s | H100 |
+|---|---|---|---|---|---|---|---|
+| A | 164.900 | – | 7,9 GiB | 266 | – | 2.390.000 | – |
+| D-100M | 155.900 | 208.300 | 11,8 GiB | 231 | 192 | 1.171.000 | 844.000 |
+| D-400M | 71.800 | 83.000 | 15,3 GiB | 155 | 126 | 497.500 | 332.900 |
+| B-1M, PyTorch-Referenz | 77.100 | – | 11,6 GiB | 185 | – | 737.700 | – |
+| **B-1M, Triton-Kernel** | **125.900** | – | 10,5 GiB | 210 | – | 1.387.000 | – |
+| B-4M, Triton-Kernel | 119.400 | – | 28,6 GiB | 216 | – | 1.094.000 | – |
+| **B-16M, Triton-Kernel** | **112.800** | – | **101,0 GiB** | 230 | – | 764.100 | – |
+
+- **Die Kernel helfen auf der MI350X noch mehr als zu Hause:**
+  - Training 1,63×, Einlesen 1,88×, Schreiben 1,14× gegenüber der PyTorch-Referenz.
+  - Gleiches Ergebnis: Val-PPL nach 3 M Tokens 1168,46 gegenüber 1168,63.
+  - B-1M erreicht 76 % des Trainingstempos des Modells ohne Tabelle; auf der RX 9070 waren es 62 %.
+- **B-16M passt komplett auf eine Karte:** 101 GiB, 113.000 tok/s. Ein 500-M-Token-Lauf wie in der Cloud dauerte
+  allein auf einer MI350X ≈ 75 min, ≈ 7 $.
+- **Gegenüber der H100**, gleicher einfacher PyTorch-Code, nicht auf eine der Karten abgestimmt:
+  - Das Training dichter Modelle ist auf der MI350X langsamer (0,75× bzw. 0,87×).
+  - Schreiben (1,2×) und Einlesen (1,4–1,5×) sind schneller.
+
+**Gleiche Ergebnisse auf drei GPUs:**
+- **Vergleichslauf:** B-1M mit Triton-Kerneln, die ersten 20 M Tokens des 500-M-Plans, Seed 0, auf der MI350X.
+  Derselbe Lauf existiert von der RX 9070 (`runs/kernel_check/triton_500msched`) und der H200 (`runs/cloud/B-1M-s0`).
+- **Ergebnis:** Val-PPL bei 20 M Tokens: MI350X 210,11, RX 9070 208,72, H200 210,75. Bei 22 M: 184,81 gegenüber
+  184,56 (RX 9070).
+- **Einordnung:** Unterschiede bis ≈ 1 % in dieser frühen Phase sind das bekannte Rauschen durch Gleichstände an der
+  Top-k-Grenze und nicht-deterministische Summen (vgl. Optimierung: über 500 M Tokens 0,002 %).
+- **Dichte Modelle:** D-100M und D-400M treffen nach 3 M Tokens auf MI350X und H100 dieselbe PPL auf 0,06 %.
+
+![B-1M auf drei GPUs](report/amd_crosscheck.png)
+
+**Grenzen:**
+- Je ein kurzer Lauf. Die Tempo-Werte sind Richtwerte und wurden nicht wiederholt.
+- PyTorch meldet die Karte als „AMD Radeon Graphics“ (gfx950).
+- Das GPU-Log hat auf der MI350X Temperatur (≈ 62 °C Junction) und Takt erfasst, aber keine Leistung. Der
+  Speicherwert im Log ist unplausibel und nicht verwendet.

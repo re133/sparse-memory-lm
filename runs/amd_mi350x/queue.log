@@ -1,0 +1,22 @@
+2026-10-05 12:31:59 amd queue start: cap 10.0 $ = 1.82 h, Pod uptime 0.21 h
+2026-10-05 12:32:02 env: torch 2.13.0+rocm7.1 hip 7.1.52802 triton 3.7.1 AMD Radeon Graphics gfx950:sramecc+:xnack- 288.0 GiB
+2026-10-05 12:32:02 ntfy: MI300X: Setup fertig (AMD Radeon Graphics, gfx950:sramecc+:xnack-), Tests starten
+2026-10-05 12:32:02 start tests: /workspace/AngryAnt/.venv/bin/python -m pytest -q -rs tests --ignore=tests/test_qwen_memory.py
+2026-10-05 12:42:44 end tests rc=0 (10.7 min)
+2026-10-05 12:42:44 ntfy: MI300X: Tests alle grün; Messungen starten (Pod 0.39 h ≈ 2.13 $)
+2026-10-05 12:42:44 start speed_A: /workspace/AngryAnt/.venv/bin/python -m smlm.train --model A --out_dir /workspace/AngryAnt/runs/amd_mi300x/speed_A --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --no_save --sample_windows 0
+2026-10-05 12:43:16 end speed_A rc=0 (0.5 min)
+2026-10-05 12:43:16 start speed_D-100M: /workspace/AngryAnt/.venv/bin/python -m smlm.train --model D-100M --out_dir /workspace/AngryAnt/runs/amd_mi300x/speed_D-100M --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --no_save --sample_windows 0
+2026-10-05 12:43:54 end speed_D-100M rc=0 (0.6 min)
+2026-10-05 12:43:54 start speed_D-400M: /workspace/AngryAnt/.venv/bin/python -m smlm.train --model D-400M --out_dir /workspace/AngryAnt/runs/amd_mi300x/speed_D-400M --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --no_save --sample_windows 0
+2026-10-05 12:45:07 end speed_D-400M rc=0 (1.2 min)
+2026-10-05 12:45:07 start speed_B-1M-torch: /workspace/AngryAnt/.venv/bin/python -m smlm.train --model B-1M-sparse --out_dir /workspace/AngryAnt/runs/amd_mi300x/speed_B-1M-torch --mem_impl torch --value_lr 2.4e-3 --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --no_save --sample_windows 0
+2026-10-05 12:46:14 end speed_B-1M-torch rc=0 (1.1 min)
+2026-10-05 12:46:14 start speed_B-1M: /workspace/AngryAnt/.venv/bin/python -m smlm.train --model B-1M-sparse --out_dir /workspace/AngryAnt/runs/amd_mi300x/speed_B-1M --mem_impl triton --value_lr 2.4e-3 --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --no_save --sample_windows 0
+2026-10-05 12:47:04 end speed_B-1M rc=0 (0.8 min)
+2026-10-05 12:47:04 start speed_B-4M: /workspace/AngryAnt/.venv/bin/python -m smlm.train --model B-4M-sparse --out_dir /workspace/AngryAnt/runs/amd_mi300x/speed_B-4M --mem_impl triton --value_lr 2.4e-3 --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --no_save --sample_windows 0
+2026-10-05 12:48:09 end speed_B-4M rc=0 (1.1 min)
+2026-10-05 12:48:09 start speed_B-16M: /workspace/AngryAnt/.venv/bin/python -m smlm.train --model B-16M-sparse --out_dir /workspace/AngryAnt/runs/amd_mi300x/speed_B-16M --mem_impl triton --value_lr 2.4e-3 --data wikipedia --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --no_save --sample_windows 0
+2026-10-05 12:50:11 end speed_B-16M rc=0 (2.0 min)
+2026-10-05 12:50:11 start crosscheck: /workspace/AngryAnt/.venv/bin/python -m smlm.train --model B-1M-sparse --mem_impl triton --value_lr 2.4e-3 --data wikipedia --tokens 500e6 --stop_after_tokens 20e6 --eval_every_tokens 2e6 --seed 0 --sample_windows 0 --no_save --out_dir /workspace/AngryAnt/runs/amd_mi300x/crosscheck
+2026-10-05 12:54:08 end crosscheck rc=0 (3.9 min)

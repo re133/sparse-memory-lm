@@ -2,7 +2,7 @@
 
   python scripts/run_amd.py        (started by cloud/setup_amd.sh in tmux session "queue")
 
-Steps (results in runs/amd_mi300x/<step>/, everything backed up to the storage box; nothing is pushed to GitHub):
+Steps (results in runs/amd_mi350x/<step>/, everything backed up to the storage box; nothing is pushed to GitHub):
   env         versions (PyTorch, HIP, Triton, ROCm, GPU) -> env.json
   tests       the whole test suite on the GPU (pytest; the Qwen tests need transformers and are skipped)
   speed_*     every model alone for 3 M tokens, same arguments as the H100 preflight of step 1: train tok/s, peak
@@ -28,7 +28,7 @@ sys.path.insert(0, os.path.join(ROOT, "scripts"))
 import run_dense as rd  # noqa: E402  (log / notify / backup / stop_pod / pod_hours helpers)
 from smlm.gpu_monitor import log_until  # noqa: E402
 
-OUT = os.path.join(ROOT, "runs", "amd_mi300x")
+OUT = os.path.join(ROOT, "runs", "amd_mi350x")
 rd.OUT = OUT
 PY = sys.executable
 PRICE = rd.PRICE
