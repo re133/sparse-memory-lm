@@ -90,8 +90,13 @@ def status(name):
 def run(name, model):
     out = os.path.join(OUT, name)
     if status(name) == "done":
-        log(f"skip {name} (done)")
-        return "done"
+        if os.path.exists(os.path.join(out, "model.pt")):
+            log(f"skip {name} (done)")
+            return "done"
+        # e.g. a run-info.json from git in a fresh clone: don't take it as done, don't silently train again either
+        log(f"{name}: run-info.json says done but model.pt is missing - not retrained, please check")
+        notify(f"SMLM cloud: {name} steht auf done, aber model.pt fehlt - nicht neu trainiert, bitte prüfen")
+        return "model.pt missing"
     os.makedirs(out, exist_ok=True)
     cmd = [sys.executable, "-m", "smlm.train", "--model", model, "--out_dir", out, *ARGS]
     log("start " + name + ": " + " ".join(cmd[1:]))

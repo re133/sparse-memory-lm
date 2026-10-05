@@ -372,14 +372,18 @@ def main():
     jobs = [Job(n, m, OUT, ARGS) for n, m in RUNS if n in admitted]
     jobs.sort(key=lambda j: -[n for n, _ in RUNS].index(j.name))           # largest first
     for j in jobs:
-        if j.status() == "done":
+        has_ckpt = os.path.exists(os.path.join(j.out, "model.pt"))
+        if j.status() == "done" and has_ckpt:
             j.done = True
         elif j.adopt():
             j.reserve_gib = 1.1 * (state["peaks"].get(j.name) or 20) + 1.5
-        elif j.status() is not None:            # started earlier, process gone: report, do not restart
+        elif j.status() is not None:
+            # started earlier and the process is gone, or "done" without model.pt (e.g. a run-info.json from git
+            # in a fresh clone): report, do not restart
             j.done = True
-            state["runs_end"][j.name] = f"{j.status()} (process gone when the scheduler restarted, not restarted)"
-            log(f"{j.name}: status {j.status()} but no process - reported, not restarted")
+            why = "model.pt missing" if j.status() == "done" else "process gone when the scheduler restarted"
+            state["runs_end"][j.name] = f"{j.status()} ({why}, not restarted)"
+            log(f"{j.name}: status {j.status()}, {why} - reported, not restarted")
     total = gpu_total_gib() - 2.0
     backup_ok = {}
     hard_stop = False
@@ -421,8 +425,12 @@ def main():
         with open(marker, "w") as f:
             f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} all files of {os.path.relpath(OUT, ROOT)} verified on {BOX}\n")
         backup([marker])
-        log("QUEUE DONE, backup verified")
-        notify(f"Fertig: Ergebnisse gepusht, Checkpoints auf der Storage Box geprüft. Claude stoppt und löscht jetzt "
+        # BACKUP_OK only says the backup worked; "Fertig" only if every admitted run finished
+        missing = [f"{j.name} ({state['runs_end'][j.name]})" for j in jobs
+                   if state["runs_end"].get(j.name, "done") != "done"]
+        log("QUEUE DONE, backup verified" + (f", NOT finished: {', '.join(missing)}" if missing else ""))
+        notify(("Fertig" if not missing else f"UNVOLLSTÄNDIG, nicht fertig: {', '.join(missing)}. Der Rest")
+               + f": Ergebnisse gepusht, Checkpoints auf der Storage Box geprüft. Claude stoppt und löscht jetzt "
                f"den Pod (Pod {pod_hours():.2f} h ≈ {pod_hours() * PRICE:.2f} $). Falls nicht: Selbst-Stopp in "
                f"{FALLBACK_MIN:.0f} min.")
         time.sleep(FALLBACK_MIN * 60 if not FAKE else 1)
