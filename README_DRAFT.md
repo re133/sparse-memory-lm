@@ -21,7 +21,7 @@ such.
 | Bigger tables (same 500 M tokens, H200) | 4 M rows: −4.75 % vs 1 M; 16.8 M rows: −8.6 % vs 1 M | „Cloud-Läufe“ |
 | How big a plain dense model matches them? | B-1M ≈ 60 M, B-4M ≈ 83 M, B-16M ≈ **114 M** non-embedding parameters (dense models of 50–400 M trained on the same data), at 47–57 M instead of ≈ 105–165 M multiply-adds per token. On WikiText-103 the advantage is smaller (≈ 48 / 65 / 95 M) | „Schritt 1“ |
 | Must the table live in GPU memory? | No, not for generating text: from RAM 139–154 tok/s, from an NVMe SSD 114–138 tok/s (vs 212 tok/s in VRAM), bit-identical output, 0.5 GB VRAM. Reading long prompts, however, is 2–70× slower outside VRAM | „Schritt 2“ |
-| Does it help a real pretrained LM (Qwen3.5-0.8B, frozen, memory as add-on)? | (pending: prepared, not run) | „Schritt 3“ |
+| Does it help a real pretrained LM (Qwen3.5-0.8B, frozen, memory as a gated add-on, 1 M rows, trained on 55 M tokens of Wikipedia articles newer than the model)? | **No advantage over a dense add-on of the same compute.** Both cut held-out PPL by ≈ 22 %. The table memorises its training articles far more (PPL −58 % vs −30 %), but recalls only +2.4 pp more exact facts than the dense control, and the same +2.2 pp on unseen articles. It also costs MMLU −2.7 pp and +7 % PPL on differently formatted Wikipedia text. The dense control showed neither side effect | „Schritt 3“ |
 
 ![Validation perplexity, stage 1b](report/s1b_val_ppl.png)
 
