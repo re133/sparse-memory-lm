@@ -105,6 +105,12 @@ if ! is_done venv_qwen; then
   .venv-qwen/bin/pip install -q "flash-linear-attention==0.5.2" || say "flash-linear-attention not installed (PyTorch fallback)"
   done_ venv_qwen
 fi
+# fla 0.5.2 refuses the Gated-DeltaNet backward on Hopper with Triton >= 3.4, < 3.7.1 (wrong results, fla issue #640);
+# the PyTorch wheel brings an older Triton, so upgrade it (our own Triton kernels are re-checked by the tests below)
+if .venv-qwen/bin/python -c "import fla" 2>/dev/null && ! is_done triton_upgrade; then
+  .venv-qwen/bin/pip install -q "triton>=3.7.1,<3.8" && done_ triton_upgrade || say "Triton upgrade failed"
+fi
+.venv-qwen/bin/python -c "import triton; print('triton', triton.__version__)"
 .venv-qwen/bin/python -c "import torch, transformers; assert torch.cuda.is_available(); print('torch', torch.__version__, 'transformers', transformers.__version__, torch.cuda.get_device_name(0))"
 .venv-qwen/bin/python -c "import fla; print('fla', fla.__version__)" || say "fla not importable: PyTorch fallback for Gated DeltaNet"
 
@@ -124,7 +130,7 @@ if ! is_done data_qwen; then
 fi
 
 # ---- 6 tests (GPU): add-on tests, row-sparse table, real model gate-0 check (exercises all Triton kernels at d = 1024)
-if ! is_done tests_qwen; then
+if ! is_done tests_qwen2; then
   if ! .venv-qwen/bin/python -m pytest -q tests/test_qwen_memory.py tests/test_sparse_values.py \
        > "$STATE/tests_qwen.log" 2>&1; then
     tail -40 "$STATE/tests_qwen.log"; fail "tests (see $STATE/tests_qwen.log)"
@@ -133,7 +139,7 @@ if ! is_done tests_qwen; then
   QWEN_DIR=$QWEN_DIR .venv-qwen/bin/python scripts/check_qwen_addon_gpu.py > "$STATE/check_qwen.log" 2>&1 \
     || { tail -20 "$STATE/check_qwen.log"; fail "real-model add-on check"; }
   tail -5 "$STATE/check_qwen.log"
-  done_ tests_qwen
+  done_ tests_qwen2
 fi
 
 # ---- 7 queue
