@@ -1,7 +1,7 @@
 # Sparse-Memory-LM
 
-*Draft README for the public repository — not published yet. Numbers marked „(pending)" are filled in when the
-running experiments finish. The full lab notebook with every pre-registered criterion is `REPORT.md` (German).*
+*Draft README for the public repository — not published yet (license still to be chosen). The full lab notebook
+with every pre-registered criterion is `REPORT.md` (German).*
 
 How far does a **product-key memory** — a huge table of learned vectors of which only a few rows are read per
 token — get a *small* language model? This project measures it on a 21 M-parameter Llama-style model trained on

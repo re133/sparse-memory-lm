@@ -18,6 +18,19 @@
 > B-4M ist 4,75 % besser als B-1M, B-16M weitere 4,0 % (gegenüber B-1M −8,6 %). Das vorher festgelegte
 > Kriterium „lohnt sich“ ist erfüllt. B-1M in der Cloud trifft den Wert von zu Hause exakt (21,837), die
 > Triton-Kernels verändern also nichts. Ein Seed je Größe, Kosten 25,51 $ (zuerst zu niedrig mit 21 $ angegeben).
+>
+> **Nachtrag Schritte 1–3 (2026-10-05):**
+> - **Schritt 1 (H100):** Dichte Vergleichsmodelle zeigen: B-1M, B-4M und B-16M sind so gut wie dichte Modelle mit
+>   ≈ 60, 83 und 114 M Parametern ohne Embeddings, bei einem Drittel bis der Hälfte der Rechenarbeit pro Token.
+> - **Schritt 2 (zu Hause):** B-16M schreibt mit der Tabelle im RAM (139–154 tok/s) oder auf der NVMe (114–138 tok/s)
+>   bitgleich zur Tabelle im Grafikspeicher (212 tok/s). Lange Texte einlesen ist außerhalb des Grafikspeichers
+>   aber 2- bis 70-mal langsamer.
+> - **Schritt 3 (Qwen3.5-0.8B mit Tabelle als Zusatz):**
+>   - Hilft nur so viel wie ein gleich teurer dichter Zusatzblock.
+>   - Schadet nach den Kriterien: MMLU −2,7 Pp., +7 % PPL auf anders aufbereitetem Text.
+>   - Pflanzt kein abrufbares Wissen ein (+2,4 Pp. Faktentreffer gegenüber der Kontrolle, gefordert 10).
+> - **Kosten:** Schritt 1 ≈ 17 $, Schritt 3 ≈ 22,50 $; darin ≈ 7,40 $ Leerlauf durch einen eigenen Fehler (siehe
+>   Schritt 3). Die Beträge sind vorläufig, weil die Runpod-Abrechnung nachhinkt.
 
 Die Erfolgskriterien wurden festgelegt, bevor ein Lauf gestartet wurde (Commit `51176ad`, präzisiert in
 `49f1202` vor dem ersten Ergebnis).
