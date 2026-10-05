@@ -11,3 +11,17 @@
 2026-10-05 07:10:50 ntfy: Qwen Q_general: fertig (Pod 0.82 h ≈ 2.88 $)
 2026-10-05 07:10:50 start probe_QT: scripts/train_qwen_memory.py --kind memory --out_dir /workspace/AngryAnt/runs/qwen_cloud/probe_QT --max_steps 30 --eval_windows 1 --save 0 --model_dir /workspace/models/Qwen3.5-0.8B --data_dir /workspace/AngryAnt/data/qwen_wiki --micro_bs 4
 2026-10-05 07:12:50 end probe_QT rc=0  (2.0 min)
+2026-10-05 07:12:55 ntfy: Qwen probe_QT: fertig (Pod 0.86 h ≈ 3.00 $)
+2026-10-05 07:12:55 start probe_QD: scripts/train_qwen_memory.py --kind dense --out_dir /workspace/AngryAnt/runs/qwen_cloud/probe_QD --max_steps 30 --eval_windows 1 --save 0 --model_dir /workspace/models/Qwen3.5-0.8B --data_dir /workspace/AngryAnt/data/qwen_wiki --micro_bs 4
+2026-10-05 07:31:40 [manual] user approved cap 16.5 $: watchdog re-armed at uptime 16660 s (now 3859 s); scheduler restarted
+2026-10-05 07:31:40 qwen queue start: cap 16.5 $ = 4.73 h, Pod uptime 1.17 h
+2026-10-05 07:31:40 ntfy: Qwen-Schritt 3: Setup fertig, Q-Messungen starten (Pod 1.17 h)
+2026-10-05 07:31:40 skip Q (done)
+2026-10-05 07:31:40 skip Q_facts (done)
+2026-10-05 07:31:40 skip Q_general (done)
+2026-10-05 07:31:40 skip probe_QT (done)
+2026-10-05 07:31:40 skip probe_QD (done)
+2026-10-05 07:31:40 budget gate: tok/s {'QT': 32401.0, 'QD': 35907.0}, Q steps 0.00 h, projected 3.85 h ≈ 13.45 $ (cap 4.73 h)
+2026-10-05 07:31:41 ntfy: Budget-Wächter Qwen: ok, Hochrechnung 3.9 h ≈ 13 $; Q+T startet
+2026-10-05 07:31:41 start QT-s0: scripts/train_qwen_memory.py --kind memory --out_dir /workspace/AngryAnt/runs/qwen_cloud/QT-s0 --model_dir /workspace/models/Qwen3.5-0.8B --data_dir /workspace/AngryAnt/data/qwen_wiki --micro_bs 4
+2026-10-05 08:38:12 end QT-s0 rc=0  (66.5 min)
