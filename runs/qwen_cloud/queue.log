@@ -25,3 +25,7 @@
 2026-10-05 07:31:41 ntfy: Budget-Wächter Qwen: ok, Hochrechnung 3.9 h ≈ 13 $; Q+T startet
 2026-10-05 07:31:41 start QT-s0: scripts/train_qwen_memory.py --kind memory --out_dir /workspace/AngryAnt/runs/qwen_cloud/QT-s0 --model_dir /workspace/models/Qwen3.5-0.8B --data_dir /workspace/AngryAnt/data/qwen_wiki --micro_bs 4
 2026-10-05 08:38:12 end QT-s0 rc=0  (66.5 min)
+2026-10-05 08:38:17 ntfy: Qwen QT-s0: fertig (Pod 2.28 h ≈ 7.96 $)
+2026-10-05 08:40:24 backup ok: 1 files verified on storagebox:smlm
+2026-10-05 08:40:24 start QT_facts: scripts/eval_fact_cloze.py --model_dir /workspace/models/Qwen3.5-0.8B --addons /workspace/AngryAnt/runs/qwen_cloud/QT-s0/addons.pt --out /workspace/AngryAnt/runs/qwen_cloud/QT/facts.json
+2026-10-05 08:49:54 end QT_facts rc=0  (9.5 min)
