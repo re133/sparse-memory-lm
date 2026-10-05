@@ -102,14 +102,20 @@ def row_sparse_embedding_bag(indices, weights, table, impl="torch"):
             from .kernels import bag_forward
             return bag_forward(indices, weights, table).to(table.dtype)
         return F.embedding_bag(indices, table, per_sample_weights=weights.to(table.dtype), mode="sum")
-    return _RowSparseBag.apply(weights, indices, table.detach(), row_store(table), impl)
+    if not table.requires_grad:
+        # frozen table: gradients only for the weights, no row accumulator
+        return F.embedding_bag(indices, table, per_sample_weights=weights.to(table.dtype), mode="sum")
+    # the table goes in as an input (not detached) so that the output needs a gradient even when only the table
+    # is trained; its backward returns None for it, the gradient goes into table.row_store instead
+    return _RowSparseBag.apply(weights, indices, table, row_store(table), impl)
 
 
 def row_sparse_tables(model):
     """Distinct value-table parameters that use row-sparse gradients."""
     seen, out = set(), []
     for m in model.modules():
-        if getattr(m, "value_grad", "dense") == "row_sparse" and id(m.values.weight) not in seen:
+        if (getattr(m, "value_grad", "dense") == "row_sparse" and m.values.weight.requires_grad
+                and id(m.values.weight) not in seen):
             seen.add(id(m.values.weight))
             out.append(m.values.weight)
     return out
@@ -197,7 +203,14 @@ class LazyRowAdam(torch.optim.Optimizer):
                 st.reset()
 
     def zero_grad(self, set_to_none=True):
-        pass                    # the accumulator is cleared in step()
+        # the accumulator is cleared in step(); rows accumulated by a backward without a following step stay
+        # in table.row_store (row_store(table).reset() drops them)
+        pass
+
+    def load_state_dict(self, state_dict):
+        # the torch path keeps its moments in an inner Adam per table that the inherited load would not fill,
+        # so a resumed run would silently restart the bias correction. Training never resumes here.
+        raise NotImplementedError("LazyRowAdam can't be restored from a state dict (no resuming)")
 
 
 class OptimizerSet:

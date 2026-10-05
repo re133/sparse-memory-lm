@@ -136,3 +136,39 @@ def test_presets_and_eval_path():
     with torch.no_grad():
         torch.testing.assert_close(out, d(x))
     assert row_sparse_tables(m) == [table_of(m)] and row_sparse_tables(d) == []
+
+
+@pytest.mark.parametrize("device", DEVICES)
+@pytest.mark.parametrize("impl", ["torch", "triton"])
+def test_frozen_table_and_table_only_training(device, impl):
+    """A frozen table stays exactly as it is (and gets no row accumulator) while the rest trains; with
+    everything else frozen, the table alone trains (the lookup output still needs a gradient)."""
+    if impl == "triton" and device == "cpu":
+        pytest.skip("Triton kernels on the GPU (CPU: TRITON_INTERPRET=1 in test_kernels.py)")
+    dtype = torch.float32 if impl == "triton" else torch.float64
+    for frozen in ("table", "rest"):
+        m = tiny("row_sparse", device=device, dtype=dtype)
+        for x in m.memory_layers():
+            x.impl = impl
+        table = table_of(m)
+        for p in m.parameters():
+            p.requires_grad_((p is not table) if frozen == "table" else (p is table))
+        before = {n: p.detach().clone() for n, p in m.named_parameters()}
+        opt = build_optimizer(m, 1e-2, 1e-2, 0.0)
+        backward_twice(m, device)
+        clip_grads(m, 1.0)
+        opt.step()
+        changed = {n for n, p in m.named_parameters() if not torch.equal(p.detach(), before[n])}
+        if frozen == "table":
+            assert "layers.0.ffn.values.weight" not in changed and not hasattr(table, "row_store")
+            assert any("query_proj" in n for n in changed)
+        else:
+            assert changed == {"layers.0.ffn.values.weight"}
+
+
+def test_lazy_adam_refuses_state_dict_load():
+    """Resuming isn't supported: loading optimizer state must fail loudly, not restart the bias correction."""
+    m = tiny("row_sparse")
+    opt = LazyRowAdam(row_sparse_tables(m), lr=1e-2)
+    with pytest.raises(NotImplementedError):
+        opt.load_state_dict(opt.state_dict())
