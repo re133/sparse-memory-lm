@@ -148,4 +148,4 @@ Die Laufzeiten sind von der RX 9070 hochgerechnet (H200: ≈ 7,5× Bandbreite, �
 kleine Modell lastet die H200 aber nicht aus) und **bis Faktor 2 unsicher**. Die Grenze von 12 h kostet
 höchstens ≈ 55 $.
 
-*Frühere Variante für IONOS (Treiberinstallation, IONOS-API-Stopp): Git-Historie, Commit `ae66c01`.*
+*Frühere Variante für IONOS (Treiberinstallation, IONOS-API-Stopp): Git-Historie, Commit `36eccfe`.*

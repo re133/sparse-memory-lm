@@ -32,8 +32,8 @@
 > - **Kosten:** Schritt 1 ≈ 17 $, Schritt 3 ≈ 22,50 $; darin ≈ 7,40 $ Leerlauf durch einen eigenen Fehler (siehe
 >   Schritt 3). Die Beträge sind vorläufig, weil die Runpod-Abrechnung nachhinkt.
 
-Die Erfolgskriterien wurden festgelegt, bevor ein Lauf gestartet wurde (Commit `51176ad`, präzisiert in
-`49f1202` vor dem ersten Ergebnis).
+Die Erfolgskriterien wurden festgelegt, bevor ein Lauf gestartet wurde (Commit `bc13f1b`, präzisiert in
+`f79e240` vor dem ersten Ergebnis).
 
 ## Erfolgskriterien (vor den Läufen festgelegt)
 
@@ -140,7 +140,7 @@ n² Keys (Scores und Index-Mengen exakt); Gradient der Wertetabelle ist genau au
 
 ![Tabellengesundheit Probelauf](report/probe_memory_health.png)
 
-- Git: A-s0 lief auf `51176ad`, B-s0 und C-s0 auf `859408d`. Dazwischen änderten sich nur `REPORT.md`
+- Git: A-s0 lief auf `bc13f1b`, B-s0 und C-s0 auf `fef54eb`. Dazwischen änderten sich nur `REPORT.md`
   und das Auswerte-Skript, nicht der Trainingscode. Das `dirty: true` in deren `run-info.json` kommt
   allein vom damals noch nicht versionierten Ordner `runs/` (danach behoben: Ausgaben zählen nicht mehr).
 
@@ -242,7 +242,7 @@ dass Train über Val liegt, ist der nachlaufende Intervall-Mittelwert, s. Grenze
 Batch-1-Decoding A 1,16 GiB, B 1,54 GiB, C 1,46 GiB; Prefill 16 × 1024 A 2,75 GiB, B 3,13 GiB, C 3,11 GiB.
 Die Wertetabelle von B belegt allein 0,38 GiB (fp32), in bf16 wären es 0,19 GiB.
 
-**Herkunft:** A-s0 lief auf `a27c99d`, alle anderen 1-Epochen-Läufe auf `221480c`. Zwischen diesen
+**Herkunft:** A-s0 lief auf `4f0e5fb`, alle anderen 1-Epochen-Läufe auf `6859f1f`. Zwischen diesen
 Commits hat sich nur der Bericht geändert, nicht `smlm/` oder `scripts/run_suite.py`. B-s1 ist als
 `dirty` markiert, allein wegen des damals noch nicht versionierten Analyse-Skripts
 `scripts/diagnose_memory.py`, das beim Training nicht verwendet wird.
@@ -327,8 +327,8 @@ Caching. Die Rangfolge „heißer“ Einträge ist zwischen Training und Val abe
 
 ![Zugriffsverteilung 3 Epochen](report/ep3_access_distribution.png)
 
-**Herkunft:** A-s0 lief auf `221480c` (als `dirty` markiert, nur wegen des unversionierten
-`scripts/diagnose_memory.py`), alle anderen 3-Epochen-Läufe auf `1a43e0d`. Trainingscode identisch zu
+**Herkunft:** A-s0 lief auf `6859f1f` (als `dirty` markiert, nur wegen des unversionierten
+`scripts/diagnose_memory.py`), alle anderen 3-Epochen-Läufe auf `e44a197`. Trainingscode identisch zu
 allen 1-Epochen-Läufen (`git diff a27c99d 1a43e0d -- smlm/ scripts/run_suite.py` ist leer).
 
 ## Einordnung
@@ -417,7 +417,7 @@ weniger (20 % der Einträge → 53 % der Zugriffe).
 
 ## Stufe 1b: Schnelltest B-1M (Kriterium vor dem Lauf festgelegt, 2026-10-02)
 
-> Status: **abgeschlossen am 2026-10-02.** Kriterium unverändert seit `8bdf57a`; beide Läufe auf `d89a00b`,
+> Status: **abgeschlossen am 2026-10-02.** Kriterium unverändert seit `0832753`; beide Läufe auf `5fe3245`,
 > nicht dirty. **Ergebnis: Kriterium erfüllt** (B-1M −15,1 % Val-PPL gegenüber A) **→ großer Test.**
 
 **Frage:** Bringt eine größere Speicherkonfiguration auf frischen (nicht wiederholten) Daten einen
@@ -558,8 +558,8 @@ Zeile wird exakt getroffen. Ternär wie BitNet b1.58: Skala = mittlerer Betrag d
 
 ## Stufe 1c („Hampter“): sparsamer Optimizer, zweiter Seed, gleiche Rechenzeit (Kriterien vor dem Start festgelegt, 2026-10-03)
 
-> Status: **abgeschlossen am 2026-10-03** (Warteschlange 01:01–14:07, alle vier Läufe auf `4bd11af`, nicht dirty).
-> Kriterien und Ablauf festgelegt in Commit `07f131b`, bevor einer der Läufe gestartet wurde.
+> Status: **abgeschlossen am 2026-10-03** (Warteschlange 01:01–14:07, alle vier Läufe auf `0a5260e`, nicht dirty).
+> Kriterien und Ablauf festgelegt in Commit `8cd1fde`, bevor einer der Läufe gestartet wurde.
 > **Ergebnis: Optimizer ok – erfüllt (+0,16 %). Stabil – erfüllt (beide Seeds −15 % gegenüber A).
 > Gleiche Rechenzeit – „konkurrenzfähig“ (−3,0 %), der „klare Vorteil“ (≥ 5 %) wurde verfehlt.**
 
@@ -1065,7 +1065,7 @@ noch 10 %.
 
 ### Cloud-Vorbereitung (Runpod, 1 × H200)
 
-**Anbieterwechsel (2026-10-03):** Zuerst war IONOS geplant (H200-S, 3,00 €/h; Stand in Commit `ae66c01`),
+**Anbieterwechsel (2026-10-03):** Zuerst war IONOS geplant (H200-S, 3,00 €/h; Stand in Commit `36eccfe`),
 jetzt **Runpod**. Kriterien, Läufe und Daten bleiben unverändert; geändert haben sich nur Setup,
 Speicherort und das Stoppen am Ende.
 
@@ -1183,7 +1183,7 @@ wird, und stoppt den Pod bei einem Fehler:
 
 - **Erster Versuch:** 88 von 89 GPU-Tests grün. Durchgefallen ist der neue Großtabellen-Test für Lazy Adam;
   der Fehler lag im Test. Er verglich mit einem anders summierten Gradienten, und bei |g| ≈ 0 kippt bei Adam
-  das Vorzeichen. Korrigiert in `7867570`. Der Pod hat sich dabei wie vorgesehen nach dem Fehler gestoppt.
+  das Vorzeichen. Korrigiert in `409dd49`. Der Pod hat sich dabei wie vorgesehen nach dem Fehler gestoppt.
   Zweiter Versuch: GPU 89/89 und CPU-Interpreter 21/21 grün.
 - **Probelauf auf der H200** (VRAM-Spitze Training): B-1M 10,4 GiB, B-4M 28,5 GiB, B-16M 100,9 GiB, wie
   geschätzt.

@@ -94,7 +94,7 @@ klären, welcher Teil wirkt.
 
 ## Ergebnis `v2b_ep3` (2026-10-02)
 
-Beide Läufe auf `867b252`, nicht dirty, Laufzeit je 82 min, Durchsatz wie B (71,9 / 71,8 k tok/s).
+Beide Läufe auf `11ed78c`, nicht dirty, Laufzeit je 82 min, Durchsatz wie B (71,9 / 71,8 k tok/s).
 Tabellen und Grafiken: `report/v2b_ep3_*`.
 
 **1. Stufe-1-Kriterien (gegen A und C aus `runs/ep3`):**
