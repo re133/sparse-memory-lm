@@ -30,8 +30,22 @@ from torch.utils.checkpoint import checkpoint
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+from smlm.atomic import torch_save, write_json  # noqa: E402
 from smlm.optim import build_optimizer, clip_grads, lr_multiplier, set_lr  # noqa: E402
 from smlm.qwen_memory import AddOnConfig, addon_state_dict, attach, trainable_parameters  # noqa: E402
+from smlm.train import git_info  # noqa: E402
+
+
+def software_versions():
+    import platform
+    out = {"python": platform.python_version(), "torch": torch.__version__,
+           "cuda": torch.version.cuda, "hip": torch.version.hip}
+    for mod in ("transformers", "triton", "fla"):
+        try:
+            out[mod] = __import__(mod).__version__
+        except Exception:
+            out[mod] = None
+    return out
 
 
 def load_tokens(data_dir, name):
@@ -148,6 +162,8 @@ def main():
     ap.add_argument("--ce_chunk", type=int, default=1024, help="tokens per logits chunk in the loss")
     ap.add_argument("--grad_ckpt", type=int, default=0, help="recompute the frozen Qwen layers in the backward pass")
     args = ap.parse_args()
+    if args.micro_bs < 1 or args.batch_seqs % args.micro_bs:
+        ap.error("--batch_seqs has to be a multiple of --micro_bs")
     global CE_CHUNK
     CE_CHUNK = args.ce_chunk
     os.makedirs(args.out_dir, exist_ok=True)
@@ -171,10 +187,11 @@ def main():
     info = {"status": "running", "args": vars(args), "addon_cfg": acfg.to_dict() if acfg else None,
             "trainable_params": sum(p.numel() for p in trainable_parameters(model)) if acfg else 0,
             "data": {k: {kk: vv for kk, vv in v.items() if kk != "pages"} for k, v in meta["splits"].items()},
-            "started": time.strftime("%Y-%m-%d %H:%M:%S"), "gpu": torch.cuda.get_device_name(0)}
+            "started": time.strftime("%Y-%m-%d %H:%M:%S"), "gpu": torch.cuda.get_device_name(0),
+            "git": git_info(), "software": software_versions()}
 
     def write_info():
-        json.dump(info, open(os.path.join(args.out_dir, "run-info.json"), "w"), indent=1)
+        write_json(os.path.join(args.out_dir, "run-info.json"), info, indent=1)
 
     from transformers import AutoTokenizer
     kid = knowledge_token_ids(AutoTokenizer.from_pretrained(args.model_dir))
@@ -268,7 +285,7 @@ def main():
                  "peak_vram_gib": torch.cuda.max_memory_allocated() / 2**30,
                  "gates": [float(a.gate) for a in model.addons]})
     if args.save:
-        torch.save(addon_state_dict(model), os.path.join(args.out_dir, "addons.pt"))
+        torch_save(addon_state_dict(model), os.path.join(args.out_dir, "addons.pt"))
     write_info()
     print(json.dumps(info["results"], indent=1))
 

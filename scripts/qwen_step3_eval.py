@@ -50,7 +50,10 @@ def main():
                else "hilft nicht")
     out["hilft"] = {"QT/Q": qt / q, "QT/QD": qt / qd, "QD/Q": qd / q, "verdict": verdict}
 
-    G = {"Q": general("Q/general_ac.json"), "QT": general("QT/general.json"), "QD": general("QD/general.json")}
+    # Q's general test was run again after the autocast fix (general_ac.json, same numbers as general.json); a
+    # queue run from scratch only writes general.json
+    q_gen = "Q/general_ac.json" if os.path.exists(os.path.join(R, "Q/general_ac.json")) else "Q/general.json"
+    G = {"Q": general(q_gen), "QT": general("QT/general.json"), "QD": general("QD/general.json")}
     out["general"] = G
     sch = {}
     for m in ("QT", "QD"):

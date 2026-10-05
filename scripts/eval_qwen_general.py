@@ -10,7 +10,6 @@
    scripts/blind_chat.py later pairs the answers of two models in random order for a blinded judgement.
 """
 import argparse
-import json
 import os
 import sys
 import time
@@ -19,6 +18,7 @@ import torch
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
+from smlm.atomic import write_json  # noqa: E402
 from smlm.qwen_memory import AddOnConfig, attach  # noqa: E402
 
 TASKS = ["mmlu", "arc_easy", "arc_challenge", "hellaswag", "piqa", "winogrande"]
@@ -96,7 +96,7 @@ def main():
     out = {"model_dir": args.model_dir, "addons": args.addons, "limit": args.limit, "tasks": keep,
            "n_samples": res.get("n-samples"), "chat": chat(model, tok),
            "seconds": round(time.time() - t0, 1), "lm_eval_version": __import__("lm_eval").__version__}
-    json.dump(out, open(args.out, "w"), indent=1, ensure_ascii=False)
+    write_json(args.out, out, indent=1, ensure_ascii=False)
     for t in args.tasks.split(","):
         r = keep.get(t, {})
         print(t, {k: round(v, 4) for k, v in r.items()})

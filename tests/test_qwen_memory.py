@@ -84,3 +84,14 @@ def test_dense_control_has_memory_macs():
     assert m == 1024 * 1024 + 4 * 2 * 1024 * 128 + 4 * 32 * 1024 + 2 * 1024 * 1024
     hidden = max(64, round(m / (3 * d) / 64) * 64)
     assert hidden == 1408 and abs(3 * d * hidden / m - 1) < 0.03
+
+
+def test_fact_scoring_needs_the_whole_number():
+    """Exact fill-in: "12" is wrong when the model writes "12.5"; punctuation after the answer is fine."""
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
+    from eval_fact_cloze import correct
+    for out, ans, ok in [(" 12.5 tons", "12", False), (" 10,000 people", "10", False), (" 123_456", "123", False),
+                         (" 1998s", "1998", False), (" 12. Then", "12", True), (" 10, and", "10", True),
+                         (" 1998", "1998", True), (" John Smith.", "John Smith", True), (" Johnson", "John", False)]:
+        assert correct(out, ans) == ok, (out, ans)

@@ -20,11 +20,21 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from eval_qwen_general import load  # noqa: E402
+from smlm.atomic import write_json  # noqa: E402
 
 
 def correct(cont, ans):
+    """The output starts with the answer and the answer ends there: no letter or digit right after it, and after
+    a number also no "_" or "."/"," followed by a digit ("12" is wrong for "12.5", "10" for "10,000")."""
     c = cont.lstrip()
-    return c.startswith(ans) and (len(c) == len(ans) or not c[len(ans)].isalnum())
+    if not c.startswith(ans):
+        return False
+    rest = c[len(ans):]
+    if not rest:
+        return True
+    if rest[0].isalnum():
+        return False
+    return not (ans[-1:].isdigit() and (rest[0] == "_" or (rest[0] in ".," and rest[1:2].isdigit())))
 
 
 def wilson(k, n, z=1.96):
@@ -64,8 +74,7 @@ def main():
             summary[f"{split}/{typ or 'all'}"] = {"n": len(sel), "correct": k, "acc": k / max(1, len(sel)),
                                                  "wilson95": wilson(k, len(sel))}
     os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
-    json.dump({"addons": args.addons, "summary": summary, "items": per}, open(args.out, "w"), indent=1,
-              ensure_ascii=False)
+    write_json(args.out, {"addons": args.addons, "summary": summary, "items": per}, indent=1, ensure_ascii=False)
     for k, v in summary.items():
         print(f"{k:20s} {v['correct']:4d}/{v['n']:4d} = {100 * v['acc']:5.1f} %  "
               f"[{100 * v['wilson95'][0]:.1f}, {100 * v['wilson95'][1]:.1f}]")
