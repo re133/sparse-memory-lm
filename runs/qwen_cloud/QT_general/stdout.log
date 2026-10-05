@@ -1,0 +1,234 @@
+Loading weights:   0%|          | 0/320 [00:00<?, ?it/s]Loading weights: 100%|██████████| 320/320 [00:00<00:00, 5576.84it/s]
+`pretrained` model kwarg is not of type `str`. Many other model arguments may be ignored. Please do not launch via accelerate or use `parallelize=True` if passing an existing model this way.
+Passed an already-initialized model through `pretrained`, assuming single-process call to evaluate() or custom distributed integration
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+Overwriting default num_fewshot of mmlu_abstract_algebra from None to 0
+Overwriting default num_fewshot of mmlu_anatomy from None to 0
+Overwriting default num_fewshot of mmlu_astronomy from None to 0
+Overwriting default num_fewshot of mmlu_college_biology from None to 0
+Overwriting default num_fewshot of mmlu_college_chemistry from None to 0
+Overwriting default num_fewshot of mmlu_college_computer_science from None to 0
+Overwriting default num_fewshot of mmlu_college_mathematics from None to 0
+Overwriting default num_fewshot of mmlu_college_physics from None to 0
+Overwriting default num_fewshot of mmlu_computer_security from None to 0
+Overwriting default num_fewshot of mmlu_conceptual_physics from None to 0
+Overwriting default num_fewshot of mmlu_electrical_engineering from None to 0
+Overwriting default num_fewshot of mmlu_elementary_mathematics from None to 0
+Overwriting default num_fewshot of mmlu_high_school_biology from None to 0
+Overwriting default num_fewshot of mmlu_high_school_chemistry from None to 0
+Overwriting default num_fewshot of mmlu_high_school_computer_science from None to 0
+Overwriting default num_fewshot of mmlu_high_school_mathematics from None to 0
+Overwriting default num_fewshot of mmlu_high_school_physics from None to 0
+Overwriting default num_fewshot of mmlu_high_school_statistics from None to 0
+Overwriting default num_fewshot of mmlu_machine_learning from None to 0
+Overwriting default num_fewshot of mmlu_business_ethics from None to 0
+Overwriting default num_fewshot of mmlu_clinical_knowledge from None to 0
+Overwriting default num_fewshot of mmlu_college_medicine from None to 0
+Overwriting default num_fewshot of mmlu_global_facts from None to 0
+Overwriting default num_fewshot of mmlu_human_aging from None to 0
+Overwriting default num_fewshot of mmlu_management from None to 0
+Overwriting default num_fewshot of mmlu_marketing from None to 0
+Overwriting default num_fewshot of mmlu_medical_genetics from None to 0
+Overwriting default num_fewshot of mmlu_miscellaneous from None to 0
+Overwriting default num_fewshot of mmlu_nutrition from None to 0
+Overwriting default num_fewshot of mmlu_professional_accounting from None to 0
+Overwriting default num_fewshot of mmlu_professional_medicine from None to 0
+Overwriting default num_fewshot of mmlu_virology from None to 0
+Overwriting default num_fewshot of mmlu_econometrics from None to 0
+Overwriting default num_fewshot of mmlu_high_school_geography from None to 0
+Overwriting default num_fewshot of mmlu_high_school_government_and_politics from None to 0
+Overwriting default num_fewshot of mmlu_high_school_macroeconomics from None to 0
+Overwriting default num_fewshot of mmlu_high_school_microeconomics from None to 0
+Overwriting default num_fewshot of mmlu_high_school_psychology from None to 0
+Overwriting default num_fewshot of mmlu_human_sexuality from None to 0
+Overwriting default num_fewshot of mmlu_professional_psychology from None to 0
+Overwriting default num_fewshot of mmlu_public_relations from None to 0
+Overwriting default num_fewshot of mmlu_security_studies from None to 0
+Overwriting default num_fewshot of mmlu_sociology from None to 0
+Overwriting default num_fewshot of mmlu_us_foreign_policy from None to 0
+Overwriting default num_fewshot of mmlu_formal_logic from None to 0
+Overwriting default num_fewshot of mmlu_high_school_european_history from None to 0
+Overwriting default num_fewshot of mmlu_high_school_us_history from None to 0
+Overwriting default num_fewshot of mmlu_high_school_world_history from None to 0
+Overwriting default num_fewshot of mmlu_international_law from None to 0
+Overwriting default num_fewshot of mmlu_jurisprudence from None to 0
+Overwriting default num_fewshot of mmlu_logical_fallacies from None to 0
+Overwriting default num_fewshot of mmlu_moral_disputes from None to 0
+Overwriting default num_fewshot of mmlu_moral_scenarios from None to 0
+Overwriting default num_fewshot of mmlu_philosophy from None to 0
+Overwriting default num_fewshot of mmlu_prehistory from None to 0
+Overwriting default num_fewshot of mmlu_professional_law from None to 0
+Overwriting default num_fewshot of mmlu_world_religions from None to 0
+Overwriting default num_fewshot of arc_easy from None to 0
+Overwriting default num_fewshot of arc_challenge from None to 0
+Overwriting default num_fewshot of hellaswag from None to 0
+Overwriting default num_fewshot of piqa from None to 0
+Overwriting default num_fewshot of winogrande from None to 0
+  0%|          | 0/100 [00:00<?, ?it/s]100%|██████████| 100/100 [00:00<00:00, 1061.84it/s]
+  0%|          | 0/135 [00:00<?, ?it/s] 79%|███████▊  | 106/135 [00:00<00:00, 1058.00it/s]100%|██████████| 135/135 [00:00<00:00, 1031.41it/s]
+  0%|          | 0/152 [00:00<?, ?it/s] 71%|███████   | 108/152 [00:00<00:00, 1079.46it/s]100%|██████████| 152/152 [00:00<00:00, 1070.83it/s]
+  0%|          | 0/144 [00:00<?, ?it/s] 76%|███████▌  | 109/144 [00:00<00:00, 1088.24it/s]100%|██████████| 144/144 [00:00<00:00, 1083.40it/s]
+  0%|          | 0/100 [00:00<?, ?it/s]100%|██████████| 100/100 [00:00<00:00, 1010.59it/s]
+  0%|          | 0/100 [00:00<?, ?it/s]100%|██████████| 100/100 [00:00<00:00, 1056.12it/s]
+  0%|          | 0/100 [00:00<?, ?it/s]100%|██████████| 100/100 [00:00<00:00, 1076.20it/s]
+  0%|          | 0/102 [00:00<?, ?it/s]100%|██████████| 102/102 [00:00<00:00, 1099.25it/s]
+  0%|          | 0/100 [00:00<?, ?it/s]100%|██████████| 100/100 [00:00<00:00, 1076.56it/s]
+  0%|          | 0/235 [00:00<?, ?it/s] 43%|████▎     | 102/235 [00:00<00:00, 1014.89it/s] 87%|████████▋ | 205/235 [00:00<00:00, 1019.71it/s]100%|██████████| 235/235 [00:00<00:00, 1011.46it/s]
+  0%|          | 0/145 [00:00<?, ?it/s] 69%|██████▉   | 100/145 [00:00<00:00, 999.75it/s]100%|██████████| 145/145 [00:00<00:00, 994.12it/s]
+  0%|          | 0/378 [00:00<?, ?it/s] 27%|██▋       | 103/378 [00:00<00:00, 1020.73it/s] 54%|█████▍    | 206/378 [00:00<00:00, 995.13it/s]  82%|████████▏ | 309/378 [00:00<00:00, 1006.37it/s]100%|██████████| 378/378 [00:00<00:00, 1008.23it/s]
+  0%|          | 0/310 [00:00<?, ?it/s] 33%|███▎      | 103/310 [00:00<00:00, 1026.76it/s] 66%|██████▋   | 206/310 [00:00<00:00, 1025.87it/s]100%|█████████▉| 309/310 [00:00<00:00, 1014.01it/s]100%|██████████| 310/310 [00:00<00:00, 1014.31it/s]
+  0%|          | 0/203 [00:00<?, ?it/s] 52%|█████▏    | 105/203 [00:00<00:00, 1045.62it/s]100%|██████████| 203/203 [00:00<00:00, 1042.12it/s]
+  0%|          | 0/100 [00:00<?, ?it/s]100%|██████████| 100/100 [00:00<00:00, 1060.39it/s]
+  0%|          | 0/270 [00:00<?, ?it/s] 40%|████      | 109/270 [00:00<00:00, 1081.37it/s] 81%|████████  | 218/270 [00:00<00:00, 1038.20it/s]100%|██████████| 270/270 [00:00<00:00, 1038.53it/s]
+  0%|          | 0/151 [00:00<?, ?it/s] 72%|███████▏  | 108/151 [00:00<00:00, 1074.40it/s]100%|██████████| 151/151 [00:00<00:00, 1055.27it/s]
+  0%|          | 0/216 [00:00<?, ?it/s] 49%|████▉     | 106/216 [00:00<00:00, 1053.39it/s] 98%|█████████▊| 212/216 [00:00<00:00, 1040.55it/s]100%|██████████| 216/216 [00:00<00:00, 1036.41it/s]
+  0%|          | 0/112 [00:00<?, ?it/s] 96%|█████████▌| 107/112 [00:00<00:00, 1067.32it/s]100%|██████████| 112/112 [00:00<00:00, 1053.59it/s]
+  0%|          | 0/100 [00:00<?, ?it/s]100%|██████████| 100/100 [00:00<00:00, 1081.69it/s]
+  0%|          | 0/265 [00:00<?, ?it/s] 39%|███▉      | 104/265 [00:00<00:00, 1033.22it/s] 78%|███████▊  | 208/265 [00:00<00:00, 991.45it/s] 100%|██████████| 265/265 [00:00<00:00, 1006.75it/s]
+  0%|          | 0/173 [00:00<?, ?it/s] 61%|██████▏   | 106/173 [00:00<00:00, 1054.82it/s]100%|██████████| 173/173 [00:00<00:00, 1050.44it/s]
+  0%|          | 0/100 [00:00<?, ?it/s]100%|██████████| 100/100 [00:00<00:00, 1006.94it/s]
+  0%|          | 0/223 [00:00<?, ?it/s] 45%|████▍     | 100/223 [00:00<00:00, 989.34it/s] 93%|█████████▎| 207/223 [00:00<00:00, 1032.89it/s]100%|██████████| 223/223 [00:00<00:00, 1026.53it/s]
+  0%|          | 0/103 [00:00<?, ?it/s]100%|██████████| 103/103 [00:00<00:00, 1043.85it/s]
+  0%|          | 0/234 [00:00<?, ?it/s] 45%|████▌     | 106/234 [00:00<00:00, 1051.91it/s] 91%|█████████ | 212/234 [00:00<00:00, 1038.85it/s]100%|██████████| 234/234 [00:00<00:00, 1037.72it/s]
+  0%|          | 0/100 [00:00<?, ?it/s]100%|██████████| 100/100 [00:00<00:00, 1080.15it/s]
+  0%|          | 0/500 [00:00<?, ?it/s] 22%|██▏       | 108/500 [00:00<00:00, 1077.14it/s] 43%|████▎     | 216/500 [00:00<00:00, 1051.22it/s] 64%|██████▍   | 322/500 [00:00<00:00, 1050.27it/s] 86%|████████▌ | 428/500 [00:00<00:00, 1047.12it/s]100%|██████████| 500/500 [00:00<00:00, 1050.89it/s]
+  0%|          | 0/306 [00:00<?, ?it/s] 35%|███▍      | 107/306 [00:00<00:00, 1069.14it/s] 70%|██████▉   | 214/306 [00:00<00:00, 1050.09it/s]100%|██████████| 306/306 [00:00<00:00, 1013.78it/s]
+  0%|          | 0/282 [00:00<?, ?it/s] 38%|███▊      | 106/282 [00:00<00:00, 1058.77it/s] 76%|███████▌  | 214/282 [00:00<00:00, 1066.06it/s]100%|██████████| 282/282 [00:00<00:00, 1063.44it/s]
+  0%|          | 0/272 [00:00<?, ?it/s] 39%|███▉      | 106/272 [00:00<00:00, 1054.95it/s] 78%|███████▊  | 212/272 [00:00<00:00, 1053.13it/s]100%|██████████| 272/272 [00:00<00:00, 1041.81it/s]
+  0%|          | 0/166 [00:00<?, ?it/s] 63%|██████▎   | 105/166 [00:00<00:00, 1044.66it/s]100%|██████████| 166/166 [00:00<00:00, 1057.78it/s]
+  0%|          | 0/114 [00:00<?, ?it/s] 95%|█████████▍| 108/114 [00:00<00:00, 1075.89it/s]100%|██████████| 114/114 [00:00<00:00, 1062.52it/s]
+  0%|          | 0/198 [00:00<?, ?it/s] 53%|█████▎    | 105/198 [00:00<00:00, 1047.71it/s]100%|██████████| 198/198 [00:00<00:00, 1044.02it/s]
+  0%|          | 0/193 [00:00<?, ?it/s] 55%|█████▍    | 106/193 [00:00<00:00, 1054.69it/s]100%|██████████| 193/193 [00:00<00:00, 1060.15it/s]
+  0%|          | 0/390 [00:00<?, ?it/s] 28%|██▊       | 109/390 [00:00<00:00, 1084.48it/s] 56%|█████▌    | 218/390 [00:00<00:00, 1042.40it/s] 83%|████████▎ | 323/390 [00:00<00:00, 1037.84it/s]100%|██████████| 390/390 [00:00<00:00, 1045.45it/s]
+  0%|          | 0/238 [00:00<?, ?it/s] 46%|████▌     | 110/238 [00:00<00:00, 1092.89it/s] 92%|█████████▏| 220/238 [00:00<00:00, 1081.84it/s]100%|██████████| 238/238 [00:00<00:00, 1079.64it/s]
+  0%|          | 0/500 [00:00<?, ?it/s] 21%|██        | 106/500 [00:00<00:00, 1058.53it/s] 42%|████▏     | 212/500 [00:00<00:00, 1035.86it/s] 63%|██████▎   | 316/500 [00:00<00:00, 1027.75it/s] 84%|████████▍ | 419/500 [00:00<00:00, 1025.17it/s]100%|██████████| 500/500 [00:00<00:00, 1030.30it/s]
+  0%|          | 0/131 [00:00<?, ?it/s] 66%|██████▋   | 87/131 [00:00<00:00, 869.75it/s]100%|██████████| 131/131 [00:00<00:00, 927.18it/s]
+  0%|          | 0/500 [00:00<?, ?it/s] 22%|██▏       | 109/500 [00:00<00:00, 1089.29it/s] 44%|████▍     | 220/500 [00:00<00:00, 1098.62it/s] 66%|██████▌   | 331/500 [00:00<00:00, 1102.12it/s] 88%|████████▊ | 442/500 [00:00<00:00, 1081.24it/s]100%|██████████| 500/500 [00:00<00:00, 1083.26it/s]
+  0%|          | 0/110 [00:00<?, ?it/s] 95%|█████████▌| 105/110 [00:00<00:00, 1045.55it/s]100%|██████████| 110/110 [00:00<00:00, 1035.80it/s]
+  0%|          | 0/245 [00:00<?, ?it/s] 44%|████▍     | 108/245 [00:00<00:00, 1077.80it/s] 88%|████████▊ | 216/245 [00:00<00:00, 1073.38it/s]100%|██████████| 245/245 [00:00<00:00, 1066.45it/s]
+  0%|          | 0/201 [00:00<?, ?it/s] 51%|█████     | 102/201 [00:00<00:00, 1014.31it/s]100%|██████████| 201/201 [00:00<00:00, 1010.69it/s]
+  0%|          | 0/100 [00:00<?, ?it/s]100%|██████████| 100/100 [00:00<00:00, 1027.46it/s]
+  0%|          | 0/126 [00:00<?, ?it/s] 87%|████████▋ | 109/126 [00:00<00:00, 1082.10it/s]100%|██████████| 126/126 [00:00<00:00, 1060.74it/s]
+  0%|          | 0/165 [00:00<?, ?it/s] 67%|██████▋   | 111/165 [00:00<00:00, 1101.50it/s]100%|██████████| 165/165 [00:00<00:00, 1080.36it/s]
+  0%|          | 0/204 [00:00<?, ?it/s] 52%|█████▏    | 106/204 [00:00<00:00, 1056.47it/s]100%|██████████| 204/204 [00:00<00:00, 1048.87it/s]
+  0%|          | 0/237 [00:00<?, ?it/s] 43%|████▎     | 101/237 [00:00<00:00, 1003.93it/s] 88%|████████▊ | 209/237 [00:00<00:00, 1047.35it/s]100%|██████████| 237/237 [00:00<00:00, 1039.62it/s]
+  0%|          | 0/121 [00:00<?, ?it/s] 88%|████████▊ | 107/121 [00:00<00:00, 1068.77it/s]100%|██████████| 121/121 [00:00<00:00, 1060.03it/s]
+  0%|          | 0/108 [00:00<?, ?it/s] 99%|█████████▉| 107/108 [00:00<00:00, 1061.67it/s]100%|██████████| 108/108 [00:00<00:00, 1049.89it/s]
+  0%|          | 0/163 [00:00<?, ?it/s] 69%|██████▊   | 112/163 [00:00<00:00, 1111.99it/s]100%|██████████| 163/163 [00:00<00:00, 1094.45it/s]
+  0%|          | 0/346 [00:00<?, ?it/s] 32%|███▏      | 110/346 [00:00<00:00, 1095.87it/s] 64%|██████▎   | 220/346 [00:00<00:00, 1072.90it/s] 95%|█████████▍| 328/346 [00:00<00:00, 1062.46it/s]100%|██████████| 346/346 [00:00<00:00, 1064.87it/s]
+  0%|          | 0/500 [00:00<?, ?it/s] 22%|██▏       | 108/500 [00:00<00:00, 1076.70it/s] 43%|████▎     | 216/500 [00:00<00:00, 1070.04it/s] 65%|██████▍   | 324/500 [00:00<00:00, 1048.88it/s] 86%|████████▌ | 429/500 [00:00<00:00, 1045.70it/s]100%|██████████| 500/500 [00:00<00:00, 1051.21it/s]
+  0%|          | 0/311 [00:00<?, ?it/s] 34%|███▍      | 105/311 [00:00<00:00, 1043.78it/s] 68%|██████▊   | 213/311 [00:00<00:00, 1064.39it/s]100%|██████████| 311/311 [00:00<00:00, 1048.94it/s]
+  0%|          | 0/324 [00:00<?, ?it/s] 31%|███▏      | 102/324 [00:00<00:00, 1012.54it/s] 65%|██████▍   | 210/324 [00:00<00:00, 1047.98it/s] 97%|█████████▋| 315/324 [00:00<00:00, 1047.87it/s]100%|██████████| 324/324 [00:00<00:00, 1041.11it/s]
+  0%|          | 0/500 [00:00<?, ?it/s] 22%|██▏       | 108/500 [00:00<00:00, 1072.19it/s] 43%|████▎     | 216/500 [00:00<00:00, 1042.81it/s] 64%|██████▍   | 321/500 [00:00<00:00, 884.60it/s]  84%|████████▍ | 420/500 [00:00<00:00, 920.30it/s]100%|██████████| 500/500 [00:00<00:00, 939.23it/s]
+  0%|          | 0/171 [00:00<?, ?it/s] 61%|██████▏   | 105/171 [00:00<00:00, 1049.45it/s]100%|██████████| 171/171 [00:00<00:00, 1038.59it/s]
+  0%|          | 0/500 [00:00<?, ?it/s] 16%|█▋        | 82/500 [00:00<00:00, 815.34it/s] 33%|███▎      | 166/500 [00:00<00:00, 826.11it/s] 50%|████▉     | 249/500 [00:00<00:00, 822.34it/s] 67%|██████▋   | 334/500 [00:00<00:00, 830.52it/s] 84%|████████▎ | 418/500 [00:00<00:00, 830.57it/s]100%|██████████| 500/500 [00:00<00:00, 827.37it/s]
+  0%|          | 0/500 [00:00<?, ?it/s] 17%|█▋        | 85/500 [00:00<00:00, 844.92it/s] 34%|███▍      | 170/500 [00:00<00:00, 844.24it/s] 51%|█████     | 255/500 [00:00<00:00, 840.85it/s] 68%|██████▊   | 340/500 [00:00<00:00, 831.73it/s] 85%|████████▌ | 425/500 [00:00<00:00, 835.44it/s]100%|██████████| 500/500 [00:00<00:00, 836.58it/s]
+  0%|          | 0/500 [00:00<?, ?it/s] 45%|████▌     | 226/500 [00:00<00:00, 2250.52it/s] 90%|█████████ | 452/500 [00:00<00:00, 2222.78it/s]100%|██████████| 500/500 [00:00<00:00, 2216.10it/s]
+  0%|          | 0/500 [00:00<?, ?it/s] 23%|██▎       | 116/500 [00:00<00:00, 1159.03it/s] 47%|████▋     | 236/500 [00:00<00:00, 1178.77it/s] 71%|███████   | 355/500 [00:00<00:00, 1178.67it/s] 95%|█████████▍| 473/500 [00:00<00:00, 1165.48it/s]100%|██████████| 500/500 [00:00<00:00, 1166.89it/s]
+  0%|          | 0/500 [00:00<?, ?it/s]100%|██████████| 500/500 [00:00<00:00, 109494.70it/s]
+Tokenizing inputs:   0%|          | 0/56687 [00:00<?, ?it/s]Tokenizing inputs:   1%|          | 449/56687 [00:00<00:12, 4487.75it/s]Tokenizing inputs:   2%|▏         | 948/56687 [00:00<00:11, 4778.83it/s]Tokenizing inputs:   3%|▎         | 1426/56687 [00:00<00:12, 4410.94it/s]Tokenizing inputs:   3%|▎         | 1871/56687 [00:00<00:12, 4327.50it/s]Tokenizing inputs:   4%|▍         | 2306/56687 [00:00<00:12, 4242.12it/s]Tokenizing inputs:   5%|▍         | 2732/56687 [00:00<00:13, 3880.27it/s]Tokenizing inputs:   6%|▌         | 3125/56687 [00:00<00:14, 3695.73it/s]Tokenizing inputs:   6%|▌         | 3539/56687 [00:00<00:13, 3822.27it/s]Tokenizing inputs:   7%|▋         | 3951/56687 [00:00<00:13, 3907.33it/s]Tokenizing inputs:   8%|▊         | 4440/56687 [00:01<00:12, 4194.76it/s]Tokenizing inputs:   9%|▊         | 4864/56687 [00:01<00:30, 1715.90it/s]Tokenizing inputs:  10%|▉         | 5438/56687 [00:01<00:22, 2306.11it/s]Tokenizing inputs:  11%|█         | 5970/56687 [00:01<00:17, 2828.12it/s]Tokenizing inputs:  11%|█▏        | 6453/56687 [00:01<00:15, 3224.34it/s]Tokenizing inputs:  12%|█▏        | 6918/56687 [00:02<00:14, 3538.73it/s]Tokenizing inputs:  13%|█▎        | 7373/56687 [00:02<00:13, 3770.40it/s]Tokenizing inputs:  14%|█▍        | 7826/56687 [00:02<00:12, 3802.53it/s]Tokenizing inputs:  15%|█▍        | 8260/56687 [00:02<00:12, 3823.34it/s]Tokenizing inputs:  15%|█▌        | 8691/56687 [00:02<00:12, 3950.79it/s]Tokenizing inputs:  16%|█▌        | 9114/56687 [00:02<00:12, 3837.57it/s]Tokenizing inputs:  17%|█▋        | 9518/56687 [00:02<00:13, 3586.11it/s]Tokenizing inputs:  18%|█▊        | 9934/56687 [00:02<00:12, 3735.98it/s]Tokenizing inputs:  18%|█▊        | 10390/56687 [00:02<00:11, 3960.37it/s]Tokenizing inputs:  19%|█▉        | 10798/56687 [00:03<00:11, 3970.34it/s]Tokenizing inputs:  20%|█▉        | 11204/56687 [00:03<00:12, 3768.41it/s]Tokenizing inputs:  20%|██        | 11589/56687 [00:03<00:13, 3452.68it/s]Tokenizing inputs:  21%|██        | 11944/56687 [00:03<00:14, 3141.32it/s]Tokenizing inputs:  22%|██▏       | 12268/56687 [00:03<00:14, 3146.52it/s]Tokenizing inputs:  22%|██▏       | 12630/56687 [00:03<00:13, 3271.31it/s]Tokenizing inputs:  23%|██▎       | 12981/56687 [00:03<00:13, 3335.90it/s]Tokenizing inputs:  24%|██▎       | 13422/56687 [00:03<00:11, 3636.46it/s]Tokenizing inputs:  24%|██▍       | 13858/56687 [00:03<00:11, 3843.92it/s]Tokenizing inputs:  25%|██▌       | 14248/56687 [00:04<00:11, 3671.98it/s]Tokenizing inputs:  26%|██▌       | 14620/56687 [00:04<00:12, 3255.70it/s]Tokenizing inputs:  26%|██▋       | 14957/56687 [00:04<00:12, 3271.08it/s]Tokenizing inputs:  27%|██▋       | 15390/56687 [00:04<00:11, 3557.71it/s]Tokenizing inputs:  28%|██▊       | 15860/56687 [00:04<00:10, 3875.34it/s]Tokenizing inputs:  29%|██▉       | 16349/56687 [00:04<00:09, 4164.71it/s]Tokenizing inputs:  30%|██▉       | 16799/56687 [00:04<00:09, 4261.18it/s]Tokenizing inputs:  30%|███       | 17231/56687 [00:04<00:09, 4179.80it/s]Tokenizing inputs:  31%|███       | 17660/56687 [00:04<00:09, 4208.95it/s]Tokenizing inputs:  32%|███▏      | 18166/56687 [00:05<00:08, 4455.40it/s]Tokenizing inputs:  33%|███▎      | 18650/56687 [00:05<00:08, 4567.19it/s]Tokenizing inputs:  34%|███▍      | 19156/56687 [00:05<00:07, 4711.79it/s]Tokenizing inputs:  35%|███▍      | 19652/56687 [00:05<00:07, 4784.03it/s]Tokenizing inputs:  36%|███▌      | 20132/56687 [00:05<00:08, 4561.25it/s]Tokenizing inputs:  36%|███▋      | 20592/56687 [00:05<00:08, 4386.64it/s]Tokenizing inputs:  37%|███▋      | 21034/56687 [00:05<00:08, 4179.07it/s]Tokenizing inputs:  38%|███▊      | 21456/56687 [00:05<00:09, 3622.60it/s]Tokenizing inputs:  39%|███▊      | 21832/56687 [00:05<00:10, 3359.59it/s]Tokenizing inputs:  39%|███▉      | 22179/56687 [00:06<00:11, 3095.05it/s]Tokenizing inputs:  40%|███▉      | 22498/56687 [00:06<00:13, 2588.59it/s]Tokenizing inputs:  40%|████      | 22774/56687 [00:06<00:14, 2303.08it/s]Tokenizing inputs:  41%|████      | 23018/56687 [00:06<00:16, 2090.53it/s]Tokenizing inputs:  41%|████      | 23237/56687 [00:06<00:16, 1979.22it/s]Tokenizing inputs:  42%|████▏     | 23672/56687 [00:06<00:13, 2519.02it/s]Tokenizing inputs:  42%|████▏     | 24045/56687 [00:06<00:11, 2813.49it/s]Tokenizing inputs:  43%|████▎     | 24348/56687 [00:07<00:11, 2865.40it/s]Tokenizing inputs:  44%|████▎     | 24787/56687 [00:07<00:09, 3275.57it/s]Tokenizing inputs:  44%|████▍     | 25212/56687 [00:07<00:08, 3545.35it/s]Tokenizing inputs:  45%|████▌     | 25580/56687 [00:07<00:09, 3421.25it/s]Tokenizing inputs:  46%|████▌     | 25932/56687 [00:07<00:09, 3400.14it/s]Tokenizing inputs:  46%|████▋     | 26315/56687 [00:07<00:08, 3520.94it/s]Tokenizing inputs:  47%|████▋     | 26674/56687 [00:07<00:08, 3537.59it/s]Tokenizing inputs:  48%|████▊     | 27040/56687 [00:07<00:08, 3572.92it/s]Tokenizing inputs:  48%|████▊     | 27401/56687 [00:07<00:08, 3583.54it/s]Tokenizing inputs:  49%|████▉     | 27762/56687 [00:07<00:08, 3561.40it/s]Tokenizing inputs:  50%|████▉     | 28120/56687 [00:08<00:08, 3565.87it/s]Tokenizing inputs:  50%|█████     | 28478/56687 [00:08<00:08, 3511.96it/s]Tokenizing inputs:  51%|█████     | 28841/56687 [00:08<00:07, 3544.74it/s]Tokenizing inputs:  52%|█████▏    | 29228/56687 [00:08<00:07, 3640.41it/s]Tokenizing inputs:  52%|█████▏    | 29593/56687 [00:08<00:07, 3629.06it/s]Tokenizing inputs:  53%|█████▎    | 29977/56687 [00:08<00:07, 3688.27it/s]Tokenizing inputs:  54%|█████▎    | 30370/56687 [00:08<00:07, 3758.70it/s]Tokenizing inputs:  54%|█████▍    | 30789/56687 [00:08<00:06, 3885.59it/s]Tokenizing inputs:  55%|█████▌    | 31178/56687 [00:08<00:06, 3707.08it/s]Tokenizing inputs:  56%|█████▌    | 31551/56687 [00:08<00:07, 3586.31it/s]Tokenizing inputs:  56%|█████▋    | 31912/56687 [00:09<00:07, 3472.26it/s]Tokenizing inputs:  57%|█████▋    | 32261/56687 [00:09<00:07, 3408.32it/s]Tokenizing inputs:  58%|█████▊    | 32603/56687 [00:09<00:07, 3354.30it/s]Tokenizing inputs:  58%|█████▊    | 32940/56687 [00:09<00:07, 3227.07it/s]Tokenizing inputs:  59%|█████▉    | 33336/56687 [00:09<00:06, 3431.96it/s]Tokenizing inputs:  59%|█████▉    | 33682/56687 [00:09<00:08, 2718.58it/s]Tokenizing inputs:  60%|█████▉    | 33978/56687 [00:09<00:09, 2398.56it/s]Tokenizing inputs:  60%|██████    | 34239/56687 [00:10<00:10, 2136.57it/s]Tokenizing inputs:  61%|██████    | 34470/56687 [00:10<00:10, 2113.38it/s]Tokenizing inputs:  61%|██████▏   | 34794/56687 [00:10<00:09, 2379.24it/s]Tokenizing inputs:  62%|██████▏   | 35151/56687 [00:10<00:08, 2679.82it/s]Tokenizing inputs:  63%|██████▎   | 35522/56687 [00:10<00:07, 2951.91it/s]Tokenizing inputs:  63%|██████▎   | 35832/56687 [00:10<00:07, 2945.20it/s]Tokenizing inputs:  64%|██████▎   | 36137/56687 [00:10<00:07, 2635.20it/s]Tokenizing inputs:  64%|██████▍   | 36413/56687 [00:11<00:12, 1658.08it/s]Tokenizing inputs:  65%|██████▍   | 36631/56687 [00:11<00:15, 1321.49it/s]Tokenizing inputs:  65%|██████▍   | 36808/56687 [00:11<00:16, 1188.11it/s]Tokenizing inputs:  65%|██████▌   | 36958/56687 [00:11<00:17, 1113.56it/s]Tokenizing inputs:  65%|██████▌   | 37090/56687 [00:11<00:18, 1082.60it/s]Tokenizing inputs:  66%|██████▌   | 37212/56687 [00:11<00:18, 1048.14it/s]Tokenizing inputs:  66%|██████▌   | 37326/56687 [00:12<00:19, 1003.52it/s]Tokenizing inputs:  66%|██████▌   | 37432/56687 [00:12<00:19, 978.43it/s] Tokenizing inputs:  66%|██████▌   | 37533/56687 [00:12<00:20, 936.10it/s]Tokenizing inputs:  66%|██████▋   | 37630/56687 [00:12<00:20, 943.80it/s]Tokenizing inputs:  67%|██████▋   | 37726/56687 [00:12<00:20, 912.43it/s]Tokenizing inputs:  67%|██████▋   | 37818/56687 [00:12<00:21, 880.39it/s]Tokenizing inputs:  67%|██████▋   | 37907/56687 [00:12<00:22, 847.44it/s]Tokenizing inputs:  67%|██████▋   | 37992/56687 [00:12<00:23, 805.93it/s]Tokenizing inputs:  67%|██████▋   | 38075/56687 [00:13<00:22, 810.10it/s]Tokenizing inputs:  67%|██████▋   | 38158/56687 [00:13<00:22, 814.08it/s]Tokenizing inputs:  67%|██████▋   | 38242/56687 [00:13<00:22, 819.59it/s]Tokenizing inputs:  68%|██████▊   | 38325/56687 [00:13<00:23, 785.90it/s]Tokenizing inputs:  68%|██████▊   | 38404/56687 [00:13<00:23, 780.43it/s]Tokenizing inputs:  68%|██████▊   | 38485/56687 [00:13<00:23, 788.65it/s]Tokenizing inputs:  68%|██████▊   | 38657/56687 [00:13<00:17, 1057.53it/s]Tokenizing inputs:  69%|██████▊   | 38927/56687 [00:13<00:11, 1536.61it/s]Tokenizing inputs:  69%|██████▉   | 39236/56687 [00:13<00:08, 1992.51it/s]Tokenizing inputs:  70%|██████▉   | 39586/56687 [00:13<00:07, 2438.17it/s]Tokenizing inputs:  70%|███████   | 39927/56687 [00:14<00:06, 2723.85it/s]Tokenizing inputs:  71%|███████   | 40256/56687 [00:14<00:05, 2890.23it/s]Tokenizing inputs:  72%|███████▏  | 40595/56687 [00:14<00:05, 3037.40it/s]Tokenizing inputs:  72%|███████▏  | 40946/56687 [00:14<00:04, 3177.66it/s]Tokenizing inputs:  73%|███████▎  | 41269/56687 [00:14<00:04, 3192.68it/s]Tokenizing inputs:  73%|███████▎  | 41589/56687 [00:14<00:04, 3192.79it/s]Tokenizing inputs:  74%|███████▍  | 41909/56687 [00:14<00:04, 2965.43it/s]Tokenizing inputs:  74%|███████▍  | 42210/56687 [00:14<00:05, 2851.89it/s]Tokenizing inputs:  75%|███████▍  | 42499/56687 [00:14<00:05, 2806.23it/s]Tokenizing inputs:  75%|███████▌  | 42782/56687 [00:14<00:05, 2727.31it/s]Tokenizing inputs:  76%|███████▌  | 43057/56687 [00:15<00:05, 2646.81it/s]Tokenizing inputs:  76%|███████▋  | 43323/56687 [00:15<00:05, 2571.55it/s]Tokenizing inputs:  77%|███████▋  | 43637/56687 [00:15<00:04, 2729.97it/s]Tokenizing inputs:  78%|███████▊  | 44005/56687 [00:15<00:04, 2999.65it/s]Tokenizing inputs:  78%|███████▊  | 44342/56687 [00:15<00:03, 3105.67it/s]Tokenizing inputs:  79%|███████▉  | 44655/56687 [00:15<00:04, 3003.19it/s]Tokenizing inputs:  79%|███████▉  | 44967/56687 [00:15<00:03, 3036.51it/s]Tokenizing inputs:  80%|███████▉  | 45315/56687 [00:15<00:03, 3165.02it/s]Tokenizing inputs:  81%|████████  | 45656/56687 [00:15<00:03, 3236.49it/s]Tokenizing inputs:  81%|████████  | 46013/56687 [00:16<00:03, 3328.08it/s]Tokenizing inputs:  82%|████████▏ | 46347/56687 [00:16<00:05, 2004.93it/s]Tokenizing inputs:  82%|████████▏ | 46612/56687 [00:16<00:05, 1724.16it/s]Tokenizing inputs:  83%|████████▎ | 46834/56687 [00:16<00:06, 1541.08it/s]Tokenizing inputs:  83%|████████▎ | 47024/56687 [00:16<00:06, 1421.12it/s]Tokenizing inputs:  83%|████████▎ | 47191/56687 [00:17<00:07, 1310.97it/s]Tokenizing inputs:  84%|████████▎ | 47338/56687 [00:17<00:07, 1237.89it/s]Tokenizing inputs:  84%|████████▎ | 47472/56687 [00:17<00:07, 1171.06it/s]Tokenizing inputs:  84%|████████▍ | 47596/56687 [00:17<00:07, 1167.26it/s]Tokenizing inputs:  84%|████████▍ | 47718/56687 [00:17<00:07, 1178.41it/s]Tokenizing inputs:  84%|████████▍ | 47839/56687 [00:17<00:07, 1124.17it/s]Tokenizing inputs:  85%|████████▍ | 47954/56687 [00:17<00:07, 1123.77it/s]Tokenizing inputs:  85%|████████▌ | 48222/56687 [00:17<00:05, 1533.09it/s]Tokenizing inputs:  86%|████████▌ | 48725/56687 [00:18<00:03, 2488.22it/s]Tokenizing inputs:  87%|████████▋ | 49418/56687 [00:18<00:01, 3733.84it/s]Tokenizing inputs:  88%|████████▊ | 50164/56687 [00:18<00:01, 4799.73it/s]Tokenizing inputs:  90%|████████▉ | 50865/56687 [00:18<00:01, 5439.64it/s]Tokenizing inputs:  91%|█████████ | 51594/56687 [00:18<00:00, 5980.50it/s]Tokenizing inputs:  92%|█████████▏| 52240/56687 [00:18<00:00, 6120.20it/s]Tokenizing inputs:  93%|█████████▎| 52861/56687 [00:18<00:00, 6120.80it/s]Tokenizing inputs:  94%|█████████▍| 53503/56687 [00:18<00:00, 6208.84it/s]Tokenizing inputs:  95%|█████████▌| 54134/56687 [00:18<00:00, 6238.53it/s]Tokenizing inputs:  97%|█████████▋| 54830/56687 [00:18<00:00, 6452.45it/s]Tokenizing inputs:  98%|█████████▊| 55607/56687 [00:19<00:00, 6844.12it/s]Tokenizing inputs: 100%|█████████▉| 56487/56687 [00:19<00:00, 7428.82it/s]Tokenizing inputs: 100%|██████████| 56687/56687 [00:19<00:00, 2962.89it/s]
+Running loglikelihood requests:   0%|          | 0/56687 [00:00<?, ?it/s][transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+Traceback (most recent call last):
+  File "/workspace/AngryAnt/scripts/eval_qwen_general.py", line 97, in <module>
+    main()
+  File "/workspace/AngryAnt/scripts/eval_qwen_general.py", line 82, in main
+    res = simple_evaluate(model=lm, tasks=args.tasks.split(","), limit=args.limit, num_fewshot=0,
+          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/lm_eval/utils.py", line 580, in _wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/lm_eval/evaluator.py", line 363, in simple_evaluate
+    results = evaluate(
+              ^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/lm_eval/utils.py", line 580, in _wrapper
+    return fn(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/lm_eval/evaluator.py", line 600, in evaluate
+    resps = getattr(lm, reqtype)(cloned_reqs)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/lm_eval/models/huggingface.py", line 1224, in loglikelihood
+    return super().loglikelihood(requests, disable_tqdm=disable_tqdm)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/lm_eval/api/model.py", line 471, in loglikelihood
+    return self._loglikelihood_tokens(new_reqs, disable_tqdm=disable_tqdm)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/lm_eval/models/huggingface.py", line 1504, in _loglikelihood_tokens
+    self._model_call(batched_inps, **call_kwargs),
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/lm_eval/models/huggingface.py", line 1151, in _model_call
+    return self.model(inps).logits
+           ^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/transformers/utils/generic.py", line 939, in wrapper
+    output = func(self, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/transformers/models/qwen3_5/modeling_qwen3_5.py", line 1721, in forward
+    outputs: BaseModelOutputWithPast = self.model(
+                                       ^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/transformers/utils/generic.py", line 1068, in wrapper
+    output = func(self, *args, **kwargs)
+             ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/transformers/utils/output_capturing.py", line 287, in wrapper
+    outputs = func(self, *args, **kwargs)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/transformers/models/qwen3_5/modeling_qwen3_5.py", line 1291, in forward
+    hidden_states = decoder_layer(
+                    ^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/transformers/modeling_layers.py", line 110, in __call__
+    return super().__call__(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1885, in _call_impl
+    return inner()
+           ^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1846, in inner
+    hook_result = hook(self, args, result)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/smlm/qwen_memory.py", line 102, in hook
+    return a(out)
+           ^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/smlm/qwen_memory.py", line 73, in forward
+    y = self.body(x)
+        ^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/smlm/pkm.py", line 145, in forward
+    return self._forward(x).view(*shape[:-1], self.d_out)
+           ^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/smlm/pkm.py", line 176, in _forward
+    q = self.query_proj(x)
+        ^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1779, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/module.py", line 1790, in _call_impl
+    return forward_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/workspace/AngryAnt/.venv-qwen/lib/python3.12/site-packages/torch/nn/modules/linear.py", line 134, in forward
+    return F.linear(input, self.weight, self.bias)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: mat1 and mat2 must have the same dtype, but got BFloat16 and Float
+Running loglikelihood requests:   0%|          | 0/56687 [00:02<?, ?it/s]

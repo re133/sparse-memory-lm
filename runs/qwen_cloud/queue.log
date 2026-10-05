@@ -29,3 +29,6 @@
 2026-10-05 08:40:24 backup ok: 1 files verified on storagebox:smlm
 2026-10-05 08:40:24 start QT_facts: scripts/eval_fact_cloze.py --model_dir /workspace/models/Qwen3.5-0.8B --addons /workspace/AngryAnt/runs/qwen_cloud/QT-s0/addons.pt --out /workspace/AngryAnt/runs/qwen_cloud/QT/facts.json
 2026-10-05 08:49:54 end QT_facts rc=0  (9.5 min)
+2026-10-05 08:49:59 ntfy: Qwen QT_facts: fertig (Pod 2.48 h ≈ 8.65 $)
+2026-10-05 08:49:59 start QT_general: scripts/eval_qwen_general.py --model_dir /workspace/models/Qwen3.5-0.8B --addons /workspace/AngryAnt/runs/qwen_cloud/QT-s0/addons.pt --batch_size 8 --out /workspace/AngryAnt/runs/qwen_cloud/QT/general.json
+2026-10-05 08:53:59 end QT_general rc=1  (4.0 min)
