@@ -1,0 +1,585 @@
+{
+ "model_dir": "/workspace/models/Qwen3.5-0.8B",
+ "addons": "/workspace/AngryAnt/runs/qwen_cloud/QD-s0/addons.pt",
+ "limit": 500,
+ "tasks": {
+  "mmlu_abstract_algebra": {
+   "acc,none": 0.29,
+   "acc_stderr,none": 0.045604802157206865
+  },
+  "mmlu_anatomy": {
+   "acc,none": 0.45925925925925926,
+   "acc_stderr,none": 0.04304979692464244
+  },
+  "mmlu_astronomy": {
+   "acc,none": 0.5131578947368421,
+   "acc_stderr,none": 0.04067533136309172
+  },
+  "mmlu_college_biology": {
+   "acc,none": 0.5486111111111112,
+   "acc_stderr,none": 0.04161402398403282
+  },
+  "mmlu_college_chemistry": {
+   "acc,none": 0.36,
+   "acc_stderr,none": 0.048241815132442176
+  },
+  "mmlu_college_computer_science": {
+   "acc,none": 0.4,
+   "acc_stderr,none": 0.0492365963917331
+  },
+  "mmlu_college_mathematics": {
+   "acc,none": 0.35,
+   "acc_stderr,none": 0.04793724854411023
+  },
+  "mmlu_college_physics": {
+   "acc,none": 0.3137254901960784,
+   "acc_stderr,none": 0.04617034827006717
+  },
+  "mmlu_computer_security": {
+   "acc,none": 0.63,
+   "acc_stderr,none": 0.048523658709390974
+  },
+  "mmlu_conceptual_physics": {
+   "acc,none": 0.5191489361702127,
+   "acc_stderr,none": 0.0326620429906468
+  },
+  "mmlu_electrical_engineering": {
+   "acc,none": 0.6206896551724138,
+   "acc_stderr,none": 0.040434618619167494
+  },
+  "mmlu_elementary_mathematics": {
+   "acc,none": 0.41798941798941797,
+   "acc_stderr,none": 0.025402555503260853
+  },
+  "mmlu_high_school_biology": {
+   "acc,none": 0.6580645161290323,
+   "acc_stderr,none": 0.026985289576552707
+  },
+  "mmlu_high_school_chemistry": {
+   "acc,none": 0.4236453201970443,
+   "acc_stderr,none": 0.034767257476490364
+  },
+  "mmlu_high_school_computer_science": {
+   "acc,none": 0.43,
+   "acc_stderr,none": 0.049756985195624305
+  },
+  "mmlu_high_school_mathematics": {
+   "acc,none": 0.29259259259259257,
+   "acc_stderr,none": 0.027738969632176085
+  },
+  "mmlu_high_school_physics": {
+   "acc,none": 0.31788079470198677,
+   "acc_stderr,none": 0.038020397601078997
+  },
+  "mmlu_high_school_statistics": {
+   "acc,none": 0.37037037037037035,
+   "acc_stderr,none": 0.03293377139415187
+  },
+  "mmlu_machine_learning": {
+   "acc,none": 0.4375,
+   "acc_stderr,none": 0.04708567521880525
+  },
+  "mmlu_business_ethics": {
+   "acc,none": 0.51,
+   "acc_stderr,none": 0.05024183937956913
+  },
+  "mmlu_clinical_knowledge": {
+   "acc,none": 0.5471698113207547,
+   "acc_stderr,none": 0.03063562795796184
+  },
+  "mmlu_college_medicine": {
+   "acc,none": 0.45664739884393063,
+   "acc_stderr,none": 0.03798106566014504
+  },
+  "mmlu_global_facts": {
+   "acc,none": 0.35,
+   "acc_stderr,none": 0.04793724854411023
+  },
+  "mmlu_human_aging": {
+   "acc,none": 0.515695067264574,
+   "acc_stderr,none": 0.033541265754208155
+  },
+  "mmlu_management": {
+   "acc,none": 0.6699029126213593,
+   "acc_stderr,none": 0.04656147110012349
+  },
+  "mmlu_marketing": {
+   "acc,none": 0.7649572649572649,
+   "acc_stderr,none": 0.02777883590493542
+  },
+  "mmlu_medical_genetics": {
+   "acc,none": 0.5,
+   "acc_stderr,none": 0.050251890762960605
+  },
+  "mmlu_miscellaneous": {
+   "acc,none": 0.568,
+   "acc_stderr,none": 0.022175109265613186
+  },
+  "mmlu_nutrition": {
+   "acc,none": 0.5686274509803921,
+   "acc_stderr,none": 0.028358956313423604
+  },
+  "mmlu_professional_accounting": {
+   "acc,none": 0.35815602836879434,
+   "acc_stderr,none": 0.028602085862759398
+  },
+  "mmlu_professional_medicine": {
+   "acc,none": 0.3639705882352941,
+   "acc_stderr,none": 0.029227192460031966
+  },
+  "mmlu_virology": {
+   "acc,none": 0.42168674698795183,
+   "acc_stderr,none": 0.03844453181770918
+  },
+  "mmlu_econometrics": {
+   "acc,none": 0.32456140350877194,
+   "acc_stderr,none": 0.044045561573747664
+  },
+  "mmlu_high_school_geography": {
+   "acc,none": 0.5353535353535354,
+   "acc_stderr,none": 0.035534363688280626
+  },
+  "mmlu_high_school_government_and_politics": {
+   "acc,none": 0.5958549222797928,
+   "acc_stderr,none": 0.0354150857888402
+  },
+  "mmlu_high_school_macroeconomics": {
+   "acc,none": 0.47692307692307695,
+   "acc_stderr,none": 0.025323990861736236
+  },
+  "mmlu_high_school_microeconomics": {
+   "acc,none": 0.49159663865546216,
+   "acc_stderr,none": 0.03247390276569665
+  },
+  "mmlu_high_school_psychology": {
+   "acc,none": 0.634,
+   "acc_stderr,none": 0.021564276850201684
+  },
+  "mmlu_human_sexuality": {
+   "acc,none": 0.48091603053435117,
+   "acc_stderr,none": 0.043820947055509894
+  },
+  "mmlu_professional_psychology": {
+   "acc,none": 0.464,
+   "acc_stderr,none": 0.022324981738385333
+  },
+  "mmlu_public_relations": {
+   "acc,none": 0.5636363636363636,
+   "acc_stderr,none": 0.04750185058907295
+  },
+  "mmlu_security_studies": {
+   "acc,none": 0.6040816326530613,
+   "acc_stderr,none": 0.03130802899065682
+  },
+  "mmlu_sociology": {
+   "acc,none": 0.6766169154228856,
+   "acc_stderr,none": 0.033076159479790375
+  },
+  "mmlu_us_foreign_policy": {
+   "acc,none": 0.67,
+   "acc_stderr,none": 0.04725815626252609
+  },
+  "mmlu_formal_logic": {
+   "acc,none": 0.31746031746031744,
+   "acc_stderr,none": 0.04163453031302857
+  },
+  "mmlu_high_school_european_history": {
+   "acc,none": 0.6242424242424243,
+   "acc_stderr,none": 0.03781887353205983
+  },
+  "mmlu_high_school_us_history": {
+   "acc,none": 0.5098039215686274,
+   "acc_stderr,none": 0.035086373586305744
+  },
+  "mmlu_high_school_world_history": {
+   "acc,none": 0.6540084388185654,
+   "acc_stderr,none": 0.030964810588786775
+  },
+  "mmlu_international_law": {
+   "acc,none": 0.6611570247933884,
+   "acc_stderr,none": 0.04320767807536673
+  },
+  "mmlu_jurisprudence": {
+   "acc,none": 0.5925925925925926,
+   "acc_stderr,none": 0.04750077341199984
+  },
+  "mmlu_logical_fallacies": {
+   "acc,none": 0.588957055214724,
+   "acc_stderr,none": 0.03865697853785365
+  },
+  "mmlu_moral_disputes": {
+   "acc,none": 0.5635838150289018,
+   "acc_stderr,none": 0.026700545424943652
+  },
+  "mmlu_moral_scenarios": {
+   "acc,none": 0.264,
+   "acc_stderr,none": 0.01973288558592215
+  },
+  "mmlu_philosophy": {
+   "acc,none": 0.5562700964630225,
+   "acc_stderr,none": 0.028217683556652235
+  },
+  "mmlu_prehistory": {
+   "acc,none": 0.49382716049382713,
+   "acc_stderr,none": 0.02781862396258329
+  },
+  "mmlu_professional_law": {
+   "acc,none": 0.352,
+   "acc_stderr,none": 0.02138004238594605
+  },
+  "mmlu_world_religions": {
+   "acc,none": 0.6140350877192983,
+   "acc_stderr,none": 0.03733756969066159
+  },
+  "arc_easy": {
+   "acc,none": 0.65,
+   "acc_stderr,none": 0.021352091786223066,
+   "acc_norm,none": 0.646,
+   "acc_norm_stderr,none": 0.02140758204791649
+  },
+  "arc_challenge": {
+   "acc,none": 0.37,
+   "acc_stderr,none": 0.021613289165165816,
+   "acc_norm,none": 0.398,
+   "acc_norm_stderr,none": 0.021912377885779953
+  },
+  "hellaswag": {
+   "acc,none": 0.42,
+   "acc_stderr,none": 0.02209471322976179,
+   "acc_norm,none": 0.522,
+   "acc_norm_stderr,none": 0.02236139673920787
+  },
+  "piqa": {
+   "acc,none": 0.692,
+   "acc_stderr,none": 0.020667032987466052,
+   "acc_norm,none": 0.714,
+   "acc_norm_stderr,none": 0.020229346329177608
+  },
+  "winogrande": {
+   "acc,none": 0.57,
+   "acc_stderr,none": 0.022162634426652866
+  },
+  "mmlu_stem": {
+   "acc,none": 0.44814462416745954,
+   "acc_stderr,none": 0.008641818210172502
+  },
+  "mmlu_other": {
+   "acc,none": 0.5138101983002833,
+   "acc_stderr,none": 0.009172552504838113
+  },
+  "mmlu_social_sciences": {
+   "acc,none": 0.5431506849315069,
+   "acc_stderr,none": 0.009094454666598688
+  },
+  "mmlu_humanities": {
+   "acc,none": 0.4832112332112332,
+   "acc_stderr,none": 0.008419902391539896
+  },
+  "mmlu": {
+   "acc,none": 0.49560502751992114,
+   "acc_stderr,none": 0.00440818392383807
+  }
+ },
+ "n_samples": {
+  "mmlu_abstract_algebra": {
+   "original": 100,
+   "effective": 100
+  },
+  "mmlu_anatomy": {
+   "original": 135,
+   "effective": 135
+  },
+  "mmlu_astronomy": {
+   "original": 152,
+   "effective": 152
+  },
+  "mmlu_college_biology": {
+   "original": 144,
+   "effective": 144
+  },
+  "mmlu_college_chemistry": {
+   "original": 100,
+   "effective": 100
+  },
+  "mmlu_college_computer_science": {
+   "original": 100,
+   "effective": 100
+  },
+  "mmlu_college_mathematics": {
+   "original": 100,
+   "effective": 100
+  },
+  "mmlu_college_physics": {
+   "original": 102,
+   "effective": 102
+  },
+  "mmlu_computer_security": {
+   "original": 100,
+   "effective": 100
+  },
+  "mmlu_conceptual_physics": {
+   "original": 235,
+   "effective": 235
+  },
+  "mmlu_electrical_engineering": {
+   "original": 145,
+   "effective": 145
+  },
+  "mmlu_elementary_mathematics": {
+   "original": 378,
+   "effective": 378
+  },
+  "mmlu_high_school_biology": {
+   "original": 310,
+   "effective": 310
+  },
+  "mmlu_high_school_chemistry": {
+   "original": 203,
+   "effective": 203
+  },
+  "mmlu_high_school_computer_science": {
+   "original": 100,
+   "effective": 100
+  },
+  "mmlu_high_school_mathematics": {
+   "original": 270,
+   "effective": 270
+  },
+  "mmlu_high_school_physics": {
+   "original": 151,
+   "effective": 151
+  },
+  "mmlu_high_school_statistics": {
+   "original": 216,
+   "effective": 216
+  },
+  "mmlu_machine_learning": {
+   "original": 112,
+   "effective": 112
+  },
+  "mmlu_business_ethics": {
+   "original": 100,
+   "effective": 100
+  },
+  "mmlu_clinical_knowledge": {
+   "original": 265,
+   "effective": 265
+  },
+  "mmlu_college_medicine": {
+   "original": 173,
+   "effective": 173
+  },
+  "mmlu_global_facts": {
+   "original": 100,
+   "effective": 100
+  },
+  "mmlu_human_aging": {
+   "original": 223,
+   "effective": 223
+  },
+  "mmlu_management": {
+   "original": 103,
+   "effective": 103
+  },
+  "mmlu_marketing": {
+   "original": 234,
+   "effective": 234
+  },
+  "mmlu_medical_genetics": {
+   "original": 100,
+   "effective": 100
+  },
+  "mmlu_miscellaneous": {
+   "original": 783,
+   "effective": 500
+  },
+  "mmlu_nutrition": {
+   "original": 306,
+   "effective": 306
+  },
+  "mmlu_professional_accounting": {
+   "original": 282,
+   "effective": 282
+  },
+  "mmlu_professional_medicine": {
+   "original": 272,
+   "effective": 272
+  },
+  "mmlu_virology": {
+   "original": 166,
+   "effective": 166
+  },
+  "mmlu_econometrics": {
+   "original": 114,
+   "effective": 114
+  },
+  "mmlu_high_school_geography": {
+   "original": 198,
+   "effective": 198
+  },
+  "mmlu_high_school_government_and_politics": {
+   "original": 193,
+   "effective": 193
+  },
+  "mmlu_high_school_macroeconomics": {
+   "original": 390,
+   "effective": 390
+  },
+  "mmlu_high_school_microeconomics": {
+   "original": 238,
+   "effective": 238
+  },
+  "mmlu_high_school_psychology": {
+   "original": 545,
+   "effective": 500
+  },
+  "mmlu_human_sexuality": {
+   "original": 131,
+   "effective": 131
+  },
+  "mmlu_professional_psychology": {
+   "original": 612,
+   "effective": 500
+  },
+  "mmlu_public_relations": {
+   "original": 110,
+   "effective": 110
+  },
+  "mmlu_security_studies": {
+   "original": 245,
+   "effective": 245
+  },
+  "mmlu_sociology": {
+   "original": 201,
+   "effective": 201
+  },
+  "mmlu_us_foreign_policy": {
+   "original": 100,
+   "effective": 100
+  },
+  "mmlu_formal_logic": {
+   "original": 126,
+   "effective": 126
+  },
+  "mmlu_high_school_european_history": {
+   "original": 165,
+   "effective": 165
+  },
+  "mmlu_high_school_us_history": {
+   "original": 204,
+   "effective": 204
+  },
+  "mmlu_high_school_world_history": {
+   "original": 237,
+   "effective": 237
+  },
+  "mmlu_international_law": {
+   "original": 121,
+   "effective": 121
+  },
+  "mmlu_jurisprudence": {
+   "original": 108,
+   "effective": 108
+  },
+  "mmlu_logical_fallacies": {
+   "original": 163,
+   "effective": 163
+  },
+  "mmlu_moral_disputes": {
+   "original": 346,
+   "effective": 346
+  },
+  "mmlu_moral_scenarios": {
+   "original": 895,
+   "effective": 500
+  },
+  "mmlu_philosophy": {
+   "original": 311,
+   "effective": 311
+  },
+  "mmlu_prehistory": {
+   "original": 324,
+   "effective": 324
+  },
+  "mmlu_professional_law": {
+   "original": 1534,
+   "effective": 500
+  },
+  "mmlu_world_religions": {
+   "original": 171,
+   "effective": 171
+  },
+  "arc_easy": {
+   "original": 2376,
+   "effective": 500
+  },
+  "arc_challenge": {
+   "original": 1172,
+   "effective": 500
+  },
+  "hellaswag": {
+   "original": 10042,
+   "effective": 500
+  },
+  "piqa": {
+   "original": 1838,
+   "effective": 500
+  },
+  "winogrande": {
+   "original": 1267,
+   "effective": 500
+  }
+ },
+ "chat": [
+  {
+   "prompt": "Erkläre in drei Sätzen, wie eine Wärmepumpe funktioniert.",
+   "answer": "Eine Wärmepumpe funktioniert als ein geschlossener Kreislauf, bei dem zwei separate, aber gleichwertige Wärmequellen – meist ein Kaltwasser- und ein Warmwasser-System – durch einen geschlossenen Kreislauf mit einem kompressoren und einem Kondensator getrennt transportiert werden. Der Prozess beginnt, wenn der Kompressor den Kaltwasserstrom aus dem Kaltwasser-System auf eine höhere Temperatur bringt. Dieser warme Kaltwasserstrom wird in den Warmwasser-Systeme geleitet, wo er die benötigte Temperatur erreicht. Dort wird der Warmwasserstrom in den Kaltwasser-Systeme zurückgeführt, um die Temperatur wieder herunterzusetzen. Der geschlossene Kreislauf wird durch den Kompressor wieder auf die Ausgangstemperatur des Kaltwasser-Systems gebracht, wodurch die Wärmeenergie aus dem Kaltwasser-System in die Warmwasser-Systeme überführt wird.\nKraftwerk\nKraftwerk ist ein Begriff, der sich auf die Nutzung von Energie be"
+  },
+  {
+   "prompt": "Wer war Johann Wolfgang von Goethe, und welche zwei Werke sind am bekanntesten?",
+   "answer": "Johann Wolfgang von Goethe (1775–1796) was a German writer, poet, and philosopher. He is considered one of the most influential figures in the history of German literature.\nGoethe was born in 1775 in the village of Wittenberg, in the Holy Roman Empire. He was the son of the poet Johann Wolfgang von Goethe and the poet and playwright Theodor Ammann. He was the younger brother of Friedrich Schiller.\nGoethe was a member of the German Democratic Party. He was a member of the German Democratic Party.\nGoethe's two most famous works are:\n1.  **The Sorrows of Young Chatsworth** (1795)\n2.  **The Sorrows of Young Werther** (1797)\nWerther\nThe Sorrows of Young Werther\nThe Sorrows of Young Chatsworth\nWerther\nThe Sor"
+  },
+  {
+   "prompt": "Ein Zug fährt um 14:20 Uhr ab und braucht 2 Stunden 55 Minuten. Wann kommt er an?",
+   "answer": "Um die Uhrzeit zu berechnen, müssen wir zunächst die Gesamtzeitdauer des Fahrzeugs in Minuten umrechnen.\n\nDie Strecke beträgt 2 Stunden und 55 Minuten. Da 2 Stunden 55 Minuten gleich 175 Minuten sind, können wir diese in Minuten auf die Gesamtzeit des Fahrzeugs umrechnen:\n2 Stunden = 120 Minuten\n120 Minuten + 55 Minuten = 175 Minuten\n\nDie Gesamtzeit des Fahrzeugs beträgt also 175 Minuten.\n\nUm die Gesamtzeit in Stunden und Minuten zu berechnen, teilen wir 175 Minuten durch 60 Minuten pro Stunde:\n175 ÷ 60 = 2 Stunden mit 55 Minuten übrig.\nDas bedeutet, der Zug fährt 2 Stunden und 55 Minuten weiter.\n\nDer Zug fährt also um 14:20 Uhr ab. Er kommt an 2 Stunden"
+  },
+  {
+   "prompt": "Schreibe eine kurze, höfliche E-Mail, in der du einen Termin am Dienstag absagst.",
+   "answer": "Sehr geehrter Herr [Name],\n\nmit freundlichen Grüßen\n\nIch bin sehr gratuliert, dass Sie sich für die Veranstaltung entschieden haben. Ich möchte mich jedoch für den kommenden Dienstag absagen, da ich mich nicht in der Lage finde, die Veranstaltung zu organisieren.\n\nVielen Dank für Ihre Unterstützung und für Ihre Zeit. Ich hoffe, Sie werden mich in nächster Zeit wiedersehen.\n\nMit freundlichen Grüßen\n[Dein Name]\n"
+  },
+  {
+   "prompt": "Was ist der Unterschied zwischen Wetter und Klima?",
+   "answer": "**Wetter** und **Klima** sind zwei Begriffe, die sich in der Wissenschaft und Alltagssprache oft verwechseln, obwohl sie unterschiedliche Aspekte des Klimas beschreiben.\n\n**Wetter** beschreibt die **aktuellen Bedingungen** in einem bestimmten Ort und Zeitraum. Es bezieht sich auf das Wetter, das sich in der nächsten 24 Stunden oder Stunden verändert. Wetter ist rein zeitlich und örtlich.\n\n**Klima** beschreibt die **langfristigen Durchschnittswerte** und die **statistischen Eigenschaften** eines Ortes. Es bezieht sich auf das Klima, das sich über viele Jahre und Jahrzehnte hinweg entwickelt. Klima ist eine statistische Beschreibung der durchschnittlichen Bedingungen.\n\n**Der Unterschied** lässt sich wie folgt zusammenfassen:\n*   **Wetter** ist **zeit- und örtlich** spezifisch. Es beschreibt das aktuelle Wetter in einem bestimmten Ort und Zeitrahmen.\n*   **Klima** ist **"
+  },
+  {
+   "prompt": "Nenne drei wichtige Ereignisse des Jahres 2026.",
+   "answer": "Here are three important events of 2026:\n\n*   **2026–2027: The 2026–27 FIFA World Cup**\n    The 2026 FIFA World Cup will be the 70th edition of the FIFA World Cup, the FIFA World Cup, the 2026–27 FIFA World Cup, the 2026–27 FIFA World Cup, the 2026–27 FIFA World Cup, the 2026–27 FIFA World Cup, the 2026–27 FIFA World Cup, the 2026–27 FIFA World Cup, the 2026–27 FIFA World Cup, the 2026–27 FIFA World Cup, the 2026–27 FIFA World Cup, the 2026–27 FIFA World Cup, the"
+  },
+  {
+   "prompt": "What is the capital of Australia, and why is it not Sydney?",
+   "answer": "The capital of Australia is **Canberra**.\n\nIt is located in the state of Victoria, in the central part of the country, in the state of the Outback. It is the capital of the Australian Capital Territory (ACT), which is a federal territory of Australia.\n\nThe capital city is named after the city of Canberra, which was the capital of the Australian colony of New South Wales from 1821 to 1901. The name \"Canberra\" is derived from the name of the city of the same name, which was the capital of the British colony of New South Wales. The name of the city was first used in 1821, when the British government established the city as the capital of the colony. The name of the city was later changed to \"Canberra\" in 1851.\nThe city is located in the central part of the country, in the state of the Outback. It is the capital of the"
+  },
+  {
+   "prompt": "Write a Python function that returns the n-th Fibonacci number iteratively.",
+   "answer": "Here is an iterative Python function that computes the n-th Fibonacci number:\n\n```python\ndef fibonacci(n):\n    \"\"\"\n    Returns the n-th Fibonacci number (0-indexed).\n    F(0) = 0, F(1) = 1, F(n) = F(n-1) + F(n-2) for n > 1.\n    \"\"\"\n    if n < 0:\n        raise ValueError(\"Input must be a non-negative integer.\")\n    if n == 0:\n        return 0\n    if n == 1:\n        return 1\n\n    a, b = 0, 1\n    for _ in range(2, n + 1):\n        a, b = b, a + b\n    return b\n```\n\n### Example Usage\n```python\nprint(fibonacci(0))  # 0\nprint(fibonacci(1))  # 1"
+  },
+  {
+   "prompt": "If all bloops are razzies and all razzies are lazzies, are all bloops lazzies? Explain briefly.",
+   "answer": "**No, not necessarily.**\n\nThe statement is logically invalid because it contains a **fallacy of the undistributed middle**.\n\nHere is the breakdown:\n1.  **Premise 1**: All bloops are razzies. (B ⊆ R)\n2.  **Premise 2**: All razzies are lazzies. (R ⊆ L)\n3.  **Conclusion**: All bloops are lazzies. (B ⊆ L)\n\nThe conclusion does not follow because \"bloops\" is not a subset of \"lazzies.\" While \"bloops\" are a subset of \"razzies,\" \"razzies\" are not a subset of \"lazzies.\" Therefore, the relationship between \"bloops\" and \"lazzies\" cannot be established from the two premises alone.\n"
+  },
+  {
+   "prompt": "Summarize the causes of World War I in four bullet points.",
+   "answer": "*   **The Russian Revolution**: The Bolsheviks seized power in 1917, leading to the Russian Revolution.\n*   **The Treaty of Brest-Litovsk**: The Treaty of Brest-Litovsk was signed in 1918, which ended the Russian Civil War.\n*   **The Treaty of Versailles**: The Treaty of Versailles was signed in 1919, which ended the German–American War.\n*   **The Treaty of Tordesillas**: The Treaty of Tordesillas was signed in 1903, which ended the War of the Spanish Succession.\nWorld War I\nWorld War I was a global conflict that began in Europe and spread to Asia, Africa, and the Americas. The conflict was primarily fought between the Allied powers and the Central Powers.\nCauses\nThe primary cause of World War I was the **Russian Revolution** of 1917, which led to the"
+  },
+  {
+   "prompt": "Translate into German: 'The meeting was postponed because of the storm.'",
+   "answer": "Die Veranstaltung wurde aufgrund des Starkes Stürmes nachgeholt.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due to the storm.\nThe meeting was postponed due"
+  },
+  {
+   "prompt": "What happened in the world in 2026? Name a few events you know about.",
+   "answer": "Here is a list of notable events in 2026.\nEvents\nBirths\nBirths of children\nBirths of musicians\nBirths of politicians\nBirths of athletes\nBirths of scientists\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\nBirths of actors\n"
+  }
+ ],
+ "seconds": 735.5,
+ "lm_eval_version": "0.4.13"
+}

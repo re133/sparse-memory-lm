@@ -1,6 +1,6 @@
 """Step 3 fact test: cloze items (numbers, names, dates) cut automatically from Wikipedia articles.
 
-  .venv-qwen/bin/python scripts/make_fact_cloze.py --data_dir /home/leon/smlm-data/qwen_wiki \
+  .venv-qwen/bin/python scripts/make_fact_cloze.py --data_dir data/qwen_wiki \
       --out data/qwen_fact_cloze.jsonl
 
   * train: 500 items from training articles (train_new; the table has read them) -> "Wissen eingepflanzt?"
@@ -22,6 +22,9 @@ import os
 import re
 
 import numpy as np
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
 
 MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
 DATE = re.compile(rf"\b(\d{{1,2}} (?:{MONTHS}) \d{{4}}|(?:{MONTHS}) \d{{1,2}}, \d{{4}})\b")
@@ -105,8 +108,8 @@ def build(data_dir, split, n, tok, eot):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--data_dir", default="/home/leon/smlm-data/qwen_wiki")
-    ap.add_argument("--tokenizer", default="/home/leon/smlm-models/Qwen3.5-0.8B")
+    ap.add_argument("--data_dir", default=os.environ.get("QWEN_DATA", os.path.join(ROOT, "data", "qwen_wiki")))
+    ap.add_argument("--tokenizer", default=os.environ.get("QWEN_DIR", os.path.join(ROOT, "models", "Qwen3.5-0.8B")))
     ap.add_argument("--n", type=int, default=500)
     ap.add_argument("--out", required=True)
     args = ap.parse_args()

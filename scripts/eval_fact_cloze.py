@@ -40,7 +40,7 @@ def wilson(k, n, z=1.96):
 @torch.no_grad()
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model_dir", default="/home/leon/smlm-models/Qwen3.5-0.8B")
+    ap.add_argument("--model_dir", default=os.environ.get("QWEN_DIR", os.path.join(ROOT, "models", "Qwen3.5-0.8B")))
     ap.add_argument("--addons", default=None)
     ap.add_argument("--items", default=os.path.join(ROOT, "data", "qwen_fact_cloze.jsonl"))
     ap.add_argument("--max_new", type=int, default=16)

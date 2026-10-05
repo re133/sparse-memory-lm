@@ -89,8 +89,8 @@ EOF
 grep -q "^github.com" /root/.ssh/known_hosts 2>/dev/null || ssh-keyscan -t ed25519 github.com >> /root/.ssh/known_hosts 2>/dev/null
 ssh storagebox ls smlm >/dev/null || fail "storage box not reachable with the key"
 [ -d "$REPO_DIR/.git" ] || git clone -q "$GIT_REMOTE" "$REPO_DIR"
-git -C "$REPO_DIR" config user.name "${GIT_NAME:-leon}"
-git -C "$REPO_DIR" config user.email "${GIT_EMAIL:-you@example.com}"
+git -C "$REPO_DIR" config user.name "${GIT_NAME:?set GIT_NAME in cloud.env}"
+git -C "$REPO_DIR" config user.email "${GIT_EMAIL:?set GIT_EMAIL in cloud.env}"
 cd "$REPO_DIR"
 git pull -q --ff-only || true
 say "repo at $(git rev-parse --short HEAD)"

@@ -1,0 +1,136 @@
+Loading weights:   0%|          | 0/320 [00:00<?, ?it/s]Loading weights: 100%|██████████| 320/320 [00:00<00:00, 7438.89it/s]
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+/workspace/AngryAnt/scripts/train_qwen_memory.py:223: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:836.)
+  "gates": " ".join(f"{float(a.gate):.4f}" for a in model.addons)}
+[eval] step 0 val_new 9.978 val_known 8.769 val_known_same 17.820 mem_probe 21.018
+{
+ "val_new": {
+  "loss": 2.2885165214538574,
+  "ppl": 9.860299283537659,
+  "tokens": 2048,
+  "knowledge_ppl": 11.530479941339511,
+  "knowledge_tokens": 548
+ },
+ "val_known": {
+  "loss": 2.163094997406006,
+  "ppl": 8.698016380354828,
+  "tokens": 2048,
+  "knowledge_ppl": 7.049917134528592,
+  "knowledge_tokens": 538
+ },
+ "val_known_same": {
+  "loss": 2.874234914779663,
+  "ppl": 17.711867847955627,
+  "tokens": 2048,
+  "knowledge_ppl": 9.386667720971461,
+  "knowledge_tokens": 211
+ },
+ "mem_probe": {
+  "loss": 3.0388290882110596,
+  "ppl": 20.880779364650337,
+  "tokens": 2048,
+  "knowledge_ppl": 22.985969227870626,
+  "knowledge_tokens": 165
+ },
+ "curve_2025-01": {
+  "loss": 2.649404525756836,
+  "ppl": 14.145612788864973,
+  "tokens": 2048
+ },
+ "curve_2025-02": {
+  "loss": 2.361420154571533,
+  "ppl": 10.60600292573545,
+  "tokens": 2048
+ },
+ "curve_2025-03": {
+  "loss": 2.276557207107544,
+  "ppl": 9.743079197898549,
+  "tokens": 2048
+ },
+ "curve_2025-04": {
+  "loss": 2.434163808822632,
+  "ppl": 11.406276896423943,
+  "tokens": 2048
+ },
+ "curve_2025-05": {
+  "loss": 2.30854868888855,
+  "ppl": 10.059814135339586,
+  "tokens": 2048
+ },
+ "curve_2025-06": {
+  "loss": 2.5646443367004395,
+  "ppl": 12.996035334789074,
+  "tokens": 2048
+ },
+ "curve_2025-07": {
+  "loss": 2.5509605407714844,
+  "ppl": 12.819411438067027,
+  "tokens": 2048
+ },
+ "curve_2025-08": {
+  "loss": 2.511626720428467,
+  "ppl": 12.324963031214407,
+  "tokens": 2048
+ },
+ "curve_2025-09": {
+  "loss": 2.3758561611175537,
+  "ppl": 10.760221726975416,
+  "tokens": 2048
+ },
+ "curve_2025-10": {
+  "loss": 2.530247926712036,
+  "ppl": 12.556618872018397,
+  "tokens": 2048
+ },
+ "curve_2025-11": {
+  "loss": 2.3571724891662598,
+  "ppl": 10.561047718950508,
+  "tokens": 2048
+ },
+ "curve_2025-12": {
+  "loss": 2.6260628700256348,
+  "ppl": 13.819254454412697,
+  "tokens": 2048
+ },
+ "curve_2026-01": {
+  "loss": 2.03009033203125,
+  "ppl": 7.614774185732811,
+  "tokens": 2048
+ },
+ "curve_2026-02": {
+  "loss": 2.2203116416931152,
+  "ppl": 9.210200701219312,
+  "tokens": 2048
+ },
+ "curve_2026-03": {
+  "loss": 2.486619472503662,
+  "ppl": 12.020571485212205,
+  "tokens": 2048
+ },
+ "curve_2026-04": {
+  "loss": 2.7813456058502197,
+  "ppl": 16.140725396456478,
+  "tokens": 2048
+ },
+ "curve_2026-05": {
+  "loss": 2.8730287551879883,
+  "ppl": 17.690517387284228,
+  "tokens": 2048
+ },
+ "curve_2026-06": {
+  "loss": 2.559612274169922,
+  "ppl": 12.930802737240256,
+  "tokens": 2048
+ },
+ "curve_2026-07": {
+  "loss": 2.554269790649414,
+  "ppl": 12.861904344848082,
+  "tokens": 2048
+ },
+ "curve_2026-08": {
+  "loss": 2.5743308067321777,
+  "ppl": 13.122532709024957,
+  "tokens": 2048
+ }
+}

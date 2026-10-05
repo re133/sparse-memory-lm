@@ -958,6 +958,10 @@ Rohdaten: `report/profile_k4_infer.json`.
   Byte-Stores. Dabei wurden auf der RX 9070 Zeilen benachbarter Programme gelöscht, bevor diese sie
   gelesen hatten (Folge: 60–133 gelesene Zeilen ohne Update). Der Test hat das gefunden. Die Maske wird
   jetzt nach dem Kernel mit einem `zero_()` gelöscht.
+  *Nachtrag 2026-10-05:* Minimale Nachbauten (`docs/rocm-issues/repro_byte_store.py`, 42 Varianten, dazu eine
+  Variante nah am damaligen Kernel) zeigen auf der RX 9070 **keinen** Fehler bei maskierten Byte-Stores. Die
+  damalige Ursache war deshalb sehr wahrscheinlich ein Fehler in meinem eigenen Kernel, nicht in ROCm oder Triton;
+  die alte Fassung ist nicht erhalten. Es wurde kein Fehlerbericht eingereicht.
 - **Tests:** 3 Schritte gegen `LazyRowAdam` bei 262k / 1M / 4M Zeilen, mit Clipping-Faktor:
   - ungelesene Zeilen bitgleich
   - gelesene Zeilen und beide Momente innerhalb rtol = atol = 1e-5

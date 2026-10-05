@@ -1,0 +1,9 @@
+transformers==5.18.0
+accelerate
+lm_eval==0.4.13
+mwparserfromhell==0.6.6
+huggingface_hub
+pyarrow
+numpy
+pytest
+# optional on CUDA: flash-linear-attention==0.5.2 with triton>=3.7.1 (Hopper)

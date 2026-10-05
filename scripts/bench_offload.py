@@ -138,7 +138,7 @@ def nll(model, val, windows, batch=1):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--variant", required=True, choices=["a-bf16", "a-q4", "b-bf16", "b-q4", "b-fp32", "c"])
-    ap.add_argument("--tables", default="/home/leon/smlm-tables/B-16M")
+    ap.add_argument("--tables", default=os.environ.get("SMLM_TABLES", os.path.join(ROOT, "data", "tables", "B-16M")))
     ap.add_argument("--ckpt", default=os.path.join(ROOT, "runs", "cloud", "B-16M-s0", "model.pt"))
     ap.add_argument("--cache_frac", type=float, default=0.3)
     ap.add_argument("--fifo_frac", type=float, default=0.0)

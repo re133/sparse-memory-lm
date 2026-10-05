@@ -13,8 +13,11 @@ import math
 import os
 
 import numpy as np
+
 import torch
 import torch.nn.functional as F
+
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 @torch.no_grad()
@@ -45,8 +48,8 @@ def summary(arts, rng):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model_dir", default="/home/leon/smlm-models/Qwen3.5-0.8B")
-    ap.add_argument("--data_dir", default="/home/leon/smlm-data/qwen_wiki")
+    ap.add_argument("--model_dir", default=os.environ.get("QWEN_DIR", os.path.join(ROOT, "models", "Qwen3.5-0.8B")))
+    ap.add_argument("--data_dir", default=os.environ.get("QWEN_DATA", os.path.join(ROOT, "data", "qwen_wiki")))
     ap.add_argument("--max_len", type=int, default=1024)
     ap.add_argument("--max_articles", type=int, default=300, help="for the reference sets")
     ap.add_argument("--out", required=True)

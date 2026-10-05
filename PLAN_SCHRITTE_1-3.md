@@ -356,7 +356,7 @@ Nur ein Entwurf, nichts wird veröffentlicht.
 
 1. **Guthaben:** den genauen Stand aus dem Dashboard.
 2. **Grafikkarte:** H200 SXM wie vorgegeben oder H100 SXM (empfohlen, ≈ 24 % billiger)?
-3. **ntfy:** In der ntfy-App das Thema **`<ntfy-topic>`** abonnieren. Es ist zufällig erzeugt, damit
+3. **ntfy:** In der ntfy-App das Thema **`<zufälliges-thema>`** abonnieren. Es ist zufällig erzeugt, damit
    niemand mitliest. Bisher war kein Thema eingetragen, deshalb wären Nachrichten ins Leere gegangen.
 4. **Schritt 3:**
    - Sub-Keys mittrainieren: ja oder nein?

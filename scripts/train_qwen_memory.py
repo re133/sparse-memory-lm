@@ -122,8 +122,8 @@ def evaluate(model, tokens, seq_len, max_windows=None, batch=4, mask=None):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model_dir", default="/home/leon/smlm-models/Qwen3.5-0.8B")
-    ap.add_argument("--data_dir", default="/home/leon/smlm-data/qwen_wiki")
+    ap.add_argument("--model_dir", default=os.environ.get("QWEN_DIR", os.path.join(ROOT, "models", "Qwen3.5-0.8B")))
+    ap.add_argument("--data_dir", default=os.environ.get("QWEN_DATA", os.path.join(ROOT, "data", "qwen_wiki")))
     ap.add_argument("--out_dir", required=True)
     ap.add_argument("--kind", choices=["memory", "dense", "none"], required=True)
     ap.add_argument("--n_keys", type=int, default=1024)

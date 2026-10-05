@@ -1,6 +1,6 @@
 """Step 2: split a trained memory checkpoint into the small rest and the value table as flat files (CPU only).
 
-  python scripts/convert_table.py --ckpt runs/cloud/B-16M-s0/model.pt --out /home/leon/smlm-tables/B-16M
+  python scripts/convert_table.py --ckpt runs/cloud/B-16M-s0/model.pt --out data/tables/B-16M   (ideally on an NVMe drive)
 
 Writes into --out (the NVMe):
   rest.pt           model_config + every weight except the value table (a few hundred MB at most)

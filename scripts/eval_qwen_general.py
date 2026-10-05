@@ -74,7 +74,7 @@ def chat(model, tok, max_new=200):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model_dir", default="/home/leon/smlm-models/Qwen3.5-0.8B")
+    ap.add_argument("--model_dir", default=os.environ.get("QWEN_DIR", os.path.join(ROOT, "models", "Qwen3.5-0.8B")))
     ap.add_argument("--addons", default=None)
     ap.add_argument("--limit", type=int, default=500)
     ap.add_argument("--batch_size", type=int, default=16)

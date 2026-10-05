@@ -1,8 +1,8 @@
 """Step 3 data: Wikipedia articles Qwen3.5 cannot know (created after its training) and articles it surely knows,
 tokenised with Qwen's tokenizer.
 
-  .venv-qwen/bin/python scripts/prepare_qwen_data.py --dump_dir /home/leon/smlm-data/enwiki-20260901 \
-      --out /home/leon/smlm-data/qwen_wiki
+  .venv-qwen/bin/python scripts/prepare_qwen_data.py --dump_dir data/enwiki-20260901 \
+      --out data/qwen_wiki
 
 Sources
   * new: English Wikipedia dump 20260901 (dumps.wikimedia.org), only the last part files of
@@ -47,7 +47,7 @@ SEED = 20260901
 MONTHS = [f"{y}-{m:02d}" for y in (2025, 2026) for m in range(1, 13)][:22]       # 2025-01 ... 2026-10
 DROP_SECTIONS = {"references", "external links", "see also", "notes", "further reading", "sources",
                  "bibliography", "citations", "footnotes", "notes and references", "references and notes"}
-UA = "smlm-research/0.1 (you@example.com)"
+UA = "smlm-research/0.1 (" + os.environ.get("SMLM_CONTACT", "set SMLM_CONTACT to an e-mail address") + ")"  # Wikimedia API policy: contact in the User-Agent
 
 
 def month_thresholds(cache):
@@ -181,7 +181,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dump_dir", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--tokenizer", default="/home/leon/smlm-models/Qwen3.5-0.8B")
+    ap.add_argument("--tokenizer", default=os.environ.get("QWEN_DIR", os.path.join(ROOT, "models", "Qwen3.5-0.8B")))
     ap.add_argument("--train_from", default="2026-03")
     ap.add_argument("--curve_per_month", type=int, default=150)
     ap.add_argument("--known_same_part", default=None,

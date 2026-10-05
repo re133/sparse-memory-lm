@@ -1,7 +1,8 @@
 # Sparse-Memory-LM
 
-*Draft README for the public repository — not published yet (license still to be chosen). The full lab notebook
-with every pre-registered criterion is `REPORT.md` (German).*
+*A small, fully documented research project, run on one consumer AMD GPU (RX 9070) plus rented cloud GPUs. The full
+lab notebook with every pre-registered criterion, all numbers and all mishaps is [`REPORT.md`](REPORT.md) (German);
+[`final.md`](final.md) is a German summary.*
 
 How far does a **product-key memory** — a huge table of learned vectors of which only a few rows are read per
 token — get a *small* language model? This project measures it on a 21 M-parameter Llama-style model trained on
@@ -77,7 +78,17 @@ python -m venv --system-site-packages .venv && .venv/bin/pip install -r requirem
 
 - **Bigger tables:** B-4M-sparse needs ≈ 29 GB of GPU memory for training, B-16M-sparse ≈ 101 GB. The cloud
   queue for them is described in `CLOUD.md`.
-- **Inference outside the GPU:** `scripts/convert_table.py` and `scripts/bench_offload.py`.
+- **Inference outside the GPU:** `scripts/convert_table.py` (checkpoint → bf16 / 4-bit table files) and
+  `scripts/bench_offload.py --variant a-bf16|a-q4|b-bf16|b-q4|b-fp32|c` (table in VRAM, in RAM, or as an mmap'ed
+  4-bit file); default table location `data/tables/B-16M` or `SMLM_TABLES`.
+- **Qwen add-on (step 3):** separate environment with `pip install -r requirements-qwen.txt`. Then:
+  - `scripts/prepare_qwen_data.py`: newest Wikipedia articles by creation month (set `SMLM_CONTACT` for the
+    Wikimedia API).
+  - `scripts/make_fact_cloze.py`: fact test.
+  - `scripts/train_qwen_memory.py --kind memory|dense|none`.
+  - `scripts/eval_fact_cloze.py`, `scripts/eval_qwen_general.py`, `scripts/qwen_step3_eval.py`.
+  - The model is expected in `models/Qwen3.5-0.8B` (or `QWEN_DIR`), the data in `data/qwen_wiki` (or `QWEN_DATA`).
+  - The cloud queue for it is `cloud/setup_qwen.sh` + `scripts/run_qwen.py`.
 
 ## Honest limits
 
@@ -94,12 +105,48 @@ python -m venv --system-site-packages .venv && .venv/bin/pip install -r requirem
   reads per 192-byte row; smarter layouts or I/O paths are not explored.
 - **Hyperparameters:** taken from the baseline. The learning rate was not tuned per model size.
 
+## Notes for AMD / ROCm users
+
+Everything here runs on ROCm (RX 9070, gfx1201, ROCm 7.2, Triton 3.5) and on CUDA (H100 / H200) with identical
+results. Two things mattered on the consumer AMD GPU:
+- **Atomics:** fp32 `tl.atomic_add` compiles to the native `global_atomic_add_f32`, but is ≈ 8× slower than plain stores
+  (`docs/rocm-issues/repro_atomic_add.py`). Kernels that accumulate rows therefore sort by row and use plain
+  read-add-write for rows owned by one program, with atomics only at program borders (17 ms → 2.7 ms).
+- **Batch-1 decoding is launch-bound:** ≈ 0.4 ms of CPU time per memory layer. Replaying a HIP graph of the memory
+  layer, not faster kernels, fixed it.
+
+Not ROCm issues, for the record:
+- An early optimizer kernel corrupted a byte mask; minimal reproducers (`docs/rocm-issues/repro_byte_store.py`) do not
+  show any byte-store problem, so this was most likely a bug in our own kernel.
+- Qwen3.5 (Gated DeltaNet, PyTorch fallback) crashed twice under ROCm in this setup (lm-eval batches, gradient
+  checkpointing); these were not reduced to a minimal case.
+
+## Related work
+
+- Lample et al. 2019 introduced product-key memory layers.
+- Berges et al. 2024 (*Memory Layers at Scale*) showed that memory layers scaled to billions of parameters beat
+  dense models at equal compute, with a shared table and the Memory+ ("swilu") output path that this project
+  follows.
+- This repository is a small-scale, open and reproducible counterpart of those results. It adds:
+  - an equivalence curve against dense models trained on the same data;
+  - measurements of running the table from RAM or an NVMe SSD on consumer hardware;
+  - Triton kernels for ROCm and CUDA;
+  - a controlled negative result for retrofitting a memory table onto a frozen pretrained model, against a
+    dense add-on of equal compute and with a fact-recall test.
+
+## Data and licenses
+
+- **Code:** Apache License 2.0 ([`LICENSE`](LICENSE)).
+- **Data, not redistributed (downloaded and tokenised by the scripts):** WikiText-103 (Salesforce, CC BY-SA),
+  English Wikipedia (wikimedia/wikipedia 20231101.en and the enwiki dump of 2026-09-01, CC BY-SA 4.0).
+- **[`data/qwen_fact_cloze.jsonl`](data/qwen_fact_cloze.jsonl):** contains short excerpts of English Wikipedia
+  articles (titles and page ids included for attribution). Licensed CC BY-SA 4.0, © Wikipedia contributors.
+- **Qwen3.5-0.8B:** Apache License 2.0 (Qwen Team), used unmodified and not redistributed.
+- **Checkpoints:** not in the repository.
+
 ## References
 
 - G. Lample et al., *Large Memory Layers with Product Keys*, NeurIPS 2019.
 - V.-P. Berges et al., *Memory Layers at Scale*, 2024 (and the `facebookresearch/memory` / lingua reference code).
 - Qwen Team, *Qwen3.5* (Qwen3.5-0.8B, Apache 2.0), 2026.
 
-## License
-
-(to be decided by the repository owner before publishing)
