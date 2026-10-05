@@ -1,0 +1,11 @@
+Loading weights:   0%|          | 0/320 [00:00<?, ?it/s]Loading weights: 100%|██████████| 320/320 [00:00<00:00, 5383.68it/s]
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+[transformers] `causal_conv1d_update` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+train/all              39/ 500 =   7.8 %  [5.8, 10.5]
+train/name             19/ 200 =   9.5 %  [6.2, 14.4]
+train/date/year         5/ 150 =   3.3 %  [1.4, 7.6]
+train/number           15/ 150 =  10.0 %  [6.2, 15.8]
+heldout/all            40/ 500 =   8.0 %  [5.9, 10.7]
+heldout/name           22/ 200 =  11.0 %  [7.4, 16.1]
+heldout/date/year       8/ 150 =   5.3 %  [2.7, 10.2]
+heldout/number         10/ 150 =   6.7 %  [3.7, 11.8]

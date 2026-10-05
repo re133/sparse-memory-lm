@@ -36,3 +36,7 @@
 2026-10-05 08:54:05 start QD-s0: scripts/train_qwen_memory.py --kind dense --out_dir /workspace/AngryAnt/runs/qwen_cloud/QD-s0 --model_dir /workspace/models/Qwen3.5-0.8B --data_dir /workspace/AngryAnt/data/qwen_wiki --micro_bs 4
 2026-10-05 08:57:13 [manual] QT_general re-run (autocast fix 786cb56) and Q_general_ac started in tmux evals, parallel to QD-s0
 2026-10-05 09:58:05 end QD-s0 rc=0  (64.0 min)
+2026-10-05 09:58:12 ntfy: Qwen QD-s0: fertig (Pod 3.61 h ≈ 12.61 $)
+2026-10-05 09:58:16 backup ok: 1 files verified on storagebox:smlm
+2026-10-05 09:58:16 start QD_facts: scripts/eval_fact_cloze.py --model_dir /workspace/models/Qwen3.5-0.8B --addons /workspace/AngryAnt/runs/qwen_cloud/QD-s0/addons.pt --out /workspace/AngryAnt/runs/qwen_cloud/QD/facts.json
+2026-10-05 10:07:16 end QD_facts rc=0  (9.0 min)
