@@ -66,7 +66,7 @@ def git_push(message, paths):
         subprocess.run(["git", "add", "-f", p], cwd=ROOT, capture_output=True)
     subprocess.run(["git", "commit", "-q", "-m", message + TRAILER], cwd=ROOT, capture_output=True)
     for attempt in range(5):
-        # someone may have pushed to main meanwhile (CLOUD.md asks not to); rebase the result commit onto it
+        # someone may have pushed to main meanwhile (docs/notes/CLOUD.md asks not to); rebase the result commit onto it
         subprocess.run(["git", "pull", "-q", "--rebase", "--autostash", "origin", "main"], cwd=ROOT,
                        capture_output=True)
         r = subprocess.run(["git", "push", "-q", "origin", "HEAD:main"], cwd=ROOT, capture_output=True, text=True)

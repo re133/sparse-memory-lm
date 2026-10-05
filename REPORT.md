@@ -352,7 +352,7 @@ belegt):
 1. **Flache Gewichtung innerhalb der Top-k.** Jeder Kopf mischt 28–30 von 32 Einträgen fast gleich
    stark; die Schicht ruft kaum gezielt ab. Kandidaten: Die Query-BatchNorm fixiert die Query-Skala, und
    Weight Decay zieht die Keys klein. Dafür ist `v2-sharpness` vorbereitet (v2a: kein Weight Decay auf
-   den Keys; v2b: zusätzlich lernbare Temperatur), siehe `V2_SHARPNESS.md` auf dem Branch.
+   den Keys; v2b: zusätzlich lernbare Temperatur), siehe `docs/notes/V2_SHARPNESS.md`.
 2. **Datenregime.** Der Vorsprung wächst mit den Daten (2 % → 4,4 %), sättigt aber ab ≈ 240 M Tokens,
    während das Training dieselben 118 M Tokens wiederholt. Die Paper zeigen den Nutzen bei Hunderten
    Milliarden Tokens und vor allem auf faktenlastigen QA-Aufgaben; Perplexity auf WikiText-103 misst
@@ -1087,7 +1087,7 @@ Speicherort und das Stoppen am Ende.
 - **Guthaben:** Fällt es auf 0 $, werden Pods gestoppt, und Pods ohne Netzwerk-Volume **samt Daten
   gelöscht**. Vorher genug aufladen (≥ 40 $).
 
-**Gebaut** (alles in Git, Anleitung `CLOUD.md`):
+**Gebaut** (alles in Git, Anleitung `docs/notes/CLOUD.md`):
 
 - **`cloud/setup.sh`:** ein Befehl im Pod.
   - Ablauf: Pakete, GPU-Check, Deploy-Key + Klonen nach `/workspace`, Python-Umgebung (PyTorch-CUDA-Wheels
@@ -1176,7 +1176,7 @@ wird, und stoppt den Pod bei einem Fehler:
   ein Pod-Schlüssel den eigenen Pod stoppen darf, steht so in der Runpod-Doku („Schedule a stop“), ist aber
   nicht ausprobiert.
 
-**Bereit für die Cloud: ja.** Ablauf in `CLOUD.md`: Konto aufladen, Pod anlegen, Paket hochladen,
+**Bereit für die Cloud: ja.** Ablauf in `docs/notes/CLOUD.md`: Konto aufladen, Pod anlegen, Paket hochladen,
 `setup.sh` starten.
 
 **Durchführung (2026-10-03/04, Runpod Pod `7yajarg09lrzdn`, 1 × H200 SXM, EUR-IS-4):**

@@ -2,7 +2,7 @@
 # One-command setup on a fresh Runpod Pod (1 x H200, "Runpod PyTorch" template, volume disk at /workspace),
 # then the queue.
 #
-#   bash /workspace/smlm-cloud-kit/setup.sh          (run inside tmux; see CLOUD.md)
+#   bash /workspace/smlm-cloud-kit/setup.sh          (run inside tmux; see docs/notes/CLOUD.md)
 #
 # Everything that must survive a Pod stop lives on the volume /workspace: repository, Python environment, data,
 # checkpoints, setup state. The container disk (apt packages, ~/.ssh) is reset on every start, so those steps run
@@ -17,7 +17,7 @@
 # On any failure: log pushed to GitHub (if possible), phone notification (ntfy, optional), Pod stopped through
 # the Runpod API (an idle H200 keeps costing money). Nothing is deleted.
 set -euo pipefail
-if [ "$(id -u)" != "0" ]; then echo "please run as root, see CLOUD.md"; exit 1; fi
+if [ "$(id -u)" != "0" ]; then echo "please run as root, see docs/notes/CLOUD.md"; exit 1; fi
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SMLM_KIT="$KIT"
 . "$KIT/cloud.env"

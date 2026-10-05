@@ -10,3 +10,6 @@ runs/**/model.pt
 runs/**/*.npy
 runs/**/*.npz
 runs/**/*.pt
+
+# personal summary, not part of the public repo
+/final.md

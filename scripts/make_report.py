@@ -343,7 +343,7 @@ def stage1b_quicktest(runs):
 def paired_vs_b(runs):
     """Variant vs. B at the same init seed (identical initial weights and token stream), plus softmax
     sharpness on the full validation set (diagnostics_fullval.json, same script for all runs).
-    Gates fixed before the v2b_ep3 runs (V2_SHARPNESS.md):
+    Gates fixed before the v2b_ep3 runs (docs/notes/V2_SHARPNESS.md):
       fix greift   : effective mixed entries per head <= 0.9 x B, for both seeds
       klar besser  : variant better than B at both seeds and mean improvement > 2*s,
                      s = max seed spread (val PPL) of B and of the variant"""
