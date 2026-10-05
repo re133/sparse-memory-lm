@@ -303,7 +303,7 @@ If you have GPUs to spare, AMD Instinct or anything else, I'd love to hear from 
 MI350X, H100 and H200 without changes. I'd run it the same way as here: success criteria written down before each
 run, and the results published whatever they turn out to be.
 
-**Contact:** open an issue in this repo.
+**Contact:** fechner.leon [at] protonmail.com, Discord `fechyyyyy`, or open an issue in this repo.
 
 ## Related work
 
