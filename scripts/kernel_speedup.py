@@ -1,4 +1,4 @@
-"""Measure what the Triton kernels bring on your GPU, in about two minutes and without downloading any data.
+"""Measure what the Triton kernels bring on your GPU. Under a minute on my RX 9070, no data needed.
 
   python scripts/kernel_speedup.py                 # B-1M (1M-row table), plus the same model without a table
 
