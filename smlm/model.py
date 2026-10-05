@@ -81,8 +81,14 @@ class Attention(nn.Module):
                 k = torch.cat([kv_cache["k"], k], dim=2)
                 v = torch.cat([kv_cache["v"], v], dim=2)
             kv_cache["k"], kv_cache["v"] = k, v
-        # causal mask only needed when queries cover the whole key range (training / prefill)
-        y = F.scaled_dot_product_attention(q, k, v, is_causal=(T > 1 and k.shape[2] == T))
+        S = k.shape[2]
+        if T > 1 and S > T:
+            # several new tokens after a filled cache: token i may see the cache and new tokens 0..i
+            mask = torch.ones(T, S, dtype=torch.bool, device=q.device).tril(S - T)
+            y = F.scaled_dot_product_attention(q, k, v, attn_mask=mask)
+        else:
+            # training / prefill (queries cover all keys) or a single new token (sees everything)
+            y = F.scaled_dot_product_attention(q, k, v, is_causal=T > 1)
         return self.wo(y.transpose(1, 2).reshape(B, T, C))
 
 

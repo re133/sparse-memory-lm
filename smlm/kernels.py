@@ -185,9 +185,11 @@ if HAVE_TRITON:
         acc = tl.zeros([BLOCK_D], dtype=tl.float32)
         for j0 in range(0, K, BLOCK_J):
             j = j0 + tl.arange(0, BLOCK_J)
-            r = tl.load(idx_ptr + n * K + j).to(tl.int64)
-            w = tl.load(w_ptr + n * K + j).to(tl.float32)
-            v = tl.load(table_ptr + r[:, None] * D + d[None, :], mask=dm[None, :], other=0.0).to(tl.float32)
+            jm = j < K                                   # last block when K is not a multiple of BLOCK_J
+            r = tl.load(idx_ptr + n * K + j, mask=jm, other=0).to(tl.int64)
+            w = tl.load(w_ptr + n * K + j, mask=jm, other=0.0).to(tl.float32)
+            v = tl.load(table_ptr + r[:, None] * D + d[None, :], mask=jm[:, None] & dm[None, :],
+                        other=0.0).to(tl.float32)
             acc += tl.sum(w[:, None] * v, axis=0)
         tl.store(out_ptr + n * D + d, acc, mask=dm)
 
@@ -229,8 +231,7 @@ def bag_forward(indices, weights, table, block_j=32, block_d=128):
     N, K = indices.shape
     D = table.shape[1]
     out = torch.empty(N, D, dtype=torch.float32, device=table.device)
-    bj = min(block_j, K)
-    assert K % bj == 0
+    bj = min(block_j, triton.next_power_of_2(K))
     _bag_fwd_kernel[(N, triton.cdiv(D, block_d))](indices.contiguous(), weights.contiguous(), table, out,
                                                   K=K, D=D, BLOCK_J=bj, BLOCK_D=block_d, num_warps=4)
     return out
@@ -322,9 +323,12 @@ if HAVE_TRITON:
             acc_hi = tl.zeros([BLOCK_D], dtype=tl.float32)
             for j0 in range(0, K, BLOCK_J):
                 j = j0 + tl.arange(0, BLOCK_J)
-                r = tl.load(idx_ptr + n * K + j).to(tl.int64)
-                ws = tl.load(w_ptr + n * K + j).to(tl.float32) * tl.load(scale_ptr + r).to(tl.float32)
-                byte = tl.load(table_ptr + r[:, None] * DH + d[None, :], mask=dm[None, :], other=0).to(tl.int32)
+                jm = j < K                               # last block when K is not a multiple of BLOCK_J
+                r = tl.load(idx_ptr + n * K + j, mask=jm, other=0).to(tl.int64)
+                ws = (tl.load(w_ptr + n * K + j, mask=jm, other=0.0).to(tl.float32)
+                      * tl.load(scale_ptr + r, mask=jm, other=0.0).to(tl.float32))
+                byte = tl.load(table_ptr + r[:, None] * DH + d[None, :], mask=jm[:, None] & dm[None, :],
+                               other=0).to(tl.int32)
                 lo = ((byte & 15) - 8).to(tl.float32)
                 hi = ((byte >> 4) - 8).to(tl.float32)
                 acc_lo += tl.sum(ws[:, None] * lo, axis=0)
@@ -337,9 +341,11 @@ if HAVE_TRITON:
             acc = tl.zeros([BLOCK_D], dtype=tl.float32)
             for j0 in range(0, K, BLOCK_J):
                 j = j0 + tl.arange(0, BLOCK_J)
-                r = tl.load(idx_ptr + n * K + j).to(tl.int64)
-                w = tl.load(w_ptr + n * K + j).to(tl.float32)
-                v = tl.load(table_ptr + r[:, None] * D + d[None, :], mask=dm[None, :], other=0.0).to(tl.float32)
+                jm = j < K
+                r = tl.load(idx_ptr + n * K + j, mask=jm, other=0).to(tl.int64)
+                w = tl.load(w_ptr + n * K + j, mask=jm, other=0.0).to(tl.float32)
+                v = tl.load(table_ptr + r[:, None] * D + d[None, :], mask=jm[:, None] & dm[None, :],
+                            other=0.0).to(tl.float32)
                 acc += tl.sum(w[:, None] * v, axis=0)
             cols = (d,)
             accs = (acc,)
@@ -362,7 +368,7 @@ def bag_infer(indices, weights, table, scales=None, pre=None, out_bf16=False, bl
     q4 = scales is not None
     D = table.shape[1] * (2 if q4 else 1)
     out = torch.empty(N, D, dtype=torch.bfloat16 if out_bf16 else torch.float32, device=table.device)
-    bj = min(block_j, K)
+    bj = min(block_j, triton.next_power_of_2(K))
     block_d = block_d or (64 if q4 else 128)
     width = D // 2 if q4 else D
     grid = (N, triton.cdiv(width, block_d))

@@ -101,9 +101,36 @@ def test_kv_cache_decode_matches_full_forward(mem):
     torch.testing.assert_close(torch.cat(step_logits, 1), full)
 
 
+@pytest.mark.parametrize("mem", [False, True])
+def test_kv_cache_chunks_match_full_forward(mem):
+    """Several new tokens at once after a filled cache (chunked prefill): each must only see the cache and the
+    new tokens before it. Changing the last token of a chunk must not change the earlier ones."""
+    model = tiny_model(mem).eval().double()
+    x = torch.randint(0, 128, (2, 30))
+    with torch.no_grad():
+        full = model(x)
+        caches = [dict() for _ in range(model.cfg.n_layers)]
+        chunks = [model(x[:, a:a + n], kv_caches=caches, pos0=a) for a, n in ((0, 10), (10, 5), (15, 1), (16, 14))]
+        torch.testing.assert_close(torch.cat(chunks, 1), full)
+        y = x.clone()
+        y[:, 14] = (y[:, 14] + 1) % 128
+        caches = [dict() for _ in range(model.cfg.n_layers)]
+        model(y[:, :10], kv_caches=caches, pos0=0)
+        torch.testing.assert_close(model(y[:, 10:15], kv_caches=caches, pos0=10)[:, :4], chunks[1][:, :4])
+
+
 def test_param_counts_and_macs():
     model = tiny_model(True)
     pc = model.param_counts()
     assert pc["memory_values"] == 16 ** 2 * 32
     assert pc["non_embedding"] == pc["dense_body"] + pc["memory_values"]
     assert pc["active_non_embedding_per_token"] == pc["dense_body"] + 2 * 4 * 32
+
+
+def test_triton_rejects_unsupported_shapes():
+    """The Triton selection kernel needs power-of-two n_keys (<= 65536) and knn: other sizes fail early with a
+    clear message instead of deep inside the kernel; the PyTorch path takes any size."""
+    for n_keys, knn in ((24, 4), (16, 5)):
+        with pytest.raises(ValueError, match="powers of two"):
+            ProductKeyMemory(32, 32, n_keys=n_keys, knn=knn, k_dim=16, impl="triton")
+        ProductKeyMemory(32, 32, n_keys=n_keys, knn=knn, k_dim=16, impl="torch")

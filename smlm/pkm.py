@@ -26,6 +26,10 @@ from torch import nn
 from .sparse_values import row_sparse_embedding_bag
 
 
+def _pow2(n):
+    return n > 0 and n & (n - 1) == 0
+
+
 class ProductKeyMemory(nn.Module):
     def __init__(self, d_in, d_out, n_keys=512, heads=4, knn=32, k_dim=256, v_dim=-1,
                  query_norm="batchnorm", swilu=True, value_impl="embedding_bag",
@@ -42,6 +46,11 @@ class ProductKeyMemory(nn.Module):
         assert value_grad in ("dense", "row_sparse")
         self.value_grad = value_grad                    # "row_sparse": see smlm/sparse_values.py
         assert impl in ("torch", "triton")
+        if impl == "triton" and not (_pow2(n_keys) and n_keys <= 65536 and _pow2(knn)):
+            # the selection kernel (kernels.pk_select) packs key indices into 16 bits and works on whole
+            # power-of-two blocks
+            raise ValueError(f"mem_impl='triton' needs n_keys and knn to be powers of two and n_keys <= 65536, "
+                             f"got n_keys={n_keys}, knn={knn}. Use mem_impl='torch' for other sizes.")
         self.impl = impl                                # "triton": kernels in smlm/kernels.py
         self.score_scale_init = score_scale_init
 

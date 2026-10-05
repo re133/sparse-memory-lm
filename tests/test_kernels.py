@@ -87,18 +87,20 @@ def test_bag_backward_rows_matches_reference(rows, D, N):
         torch.cuda.empty_cache()
 
 
-def tiny(impl, seed=0):
+def tiny(impl, seed=0, heads=2):
     cfg = ModelConfig(vocab_size=128, d_model=32, n_layers=4, n_heads=4, ffn_hidden=64, max_seq_len=64,
-                      mem_layers=[0, 2, 3], mem_n_keys=16, mem_heads=2, mem_knn=4, mem_k_dim=16,
+                      mem_layers=[0, 2, 3], mem_n_keys=16, mem_heads=heads, mem_knn=4, mem_k_dim=16,
                       mem_share_values=True, mem_value_grad="row_sparse", mem_impl=impl)
     torch.manual_seed(seed)
     return Transformer(cfg).to(DEVICE)
 
 
-def test_model_gradients_triton_equal_torch():
+@pytest.mark.parametrize("heads", [2, 3])
+def test_model_gradients_triton_equal_torch(heads):
     """Whole model (3 memory layers sharing one table, 2 micro-batches): every gradient and the row
-    accumulator agree between mem_impl='torch' and 'triton'."""
-    ref, ker = tiny("torch"), tiny("triton")
+    accumulator agree between mem_impl='torch' and 'triton'. heads=3: 12 lookups per token, so the bag kernel's
+    last block is only partly used."""
+    ref, ker = tiny("torch", heads=heads), tiny("triton", heads=heads)
     ker.load_state_dict(ref.state_dict())
     gen = torch.Generator().manual_seed(1)
     batches = [torch.randint(0, 128, (2, 17), generator=gen).to(DEVICE) for _ in range(2)]
@@ -212,6 +214,31 @@ def test_bag_infer_matches_reference(rows, D, N, kind):
     assert out.dtype == torch.bfloat16
     scale = float(ref2.abs().max())                        # bf16 output: within 1 bf16 ulp of the reference
     torch.testing.assert_close(out.float(), ref2.to(torch.bfloat16).float(), rtol=2 ** -7, atol=2 ** -8 * scale)
+
+
+@pytest.mark.parametrize("K", [96, 48, 40])
+@pytest.mark.parametrize("kind", ["fp32", "bf16", "q4"])
+def test_bag_kernels_partial_last_block(K, kind):
+    """Lookups per token that are not a multiple of the kernels' block size (e.g. 3 heads x 32 = 96 with
+    blocks of 64): the last block must be masked, otherwise it reads the next token's indices and weights."""
+    from smlm.kernels import bag_infer, dequantize_q4, quantize_q4
+    gen = torch.Generator().manual_seed(7)
+    rows, D, N = 4096, 64, 32
+    table = (torch.randn(rows, D, generator=gen) * D ** -0.5).to(DEVICE)
+    idx = torch.randint(0, rows, (N, K), generator=gen).to(DEVICE)
+    w = torch.softmax(torch.randn(N, K, generator=gen), -1).to(DEVICE)
+    if kind == "fp32":
+        t, sc, ref_t = table, None, table
+    elif kind == "bf16":
+        t, sc = table.to(torch.bfloat16), None
+        ref_t = t.float()
+    else:
+        t, sc = quantize_q4(table)
+        ref_t = dequantize_q4(t, sc)
+    ref = torch.nn.functional.embedding_bag(idx, ref_t, per_sample_weights=w, mode="sum")
+    close(bag_infer(idx, w, t, sc), ref, "inference bag")
+    if kind != "q4":
+        close(bag_forward(idx, w, t), ref, "training bag")
 
 
 def test_q4_equals_quantisation_study():
