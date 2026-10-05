@@ -1,0 +1,292 @@
+{
+ "status": "done",
+ "args": {
+  "model_dir": "/workspace/models/Qwen3.5-0.8B",
+  "data_dir": "/workspace/AngryAnt/data/qwen_wiki",
+  "out_dir": "/workspace/AngryAnt/runs/qwen_cloud/Q",
+  "kind": "none",
+  "n_keys": 1024,
+  "layers": "5,11,17",
+  "epochs": 2.0,
+  "max_steps": null,
+  "seq_len": 2048,
+  "batch_seqs": 16,
+  "micro_bs": 4,
+  "lr": 0.0006,
+  "value_lr": 0.0024,
+  "weight_decay": 0.1,
+  "warmup_frac": 0.05,
+  "min_lr_ratio": 0.1,
+  "clip": 1.0,
+  "seed": 0,
+  "data_seed": 1234,
+  "eval_every_tokens": 20000000.0,
+  "eval_windows": null,
+  "eval_only": true,
+  "save": 1,
+  "ce_chunk": 1024,
+  "grad_ckpt": 0
+ },
+ "addon_cfg": null,
+ "trainable_params": 0,
+ "data": {
+  "train_new": {
+   "n_articles": 79864,
+   "n_tokens": 55274538,
+   "n_words": 35722569
+  },
+  "val_new": {
+   "n_articles": 1500,
+   "n_tokens": 1016794,
+   "n_words": 670832
+  },
+  "mem_probe": {
+   "n_articles": 1000,
+   "n_tokens": 656546,
+   "n_words": 433765
+  },
+  "val_known": {
+   "n_articles": 1917,
+   "n_tokens": 1544789,
+   "n_words": 990651
+  },
+  "curve_2025-01": {
+   "n_articles": 150,
+   "n_tokens": 131807,
+   "n_words": 86863
+  },
+  "curve_2025-02": {
+   "n_articles": 150,
+   "n_tokens": 160314,
+   "n_words": 88184
+  },
+  "curve_2025-03": {
+   "n_articles": 150,
+   "n_tokens": 116863,
+   "n_words": 75390
+  },
+  "curve_2025-04": {
+   "n_articles": 150,
+   "n_tokens": 181480,
+   "n_words": 99760
+  },
+  "curve_2025-05": {
+   "n_articles": 150,
+   "n_tokens": 116095,
+   "n_words": 74443
+  },
+  "curve_2025-06": {
+   "n_articles": 150,
+   "n_tokens": 104523,
+   "n_words": 69500
+  },
+  "curve_2025-07": {
+   "n_articles": 150,
+   "n_tokens": 115965,
+   "n_words": 75118
+  },
+  "curve_2025-08": {
+   "n_articles": 150,
+   "n_tokens": 105170,
+   "n_words": 69127
+  },
+  "curve_2025-09": {
+   "n_articles": 150,
+   "n_tokens": 97231,
+   "n_words": 65240
+  },
+  "curve_2025-10": {
+   "n_articles": 150,
+   "n_tokens": 104046,
+   "n_words": 68833
+  },
+  "curve_2025-11": {
+   "n_articles": 150,
+   "n_tokens": 94526,
+   "n_words": 62462
+  },
+  "curve_2025-12": {
+   "n_articles": 150,
+   "n_tokens": 77554,
+   "n_words": 50438
+  },
+  "curve_2026-01": {
+   "n_articles": 150,
+   "n_tokens": 89314,
+   "n_words": 58870
+  },
+  "curve_2026-02": {
+   "n_articles": 150,
+   "n_tokens": 93673,
+   "n_words": 61116
+  },
+  "curve_2026-03": {
+   "n_articles": 150,
+   "n_tokens": 113879,
+   "n_words": 78133
+  },
+  "curve_2026-04": {
+   "n_articles": 150,
+   "n_tokens": 96775,
+   "n_words": 62280
+  },
+  "curve_2026-05": {
+   "n_articles": 150,
+   "n_tokens": 107585,
+   "n_words": 72174
+  },
+  "curve_2026-06": {
+   "n_articles": 150,
+   "n_tokens": 185451,
+   "n_words": 91518
+  },
+  "curve_2026-07": {
+   "n_articles": 150,
+   "n_tokens": 90922,
+   "n_words": 60588
+  },
+  "curve_2026-08": {
+   "n_articles": 150,
+   "n_tokens": 106026,
+   "n_words": 72974
+  },
+  "val_known_same": {
+   "n_articles": 1500,
+   "n_tokens": 1615466,
+   "n_words": 1071598,
+   "source": "enwiki-20260901-pages-articles-multistream10.xml-p4045403p5399366.bz2"
+  }
+ },
+ "started": "2026-10-05 06:44:38",
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "results": {
+  "val_new": {
+   "loss": 2.5631702398100207,
+   "ppl": 12.976892032521933,
+   "tokens": 1015808,
+   "knowledge_ppl": 16.32496570849343,
+   "knowledge_tokens": 234725
+  },
+  "val_known": {
+   "loss": 2.6343904420614876,
+   "ppl": 13.934815796230259,
+   "tokens": 1544192,
+   "knowledge_ppl": 17.312710327331708,
+   "knowledge_tokens": 369809
+  },
+  "val_known_same": {
+   "loss": 2.6590150818606926,
+   "ppl": 14.28221535609941,
+   "tokens": 1613824,
+   "knowledge_ppl": 18.981463793129187,
+   "knowledge_tokens": 366461
+  },
+  "mem_probe": {
+   "loss": 2.5924266412854196,
+   "ppl": 13.362157455824585,
+   "tokens": 655360,
+   "knowledge_ppl": 17.023785496354527,
+   "knowledge_tokens": 148617
+  },
+  "curve_2025-01": {
+   "loss": 2.6154834777116776,
+   "ppl": 13.673825770011312,
+   "tokens": 131072
+  },
+  "curve_2025-02": {
+   "loss": 1.8134982738739405,
+   "ppl": 6.1318608840624105,
+   "tokens": 159744
+  },
+  "curve_2025-03": {
+   "loss": 2.5297189177128305,
+   "ppl": 12.549978064313892,
+   "tokens": 116736
+  },
+  "curve_2025-04": {
+   "loss": 1.8029106963764538,
+   "ppl": 6.06728180301911,
+   "tokens": 180224
+  },
+  "curve_2025-05": {
+   "loss": 2.5140663300241743,
+   "ppl": 12.35506783634662,
+   "tokens": 114688
+  },
+  "curve_2025-06": {
+   "loss": 2.589814092598709,
+   "ppl": 13.327293730331814,
+   "tokens": 104448
+  },
+  "curve_2025-07": {
+   "loss": 2.566927671432495,
+   "ppl": 13.025743537626438,
+   "tokens": 114688
+  },
+  "curve_2025-08": {
+   "loss": 2.566600799560547,
+   "ppl": 13.021486484246184,
+   "tokens": 104448
+  },
+  "curve_2025-09": {
+   "loss": 2.662919044494629,
+   "ppl": 14.338081570030921,
+   "tokens": 96256
+  },
+  "curve_2025-10": {
+   "loss": 2.641388416290283,
+   "ppl": 14.032673280779617,
+   "tokens": 102400
+  },
+  "curve_2025-11": {
+   "loss": 2.576944164607836,
+   "ppl": 13.156871433373105,
+   "tokens": 94208
+  },
+  "curve_2025-12": {
+   "loss": 2.6234123320192904,
+   "ppl": 13.782674494963915,
+   "tokens": 75776
+  },
+  "curve_2026-01": {
+   "loss": 2.6058061067448106,
+   "ppl": 13.542137312261087,
+   "tokens": 88064
+  },
+  "curve_2026-02": {
+   "loss": 2.5279874642690023,
+   "ppl": 12.528267162706129,
+   "tokens": 92160
+  },
+  "curve_2026-03": {
+   "loss": 2.7028331236405805,
+   "ppl": 14.921947617772691,
+   "tokens": 112640
+  },
+  "curve_2026-04": {
+   "loss": 2.5733831689712847,
+   "ppl": 13.110103191781436,
+   "tokens": 96256
+  },
+  "curve_2026-05": {
+   "loss": 2.6971251597771277,
+   "ppl": 14.837016303030243,
+   "tokens": 106496
+  },
+  "curve_2026-06": {
+   "loss": 1.9805840757158069,
+   "ppl": 7.246974531105791,
+   "tokens": 184320
+  },
+  "curve_2026-07": {
+   "loss": 2.6384952068328857,
+   "ppl": 13.992132492506547,
+   "tokens": 90112
+  },
+  "curve_2026-08": {
+   "loss": 2.7801250756955613,
+   "ppl": 16.12103717187206,
+   "tokens": 104448
+  }
+ }
+}
