@@ -1,0 +1,142 @@
+Loading weights:   0%|          | 0/320 [00:00<?, ?it/s]Loading weights: 100%|██████████| 320/320 [00:00<00:00, 6493.14it/s]
+[transformers] `causal_conv1d_fn` is falling back to its reference PyTorch implementation because `causal_conv1d` is not installed. This is correct but much slower; install `causal_conv1d` for the optimized kernel.
+/workspace/AngryAnt/scripts/train_qwen_memory.py:223: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:836.)
+  "gates": " ".join(f"{float(a.gate):.4f}" for a in model.addons)}
+[eval] step 0 val_new 12.977 val_known 13.935 val_known_same 14.282 mem_probe 13.362
+[eval] step 610 val_new 10.649 val_known 13.458 val_known_same 12.903 mem_probe 10.776
+[eval] step 1220 val_new 10.344 val_known 13.393 val_known_same 12.815 mem_probe 10.306
+[eval] step 1830 val_new 10.213 val_known 13.711 val_known_same 12.974 mem_probe 9.841
+[eval] step 2440 val_new 10.097 val_known 13.657 val_known_same 12.933 mem_probe 9.577
+[eval] step 3050 val_new 10.030 val_known 13.682 val_known_same 12.927 mem_probe 9.426
+[eval] step 3372 val_new 10.014 val_known 13.730 val_known_same 12.930 mem_probe 9.382
+{
+ "val_new": {
+  "loss": 2.3040128677122054,
+  "ppl": 10.01428794473752,
+  "tokens": 1015808,
+  "knowledge_ppl": 12.72647783854746,
+  "knowledge_tokens": 234725
+ },
+ "val_known": {
+  "loss": 2.619579870441548,
+  "ppl": 13.729954013661718,
+  "tokens": 1544192,
+  "knowledge_ppl": 15.880235290104832,
+  "knowledge_tokens": 369809
+ },
+ "val_known_same": {
+  "loss": 2.559519116043439,
+  "ppl": 12.929598183991171,
+  "tokens": 1613824,
+  "knowledge_ppl": 17.052579403722188,
+  "knowledge_tokens": 366461
+ },
+ "mem_probe": {
+  "loss": 2.2387447580695152,
+  "ppl": 9.381547781266576,
+  "tokens": 655360,
+  "knowledge_ppl": 11.956513425625108,
+  "knowledge_tokens": 148617
+ },
+ "curve_2025-01": {
+  "loss": 2.4478972107172012,
+  "ppl": 11.56400447021657,
+  "tokens": 131072
+ },
+ "curve_2025-02": {
+  "loss": 1.6087685548342192,
+  "ppl": 4.996654331849712,
+  "tokens": 159744
+ },
+ "curve_2025-03": {
+  "loss": 2.3452804297731635,
+  "ppl": 10.436198938132364,
+  "tokens": 116736
+ },
+ "curve_2025-04": {
+  "loss": 1.6101220392368056,
+  "ppl": 5.003421804354104,
+  "tokens": 180224
+ },
+ "curve_2025-05": {
+  "loss": 2.3281906928334917,
+  "ppl": 10.25936239252518,
+  "tokens": 114688
+ },
+ "curve_2025-06": {
+  "loss": 2.389799108692244,
+  "ppl": 10.911301737176494,
+  "tokens": 104448
+ },
+ "curve_2025-07": {
+  "loss": 2.384213890348162,
+  "ppl": 10.850529605349381,
+  "tokens": 114688
+ },
+ "curve_2025-08": {
+  "loss": 2.3933456084307503,
+  "ppl": 10.950067366449458,
+  "tokens": 104448
+ },
+ "curve_2025-09": {
+  "loss": 2.4943866932645755,
+  "ppl": 12.114301457077124,
+  "tokens": 96256
+ },
+ "curve_2025-10": {
+  "loss": 2.444517011642456,
+  "ppl": 11.524981822320385,
+  "tokens": 102400
+ },
+ "curve_2025-11": {
+  "loss": 2.368219987205837,
+  "ppl": 10.67836772598278,
+  "tokens": 94208
+ },
+ "curve_2025-12": {
+  "loss": 2.402909549506935,
+  "ppl": 11.055295561559571,
+  "tokens": 75776
+ },
+ "curve_2026-01": {
+  "loss": 2.373646991197453,
+  "ppl": 10.736476806741457,
+  "tokens": 88064
+ },
+ "curve_2026-02": {
+  "loss": 2.3060802671644423,
+  "ppl": 10.035012894141756,
+  "tokens": 92160
+ },
+ "curve_2026-03": {
+  "loss": 2.436476065895774,
+  "ppl": 11.432681656387922,
+  "tokens": 112640
+ },
+ "curve_2026-04": {
+  "loss": 2.3083742628706263,
+  "ppl": 10.058059595042096,
+  "tokens": 96256
+ },
+ "curve_2026-05": {
+  "loss": 2.4385439982781043,
+  "ppl": 11.45634813090272,
+  "tokens": 106496
+ },
+ "curve_2026-06": {
+  "loss": 1.630618601375156,
+  "ppl": 5.107032959201533,
+  "tokens": 184320
+ },
+ "curve_2026-07": {
+  "loss": 2.3375341458754106,
+  "ppl": 10.355669483034672,
+  "tokens": 90112
+ },
+ "curve_2026-08": {
+  "loss": 2.5057684206495097,
+  "ppl": 12.252970784988827,
+  "tokens": 104448
+ }
+}

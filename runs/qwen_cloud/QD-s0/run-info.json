@@ -1,0 +1,319 @@
+{
+ "status": "done",
+ "args": {
+  "model_dir": "/workspace/models/Qwen3.5-0.8B",
+  "data_dir": "/workspace/AngryAnt/data/qwen_wiki",
+  "out_dir": "/workspace/AngryAnt/runs/qwen_cloud/QD-s0",
+  "kind": "dense",
+  "n_keys": 1024,
+  "layers": "5,11,17",
+  "epochs": 2.0,
+  "max_steps": null,
+  "seq_len": 2048,
+  "batch_seqs": 16,
+  "micro_bs": 4,
+  "lr": 0.0006,
+  "value_lr": 0.0024,
+  "weight_decay": 0.1,
+  "warmup_frac": 0.05,
+  "min_lr_ratio": 0.1,
+  "clip": 1.0,
+  "seed": 0,
+  "data_seed": 1234,
+  "eval_every_tokens": 20000000.0,
+  "eval_windows": null,
+  "eval_only": false,
+  "save": 1,
+  "ce_chunk": 1024,
+  "grad_ckpt": 0
+ },
+ "addon_cfg": {
+  "kind": "dense",
+  "layers": [
+   5,
+   11,
+   17
+  ],
+  "n_keys": 1024,
+  "heads": 4,
+  "knn": 32,
+  "k_dim": 256,
+  "v_dim": -1,
+  "swilu": true,
+  "impl": "triton",
+  "dense_hidden": -1,
+  "norm_eps": 1e-06
+ },
+ "trainable_params": 12976131,
+ "data": {
+  "train_new": {
+   "n_articles": 79864,
+   "n_tokens": 55274538,
+   "n_words": 35722569
+  },
+  "val_new": {
+   "n_articles": 1500,
+   "n_tokens": 1016794,
+   "n_words": 670832
+  },
+  "mem_probe": {
+   "n_articles": 1000,
+   "n_tokens": 656546,
+   "n_words": 433765
+  },
+  "val_known": {
+   "n_articles": 1917,
+   "n_tokens": 1544789,
+   "n_words": 990651
+  },
+  "curve_2025-01": {
+   "n_articles": 150,
+   "n_tokens": 131807,
+   "n_words": 86863
+  },
+  "curve_2025-02": {
+   "n_articles": 150,
+   "n_tokens": 160314,
+   "n_words": 88184
+  },
+  "curve_2025-03": {
+   "n_articles": 150,
+   "n_tokens": 116863,
+   "n_words": 75390
+  },
+  "curve_2025-04": {
+   "n_articles": 150,
+   "n_tokens": 181480,
+   "n_words": 99760
+  },
+  "curve_2025-05": {
+   "n_articles": 150,
+   "n_tokens": 116095,
+   "n_words": 74443
+  },
+  "curve_2025-06": {
+   "n_articles": 150,
+   "n_tokens": 104523,
+   "n_words": 69500
+  },
+  "curve_2025-07": {
+   "n_articles": 150,
+   "n_tokens": 115965,
+   "n_words": 75118
+  },
+  "curve_2025-08": {
+   "n_articles": 150,
+   "n_tokens": 105170,
+   "n_words": 69127
+  },
+  "curve_2025-09": {
+   "n_articles": 150,
+   "n_tokens": 97231,
+   "n_words": 65240
+  },
+  "curve_2025-10": {
+   "n_articles": 150,
+   "n_tokens": 104046,
+   "n_words": 68833
+  },
+  "curve_2025-11": {
+   "n_articles": 150,
+   "n_tokens": 94526,
+   "n_words": 62462
+  },
+  "curve_2025-12": {
+   "n_articles": 150,
+   "n_tokens": 77554,
+   "n_words": 50438
+  },
+  "curve_2026-01": {
+   "n_articles": 150,
+   "n_tokens": 89314,
+   "n_words": 58870
+  },
+  "curve_2026-02": {
+   "n_articles": 150,
+   "n_tokens": 93673,
+   "n_words": 61116
+  },
+  "curve_2026-03": {
+   "n_articles": 150,
+   "n_tokens": 113879,
+   "n_words": 78133
+  },
+  "curve_2026-04": {
+   "n_articles": 150,
+   "n_tokens": 96775,
+   "n_words": 62280
+  },
+  "curve_2026-05": {
+   "n_articles": 150,
+   "n_tokens": 107585,
+   "n_words": 72174
+  },
+  "curve_2026-06": {
+   "n_articles": 150,
+   "n_tokens": 185451,
+   "n_words": 91518
+  },
+  "curve_2026-07": {
+   "n_articles": 150,
+   "n_tokens": 90922,
+   "n_words": 60588
+  },
+  "curve_2026-08": {
+   "n_articles": 150,
+   "n_tokens": 106026,
+   "n_words": 72974
+  },
+  "val_known_same": {
+   "n_articles": 1500,
+   "n_tokens": 1615466,
+   "n_words": 1071598,
+   "source": "enwiki-20260901-pages-articles-multistream10.xml-p4045403p5399366.bz2"
+  }
+ },
+ "started": "2026-10-05 08:54:38",
+ "gpu": "NVIDIA H100 80GB HBM3",
+ "total_steps": 3372,
+ "tokens_per_step": 32768,
+ "train_windows": 26989,
+ "results": {
+  "val_new": {
+   "loss": 2.3040128677122054,
+   "ppl": 10.01428794473752,
+   "tokens": 1015808,
+   "knowledge_ppl": 12.72647783854746,
+   "knowledge_tokens": 234725
+  },
+  "val_known": {
+   "loss": 2.619579870441548,
+   "ppl": 13.729954013661718,
+   "tokens": 1544192,
+   "knowledge_ppl": 15.880235290104832,
+   "knowledge_tokens": 369809
+  },
+  "val_known_same": {
+   "loss": 2.559519116043439,
+   "ppl": 12.929598183991171,
+   "tokens": 1613824,
+   "knowledge_ppl": 17.052579403722188,
+   "knowledge_tokens": 366461
+  },
+  "mem_probe": {
+   "loss": 2.2387447580695152,
+   "ppl": 9.381547781266576,
+   "tokens": 655360,
+   "knowledge_ppl": 11.956513425625108,
+   "knowledge_tokens": 148617
+  },
+  "curve_2025-01": {
+   "loss": 2.4478972107172012,
+   "ppl": 11.56400447021657,
+   "tokens": 131072
+  },
+  "curve_2025-02": {
+   "loss": 1.6087685548342192,
+   "ppl": 4.996654331849712,
+   "tokens": 159744
+  },
+  "curve_2025-03": {
+   "loss": 2.3452804297731635,
+   "ppl": 10.436198938132364,
+   "tokens": 116736
+  },
+  "curve_2025-04": {
+   "loss": 1.6101220392368056,
+   "ppl": 5.003421804354104,
+   "tokens": 180224
+  },
+  "curve_2025-05": {
+   "loss": 2.3281906928334917,
+   "ppl": 10.25936239252518,
+   "tokens": 114688
+  },
+  "curve_2025-06": {
+   "loss": 2.389799108692244,
+   "ppl": 10.911301737176494,
+   "tokens": 104448
+  },
+  "curve_2025-07": {
+   "loss": 2.384213890348162,
+   "ppl": 10.850529605349381,
+   "tokens": 114688
+  },
+  "curve_2025-08": {
+   "loss": 2.3933456084307503,
+   "ppl": 10.950067366449458,
+   "tokens": 104448
+  },
+  "curve_2025-09": {
+   "loss": 2.4943866932645755,
+   "ppl": 12.114301457077124,
+   "tokens": 96256
+  },
+  "curve_2025-10": {
+   "loss": 2.444517011642456,
+   "ppl": 11.524981822320385,
+   "tokens": 102400
+  },
+  "curve_2025-11": {
+   "loss": 2.368219987205837,
+   "ppl": 10.67836772598278,
+   "tokens": 94208
+  },
+  "curve_2025-12": {
+   "loss": 2.402909549506935,
+   "ppl": 11.055295561559571,
+   "tokens": 75776
+  },
+  "curve_2026-01": {
+   "loss": 2.373646991197453,
+   "ppl": 10.736476806741457,
+   "tokens": 88064
+  },
+  "curve_2026-02": {
+   "loss": 2.3060802671644423,
+   "ppl": 10.035012894141756,
+   "tokens": 92160
+  },
+  "curve_2026-03": {
+   "loss": 2.436476065895774,
+   "ppl": 11.432681656387922,
+   "tokens": 112640
+  },
+  "curve_2026-04": {
+   "loss": 2.3083742628706263,
+   "ppl": 10.058059595042096,
+   "tokens": 96256
+  },
+  "curve_2026-05": {
+   "loss": 2.4385439982781043,
+   "ppl": 11.45634813090272,
+   "tokens": 106496
+  },
+  "curve_2026-06": {
+   "loss": 1.630618601375156,
+   "ppl": 5.107032959201533,
+   "tokens": 184320
+  },
+  "curve_2026-07": {
+   "loss": 2.3375341458754106,
+   "ppl": 10.355669483034672,
+   "tokens": 90112
+  },
+  "curve_2026-08": {
+   "loss": 2.5057684206495097,
+   "ppl": 12.252970784988827,
+   "tokens": 104448
+  }
+ },
+ "finished": "2026-10-05 09:57:57",
+ "duration_s": 3808.2,
+ "peak_vram_gib": 16.881298542022705,
+ "gates": [
+  -0.04345892369747162,
+  -0.04692437872290611,
+  -0.0861486941576004
+ ]
+}
