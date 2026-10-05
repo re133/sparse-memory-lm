@@ -1,0 +1,425 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Click a word and see which of the 1,048,576 entries of a product-key memory table a small language model reads for it.">
+<title>Inside the B-1M memory table</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: lab instrument — reading view and map on the left, a sticky entry inspector on the right; one column on phones. */
+:root {
+  --bg: #f4f6f4;
+  --surface: #ffffff;
+  --fg: #16201d;
+  --muted: #56635e;
+  --line: #d6ddd9;
+  --accent: #0e5a6b;        /* ink teal: links, selection, heat maximum */
+  --heat-lo: #e9f0ee;       /* rarely read */
+  --heat-hi: #0b4a5a;       /* very often read */
+  --mark: #f2c14e;          /* the token being read */
+  --mark-fg: #1b1405;
+  --neg: #2a78d6;           /* value < 0 */
+  --pos: #d9541f;           /* value > 0 */
+  --mid: #eef1ef;           /* value ~ 0 */
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --step--1: 0.8125rem; --step-0: 1rem; --step-1: 1.2rem; --step-2: 1.6rem; --step-3: 2.3rem;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1514; --surface: #161e1c; --fg: #e3ebe7; --muted: #9aa8a2; --line: #2b3633;
+    --accent: #6cc3d3; --heat-lo: #18211f; --heat-hi: #8fe0ec; --mark: #f2c14e; --mark-fg: #1b1405;
+    --neg: #4f95e8; --pos: #f07a45; --mid: #1d2624; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1514; --surface: #161e1c; --fg: #e3ebe7; --muted: #9aa8a2; --line: #2b3633;
+  --accent: #6cc3d3; --heat-lo: #18211f; --heat-hi: #8fe0ec; --mark: #f2c14e; --mark-fg: #1b1405;
+  --neg: #4f95e8; --pos: #f07a45; --mid: #1d2624; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: var(--step-0); line-height: 1.5; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: clamp(16px, 4vw, 40px); padding-block: 28px 64px; }
+h1, h2, h3 { font-family: var(--font-display); font-stretch: 85%; text-wrap: balance; margin: 0; line-height: 1.1; }
+h1 { font-size: var(--step-3); font-weight: 800; letter-spacing: -0.01em; }
+h2 { font-size: var(--step-2); font-weight: 750; }
+h3 { font-size: var(--step-1); font-weight: 700; }
+p { margin: 0; max-width: 66ch; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.eyebrow { font-family: var(--font-mono); font-size: var(--step--1); letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+header { display: grid; gap: 14px; margin-bottom: 28px; }
+.facts { display: flex; flex-wrap: wrap; gap: 6px 22px; font-size: var(--step--1); }
+.facts div { display: flex; gap: 6px; align-items: baseline; }
+.facts b { font-family: var(--font-mono); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+.layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 420px); gap: 28px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.col { display: grid; gap: 28px; min-width: 0; }
+section { display: grid; gap: 14px; min-width: 0; }
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 18px; min-width: 0; }
+
+/* sentence view */
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { border: 1px solid var(--line); background: transparent; border-radius: 999px; padding: 4px 12px; cursor: pointer; font-size: var(--step--1); }
+.tab[aria-selected="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.text { font-size: 1.05rem; line-height: 1.95; overflow-wrap: anywhere; white-space: pre-wrap; }
+.tok { cursor: pointer; border-radius: 3px; padding: 1px 0; border-bottom: 1px dotted var(--line); }
+.tok:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.tok.on { background: var(--mark); color: var(--mark-fg); border-bottom-color: transparent; }
+.reads { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 560px) { .reads { grid-template-columns: minmax(0, 1fr); } }
+.reads h3 { font-size: var(--step-0); }
+.elist { display: grid; gap: 6px; margin: 8px 0 0; padding: 0; list-style: none; }
+.ebtn { width: 100%; text-align: left; display: grid; grid-template-columns: auto 1fr; gap: 2px 10px; align-items: baseline;
+        background: transparent; border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; cursor: pointer; }
+.ebtn:hover { border-color: var(--accent); }
+.ebtn.sel { border-color: var(--accent); box-shadow: inset 3px 0 0 var(--accent); }
+.ebtn .id { font-family: var(--font-mono); font-size: var(--step--1); font-weight: 600; }
+.ebtn .w { font-family: var(--font-mono); font-size: var(--step--1); color: var(--muted); text-align: right; }
+.ebtn .lab { grid-column: 1 / -1; font-size: var(--step--1); color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* map */
+.mapbox { position: relative; width: 100%; max-width: 640px; }
+#map { width: 100%; height: auto; aspect-ratio: 1; display: block; image-rendering: pixelated; border-radius: 6px; cursor: crosshair; touch-action: manipulation; }
+.tip { position: absolute; pointer-events: none; background: var(--fg); color: var(--bg); font-family: var(--font-mono); font-size: 12px;
+       padding: 4px 8px; border-radius: 6px; white-space: nowrap; transform: translate(-50%, -130%); }
+.legend { display: grid; gap: 4px; max-width: 640px; }
+#legend { width: 100%; height: 12px; display: block; border-radius: 3px; }
+.ticks { position: relative; height: 16px; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.ticks span { position: absolute; transform: translateX(-50%); white-space: nowrap; }
+.maprow { display: grid; grid-template-columns: minmax(0, 1fr) 200px; gap: 18px; align-items: start; }
+@media (max-width: 700px) { .maprow { grid-template-columns: minmax(0, 1fr); } }
+#zoom { width: 100%; max-width: 200px; aspect-ratio: 1; display: block; border-radius: 6px; cursor: pointer; }
+
+/* inspector */
+.inspector { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); display: grid; gap: 16px; }
+@media (max-width: 900px) { .inspector { position: static; } }
+.ihead { display: grid; gap: 4px; }
+.ihead h2 { font-family: var(--font-mono); font-stretch: 100%; font-size: var(--step-2); font-weight: 600; letter-spacing: -0.02em; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: var(--step--1); margin: 0; }
+.kv dt { color: var(--muted); }
+.kv dd { margin: 0; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.bars { display: flex; gap: 2px; height: 8px; border-radius: 4px; overflow: hidden; margin-top: 4px; max-width: 220px; }
+.bars i { display: block; background: var(--accent); }
+.bars i:nth-child(2) { opacity: 0.6; } .bars i:nth-child(3) { opacity: 0.32; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-family: var(--font-mono); font-size: 12px; border: 1px solid var(--line); border-radius: 6px; padding: 2px 7px; white-space: pre; }
+.chip small { color: var(--muted); margin-left: 4px; }
+.ctx { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.ctx li { font-size: 0.95rem; line-height: 1.55; border-left: 2px solid var(--line); padding-left: 10px; overflow-wrap: anywhere; }
+.ctx .meta { display: block; font-family: var(--font-mono); font-size: 11px; color: var(--muted); }
+.ctx mark { background: var(--mark); color: var(--mark-fg); border-radius: 3px; padding: 0 2px; white-space: pre-wrap; }
+.ctx .after { color: var(--muted); }
+#vec { width: 100%; max-width: 384px; height: auto; display: block; border-radius: 4px; image-rendering: pixelated; }
+.veclegend { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11px; color: var(--muted); max-width: 384px; }
+.note { font-size: var(--step--1); color: var(--muted); }
+.picks { display: flex; flex-wrap: wrap; gap: 8px; }
+.pick { border: 1px solid var(--line); background: transparent; border-radius: 8px; padding: 5px 10px; cursor: pointer; font-size: var(--step--1); text-align: left; }
+.pick:hover { border-color: var(--accent); }
+.pick b { font-family: var(--font-mono); font-weight: 600; margin-right: 6px; }
+footer { margin-top: 40px; font-size: var(--step--1); color: var(--muted); display: grid; gap: 6px; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+a { color: var(--accent); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="eyebrow"><a href="https://github.com/re133/sparse-memory-lm">sparse-memory-lm</a> · model B-1M</div>
+    <h1>Inside the memory table of B-1M</h1>
+    <p>This is the model's memory: a table with <b>1,048,576 entries</b>, each a vector of <b>384 numbers</b>.
+      Three memory layers (layers 3, 7 and 11) share it. For every token, each of them picks the 4 × 32 = 128
+      best-matching entries by product-key search and mixes their vectors. The numbers alone don't tell you much.
+      It gets interesting when you see <i>when</i> an entry is read.</p>
+    <p class="muted">This is B-1M from the early runs. The B-16M model in the README works the same way, with a
+      table 16 times as big.</p>
+    <div class="facts" id="facts"></div>
+  </header>
+
+  <div class="layout">
+    <div class="col">
+      <section aria-labelledby="h-read">
+        <div class="eyebrow">1 · Reading</div>
+        <h2 id="h-read">What the table hands over while reading a text</h2>
+        <p class="muted">Click a word. Below it you see, for each memory layer, the three entries with the highest
+          weight for exactly that token. The texts are from the validation set, the model never trained on them.</p>
+        <div class="panel" style="display:grid;gap:14px">
+          <div class="tabs" role="tablist" id="tabs"></div>
+          <div class="text" id="text"></div>
+          <div class="reads" id="reads"></div>
+        </div>
+      </section>
+
+      <section aria-labelledby="h-map">
+        <div class="eyebrow">2 · The whole table</div>
+        <h2 id="h-map">One pixel per entry</h2>
+        <p class="muted">The table as a 1024 × 1024 grid. The row is the number of the first half-key, the column
+          the number of the second. An entry is picked when both halves of the query match it well. The colour shows
+          how often the entry was read during <span id="traintok"></span> training tokens. Solid lines are very
+          popular half-keys. Click the map to pick an entry, the box next to it shows its neighbourhood.</p>
+        <div class="panel" style="display:grid;gap:12px">
+          <div class="maprow">
+            <div style="display:grid;gap:10px;min-width:0">
+              <div class="mapbox">
+                <canvas id="map" width="1024" height="1024" aria-label="How often each of the 1,048,576 entries was read"></canvas>
+                <div class="tip" id="tip" hidden></div>
+              </div>
+              <div class="legend">
+                <canvas id="legend" width="512" height="12" aria-hidden="true"></canvas>
+                <div class="ticks" id="ticks"></div>
+                <div class="note">Reads per entry during training (all three layers together, log scale)</div>
+              </div>
+            </div>
+            <div style="display:grid;gap:8px;min-width:0">
+              <canvas id="zoom" width="330" height="330" aria-label="Neighbourhood of the selected entry"></canvas>
+              <div class="note" id="zoomnote"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section aria-labelledby="h-picks">
+        <div class="eyebrow">3 · Finds</div>
+        <h2 id="h-picks">A few entries with an obvious pattern</h2>
+        <p class="muted">Picked by hand from the sample. They show when an entry is read, which isn't the same as
+          knowing what it does there.</p>
+        <div class="picks" id="picks"></div>
+        <div class="picks" id="toplist"></div>
+      </section>
+    </div>
+
+    <aside class="inspector panel" id="inspector" aria-live="polite"></aside>
+  </div>
+
+  <footer>
+    <div id="foot"></div>
+    <div id="foot2"></div>
+  </footer>
+</div>
+
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(() => {
+  const D = JSON.parse(document.getElementById("data").textContent);
+  const M = D.meta, E = D.entries, SIDE = M.side;
+  const heat = Uint8Array.from(atob(D.heat), c => c.charCodeAt(0));
+  const fmt = new Intl.NumberFormat("en-US");
+  const fmt1 = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1, minimumFractionDigits: 1 });
+  const fmt2 = new Intl.NumberFormat("en-US", { maximumFractionDigits: 2, minimumFractionDigits: 2 });
+  const PICKS = [
+    [764070, "read at “began”, “started”, “beginning”"],
+    [894508, "read at “Edward Fo” right before “ord” (Foord)"],
+    [876475, "read at the “or” in Tud-or, min-or-ities, Anch-or"],
+    [471575, "sentence ends, almost only in layer 11"],
+    [845619, "commas, almost only in layer 3"],
+  ];
+  const $ = id => document.getElementById(id);
+  const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const hex = c => { const m = c.replace("#", ""); return [0, 2, 4].map(i => parseInt(m.slice(i, i + 2), 16)); };
+  const mix = (a, b, t) => a.map((v, i) => Math.round(v + (b[i] - v) * t));
+  const vis = s => s.replace(/\n/g, "⏎").replace(/^ /, "·");
+  const readsFromHeat = b => Math.round(Math.pow(10, M.heat_lo + b / 255 * (M.heat_hi - M.heat_lo)) - 1);
+
+  // ---- facts
+  const facts = [
+    ["entries", fmt.format(M.n_entries)], ["numbers", fmt.format(M.n_entries * M.v_dim)],
+    ["training", fmt.format(Math.round(M.train_tokens / 1e6)) + "M tokens"],
+    ["entries used", fmt1.format(100 * M.usage) + " %"],
+    ["top 1 % of entries", fmt1.format(100 * M.top1pct) + " % of reads"],
+    ["val PPL", fmt2.format(M.val_ppl)],
+  ];
+  $("facts").innerHTML = facts.map(([k, v]) => `<div><span class="muted">${k}</span><b>${v}</b></div>`).join("");
+  $("traintok").textContent = fmt.format(Math.round(M.train_tokens / 1e6)) + "M";
+  $("foot").textContent = `Run ${M.run}, commit ${M.commit}. Reads per entry during training: minimum ${fmt.format(M.train_reads_min)}, median ${fmt.format(Math.round(M.train_reads_median))}, maximum ${fmt.format(M.train_reads_max)}.`;
+  $("foot2").textContent = `The text passages come from a sample of the first ${fmt.format(M.sample_tokens)} validation tokens (${fmt.format(M.sample_articles)} Wikipedia articles) and are stored for ${fmt.format(M.entries_with_text)} entries. For all others the page only knows how often they were read. Vector values are rounded to 8 bits for display.`;
+
+  const label = id => {
+    const e = E[id]; if (!e) return "";
+    return "read at " + e.cur.slice(0, 3).map(c => "“" + vis(c[0]) + "”").join(", ");
+  };
+  const esc = s => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  // ---- selection state
+  let current = null;
+  function select(id, scroll) {
+    current = id;
+    renderInspector(id);
+    drawZoom(id);
+    document.querySelectorAll(".ebtn").forEach(b => b.classList.toggle("sel", +b.dataset.id === id));
+    if (scroll && window.matchMedia("(max-width: 900px)").matches) $("inspector").scrollIntoView({ block: "start" });
+  }
+
+  // ---- sentence view
+  let art = 0, tokSel = 37;
+  function renderTabs() {
+    $("tabs").innerHTML = D.show.map((s, i) =>
+      `<button class="tab" role="tab" aria-selected="${i === art}" data-i="${i}">${esc(s.title)}</button>`).join("");
+  }
+  function renderText() {
+    const s = D.show[art];
+    $("text").innerHTML = s.pieces.map((p, i) =>
+      `<span class="tok${i === tokSel ? " on" : ""}" role="button" tabindex="0" data-t="${i}">${esc(p)}</span>`).join("");
+    renderReads();
+  }
+  function renderReads() {
+    const s = D.show[art], r = s.reads[tokSel];
+    $("reads").innerHTML = r.map((lst, li) => `
+      <div style="min-width:0"><h3>Layer ${M.layers[li]}</h3>
+        <ul class="elist">${lst.map(([id, w]) => `<li><button class="ebtn${id === current ? " sel" : ""}" data-id="${id}">
+          <span class="id">#${id}</span><span class="w">${fmt1.format(100 * w)} %</span>
+          <span class="lab">${esc(label(id))}</span></button></li>`).join("")}</ul></div>`).join("");
+  }
+  $("tabs").addEventListener("click", e => {
+    const b = e.target.closest(".tab"); if (!b) return;
+    art = +b.dataset.i; tokSel = Math.min(5, D.show[art].pieces.length - 1); renderTabs(); renderText();
+  });
+  const pickTok = el => { tokSel = +el.dataset.t; renderText(); };
+  $("text").addEventListener("click", e => { const t = e.target.closest(".tok"); if (t) pickTok(t); });
+  $("text").addEventListener("keydown", e => {
+    const t = e.target.closest(".tok"); if (t && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); pickTok(t); }
+  });
+  document.addEventListener("click", e => { const b = e.target.closest(".ebtn, .pick"); if (b) select(+b.dataset.id, true); });
+
+  // ---- picks and most-read list
+  $("picks").innerHTML = PICKS.map(([id, t]) => `<button class="pick" data-id="${id}"><b>#${id}</b>${esc(t)}</button>`).join("");
+  $("toplist").innerHTML = `<span class="note" style="width:100%">Read most often (in the sample):</span>` +
+    D.top.slice(0, 10).map(id => `<button class="pick" data-id="${id}"><b>#${id}</b>${esc(label(id))}</button>`).join("") +
+    `<button class="pick" id="rnd" data-id="${D.rand[0]}"><b>?</b>random entry</button>`;
+  $("rnd").addEventListener("click", e => {
+    e.stopPropagation();
+    const id = D.rand[Math.floor(Math.random() * D.rand.length)]; select(id, true);
+  });
+
+  // ---- inspector
+  function renderInspector(id) {
+    const r = Math.floor(id / SIDE), c = id % SIDE, e = E[id];
+    let h = `<div class="ihead"><div class="eyebrow">Entry</div><h2>#${id}</h2>
+      <div class="muted mono" style="font-size:var(--step--1)">row ${r} · column ${c}</div></div>`;
+    if (!e) {
+      h += `<dl class="kv"><dt>reads</dt><dd>≈ ${fmt.format(readsFromHeat(heat[id]))} during training</dd></dl>
+        <p class="note">No text passages are stored for this entry. In the zoom box, entries with passages have a
+        dot; all the finds below have them.</p>`;
+      $("inspector").innerHTML = h; return;
+    }
+    const tot = e.L.reduce((a, b) => a + b, 0) || 1;
+    h += `<dl class="kv">
+      <dt>read during training</dt><dd>${fmt.format(e.r)} ×</dd>
+      <dt>in the sample</dt><dd>${fmt.format(e.n)} × <span class="muted">(layer ${M.layers.map((l, i) => l + ": " + e.L[i]).join(" · ")})</span>
+        <div class="bars" aria-hidden="true">${e.L.map(x => `<i style="flex:${x / tot}"></i>`).join("")}</div></dd>
+      <dt>length of the vector</dt><dd>${fmt2.format(e.vn)} <span class="muted">(median of all: ${fmt2.format(M.value_norm_median)})</span></dd>
+      </dl>
+      <div style="display:grid;gap:6px"><h3 style="font-size:var(--step-0)">Read at</h3>
+        <div class="chips">${e.cur.map(([t, n]) => `<span class="chip">${esc(vis(t))}<small>${n}</small></span>`).join("")}</div></div>
+      <div style="display:grid;gap:6px"><h3 style="font-size:var(--step-0)">Next in the text</h3>
+        <div class="chips">${e.nxt.map(([t, n]) => `<span class="chip">${esc(vis(t))}<small>${n}</small></span>`).join("")}</div></div>
+      <div style="display:grid;gap:8px"><h3 style="font-size:var(--step-0)">Passages with the highest weight</h3>
+        <ul class="ctx">${e.ctx.map(([l, cur, nx, w, layer]) => `<li><span class="meta">layer ${layer} · weight ${fmt1.format(100 * w)} %</span>
+          …${esc(l)}<mark>${esc(cur)}</mark><span class="after">${esc(nx)}</span></li>`).join("")}</ul>
+        <p class="note">Highlighted: the token the entry was read at. Grey: what came next in the text. While
+          reading, the model only sees the text up to the highlight.</p></div>
+      <div style="display:grid;gap:6px"><h3 style="font-size:var(--step-0)">The 384 numbers of this entry</h3>
+        <canvas id="vec" width="384" height="144" aria-label="The value vector as a colour grid"></canvas>
+        <div class="veclegend"><span>−${fmt2.format(e.vs)}</span><span>0</span><span>+${fmt2.format(e.vs)}</span></div>
+        <p class="note">32 × 12 boxes, row by row from the top left: blue negative, orange positive.</p></div>`;
+    $("inspector").innerHTML = h;
+    drawVec(e);
+  }
+  function drawVec(e) {
+    const cv = $("vec"); if (!cv) return;
+    const ctx = cv.getContext("2d"), q = Int8Array.from(atob(e.v), ch => ch.charCodeAt(0) << 24 >> 24);
+    const neg = hex(css("--neg")), pos = hex(css("--pos")), mid = hex(css("--mid"));
+    const cols = 32, cw = cv.width / cols, ch = cv.height / 12;
+    q.forEach((v, i) => {
+      const t = Math.min(1, Math.abs(v) / 127), col = mix(mid, v < 0 ? neg : pos, Math.pow(t, 0.8));
+      ctx.fillStyle = `rgb(${col})`;
+      ctx.fillRect((i % cols) * cw + 0.5, Math.floor(i / cols) * ch + 0.5, cw - 1, ch - 1);
+    });
+  }
+
+  // ---- map
+  const hist = new Uint32Array(256);
+  for (let i = 0; i < heat.length; i++) hist[heat[i]]++;
+  const pct = p => { let acc = 0; for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= p * heat.length) return v; } return 255; };
+  const lo = pct(0.005), hi = pct(0.999);
+  let lut = [];
+  function buildLut() {
+    const a = hex(css("--heat-lo")), b = hex(css("--heat-hi"));
+    lut = Array.from({ length: 256 }, (_, v) => mix(a, b, Math.max(0, Math.min(1, (v - lo) / (hi - lo)))));
+  }
+  function drawMap() {
+    buildLut();
+    const cv = $("map"), ctx = cv.getContext("2d"), img = ctx.createImageData(SIDE, SIDE);
+    for (let i = 0; i < heat.length; i++) {
+      const c = lut[heat[i]], o = i * 4; img.data[o] = c[0]; img.data[o + 1] = c[1]; img.data[o + 2] = c[2]; img.data[o + 3] = 255;
+    }
+    ctx.putImageData(img, 0, 0);
+    if (current !== null) markOnMap(current);
+    const lg = $("legend"), lc = lg.getContext("2d");
+    for (let x = 0; x < lg.width; x++) { const c = lut[Math.round(x / (lg.width - 1) * 255)]; lc.fillStyle = `rgb(${c})`; lc.fillRect(x, 0, 1, lg.height); }
+    const ticks = [2e4, 1e5, 1e6, 1e7].filter(v => Math.log10(v) > M.heat_lo && Math.log10(v) < M.heat_hi);
+    $("ticks").innerHTML = ticks.map(v => {
+      const pos = (Math.log10(v + 1) - M.heat_lo) / (M.heat_hi - M.heat_lo) * 100;
+      const txt = v >= 1e6 ? fmt.format(v / 1e6) + "M" : fmt.format(v / 1e3) + "k";
+      return `<span style="left:${pos}%">${txt}</span>`;
+    }).join("");
+  }
+  function markOnMap(id) {
+    const ctx = $("map").getContext("2d"), r = Math.floor(id / SIDE), c = id % SIDE;
+    ctx.strokeStyle = css("--mark"); ctx.lineWidth = 4; ctx.strokeRect(c - 9, r - 9, 19, 19);
+  }
+  const ZN = 33;
+  function drawZoom(id) {
+    drawMap();
+    const cv = $("zoom"), ctx = cv.getContext("2d"), cell = cv.width / ZN;
+    const r0 = Math.floor(id / SIDE) - (ZN >> 1), c0 = id % SIDE - (ZN >> 1);
+    ctx.clearRect(0, 0, cv.width, cv.height);
+    for (let dr = 0; dr < ZN; dr++) for (let dc = 0; dc < ZN; dc++) {
+      const r = r0 + dr, c = c0 + dc;
+      if (r < 0 || c < 0 || r >= SIDE || c >= SIDE) continue;
+      const e = r * SIDE + c, col = lut[heat[e]];
+      ctx.fillStyle = `rgb(${col})`; ctx.fillRect(dc * cell, dr * cell, cell - 1, cell - 1);
+      if (E[e]) { ctx.fillStyle = css("--fg"); ctx.beginPath(); ctx.arc(dc * cell + cell / 2, dr * cell + cell / 2, cell * 0.16, 0, 7); ctx.fill(); }
+    }
+    ctx.strokeStyle = css("--mark"); ctx.lineWidth = 3;
+    ctx.strokeRect((ZN >> 1) * cell - 1, (ZN >> 1) * cell - 1, cell + 1, cell + 1);
+    $("zoomnote").textContent = `${ZN} × ${ZN} entries around #${id}. Dot = text passages stored. Click to select.`;
+    cv.dataset.r0 = r0; cv.dataset.c0 = c0;
+  }
+  function mapPos(ev) {
+    const cv = $("map"), b = cv.getBoundingClientRect();
+    const c = Math.floor((ev.clientX - b.left) / b.width * SIDE), r = Math.floor((ev.clientY - b.top) / b.height * SIDE);
+    return [Math.max(0, Math.min(SIDE - 1, r)), Math.max(0, Math.min(SIDE - 1, c)), b];
+  }
+  $("map").addEventListener("pointermove", ev => {
+    if (ev.pointerType !== "mouse") return;
+    const [r, c, b] = mapPos(ev), id = r * SIDE + c, tip = $("tip");
+    tip.hidden = false; tip.style.left = (ev.clientX - b.left) + "px"; tip.style.top = (ev.clientY - b.top) + "px";
+    tip.textContent = `#${id} · row ${r} · column ${c} · ≈ ${fmt.format(readsFromHeat(heat[id]))}×`;
+  });
+  $("map").addEventListener("pointerleave", () => { $("tip").hidden = true; });
+  $("map").addEventListener("click", ev => { const [r, c] = mapPos(ev); select(r * SIDE + c, false); });
+  $("zoom").addEventListener("click", ev => {
+    const cv = $("zoom"), b = cv.getBoundingClientRect();
+    const dc = Math.floor((ev.clientX - b.left) / b.width * ZN), dr = Math.floor((ev.clientY - b.top) / b.height * ZN);
+    const r = +cv.dataset.r0 + dr, c = +cv.dataset.c0 + dc;
+    if (r >= 0 && c >= 0 && r < SIDE && c < SIDE) select(r * SIDE + c, false);
+  });
+
+  // ---- theme changes repaint the canvases
+  const repaint = () => { if (current !== null) { drawZoom(current); if (E[current]) drawVec(E[current]); } else drawMap(); };
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", repaint);
+  new MutationObserver(repaint).observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+
+  renderTabs(); renderText(); select(764070, false);
+})();
+</script>
+</body>
+</html>

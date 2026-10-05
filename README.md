@@ -30,6 +30,12 @@ here. The full lab notebook with every criterion, every number and every mishap 
   the same compute. Its perplexity on the training articles dropped a lot, but in a fact test it wasn't any better
   on those articles than on ones it had never seen.
 
+**Look inside the table:** on [this page](https://re133.github.io/sparse-memory-lm/explorer/) you can click any
+word of a Wikipedia text and see which of the 1M entries of B-1M the model reads for it, browse a map of the whole
+table, and look at single entries: where they get read and what their 384 numbers look like.
+
+[![The table explorer](report/explorer.png)](https://re133.github.io/sparse-memory-lm/explorer/)
+
 ## Try it
 
 ### The kernels on your GPU
