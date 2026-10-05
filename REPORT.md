@@ -6,7 +6,8 @@
 > innerhalb des Seed-Rauschens), **3 Epochen „unklar“** (Unterschied echt, aber B schließt nur 20 % der
 > Lücke zum gleich großen dichten Modell C, gefordert waren 50 %). Die Tabelle ist gesund (≈ 100 % Nutzung)
 > und wird stark genutzt; ein Implementierungsfehler wurde nicht gefunden. Auffällig ist eine fast flache
-> Gewichtung innerhalb der Top-32. Dafür ist der Branch `v2-sharpness` vorbereitet (nicht gelaufen).
+> Gewichtung innerhalb der Top-32. Dafür ist der Branch `v2-sharpness` vorbereitet (später gelaufen: v2b wird
+> schärfer, gewinnt aber praktisch nichts, siehe `docs/notes/V2_SHARPNESS.md`; korrigiert 2026-10-05 nach Codex-Review).
 > Kosten von B trotz gleicher FLOPs: −21 % Trainings-, −31 % Prefill-Durchsatz, +1,6 GiB VRAM.
 >
 > **Nachtrag Stufe 1b/1c (2026-10-03):** Mit 1M-Tabelle, 3 Speicherschichten und frischen Wikipedia-Daten
@@ -23,8 +24,10 @@
 > - **Schritt 1 (H100):** Dichte Vergleichsmodelle zeigen: B-1M, B-4M und B-16M sind so gut wie dichte Modelle mit
 >   ≈ 60, 83 und 114 M Parametern ohne Embeddings, bei einem Drittel bis der Hälfte der Rechenarbeit pro Token.
 > - **Schritt 2 (zu Hause):** B-16M schreibt mit der Tabelle im RAM (139–154 tok/s) oder auf der NVMe (114–138 tok/s)
->   bitgleich zur Tabelle im Grafikspeicher (212 tok/s). Lange Texte einlesen ist außerhalb des Grafikspeichers
->   aber 2- bis 70-mal langsamer.
+>   bitgleich zur Tabelle im Grafikspeicher (212 tok/s). Die Logits sind einzeln verglichen
+>   (`report/offload/identical_check.json`); das gilt für Triton 3.5, mit Triton 3.8 weichen sie in den letzten
+>   Bits ab (Abschnitt „Codex-Review“). Lange Texte einlesen ist außerhalb des Grafikspeichers aber 2- bis 70-mal
+>   langsamer.
 > - **Schritt 3 (Qwen3.5-0.8B mit Tabelle als Zusatz):**
 >   - Hilft nur so viel wie ein gleich teurer dichter Zusatzblock.
 >   - Schadet nach den Kriterien: MMLU −2,7 Pp., +7 % PPL auf anders aufbereitetem Text.
@@ -716,8 +719,9 @@ Format) ist der Abstand gleich groß (−16,5 % / −17,0 % gegenüber Mittel A)
 (216 min, die Zeiten weichen nur um 5 s voneinander ab) sieht A 2,37× so viele Tokens und erreicht 22,508.
 B-1M-sparse s0 liegt mit 21,837 um 3,0 % darunter (Q = 0,970; s1, nicht Teil des Kriteriums: 0,966). Damit
 ist das Kriterium „mindestens gleichauf“ erfüllt, „mindestens 5 % besser“ (Q ≤ 0,95) verfehlt.
-Der Unterschied von 0,67 PPL ist echt: Er ist mehr als dreimal so groß wie 2 × Seed-Spanne (0,18). A bei
-gleicher Zeit hat allerdings nur einen Seed. Auf WikiText-Val ist der Vorsprung kleiner (−1,4 % / −2,0 %).
+Der Unterschied von 0,67 PPL ist mehr als dreimal so groß wie 2 × Seed-Spanne (0,18). A bei gleicher Zeit hat
+allerdings nur einen Seed, das ist also ein deutlicher Hinweis, kein statistischer Beleg (korrigiert 2026-10-05 nach Codex-Review; vorher
+hieß es „ist echt“). Auf WikiText-Val ist der Vorsprung kleiner (−1,4 % / −2,0 %).
 Bei gleicher Tokenzahl lag B-1M 15 % vorn, bei gleicher Zeit bleibt davon etwa ein Fünftel.
 
 **Einordnung (nichts schönreden):**
@@ -1248,8 +1252,9 @@ Verlauf, Val-PPL bei gleicher Tokenzahl:
 - **Kontrolle bestanden:** B-1M in der Cloud (H200, Triton-Kernels) und zu Hause (RX 9070, PyTorch-Referenz)
   liegen 0,00 % auseinander (21,8365 gegenüber 21,8369). Kernels und Hardware verändern das Ergebnis nicht,
   auch nicht über die Gleichstände bei der bf16-Auswahl.
-- **Belastbar trotz eines Seeds:** Die Abstände (4,75 % und 4,0 %) sind rund sechsmal so groß wie zwei
-  Seed-Spannen von B-1M-sparse (2 × 0,39 %). Auf dem nie trainierten WikiText-Val-Set sind sie gleich groß.
+- **Deutlich größer als das Seed-Rauschen:** Die Abstände (4,75 % und 4,0 %) sind rund sechsmal so groß wie zwei
+  Seed-Spannen von B-1M-sparse (2 × 0,39 %). Die Seed-Spanne stammt aber von B-1M und ist auf die großen Tabellen
+  nur übertragen (korrigiert 2026-10-05 nach Codex-Review; vorher „Belastbar trotz eines Seeds“). Auf dem nie trainierten WikiText-Val-Set sind sie gleich groß.
   Trotzdem bleibt es ein Seed je Größe.
 - **Der Vorsprung wächst noch:** Bei 100 M Tokens bringt die 4-fache Tabelle 2,7 %, bei 500 M 4,7 %; für
   B-16M gegenüber B-4M wachsen die Werte von 2,0 % auf 4,0 %. Mit mehr Daten dürfte der Abstand weiter
@@ -1318,8 +1323,10 @@ FFN-Breite ist ≈ 8/3 · d, gerundet auf ein Vielfaches von 64 (wie A: 384 → 
 2. **Gleichwertige Größe N_eq** für B-1M, B-4M und B-16M:
    - Hauptwert: stückweise lineare Interpolation von log PPL über log N zwischen den beiden benachbarten
      dichten Punkten.
-   - Vergleichswert: Fit PPL = E + a · N^(−α) über alle dichten Punkte, kleinste Quadrate in log PPL.
-3. **Unsicherheit:**
+   - Vergleichswert: Fit PPL = E + a · N^(−α) über alle dichten Punkte. Gitter über α und E, a je Gitterpunkt
+     per kleinster Quadrate in PPL, gewählt wird der Punkt mit dem kleinsten Fehler in log PPL (korrigiert 2026-10-05 nach Codex-Review;
+     vorher „kleinste Quadrate in log PPL“; ein exakter Log-Fit verschiebt die Fit-Werte um höchstens 0,3 M).
+3. **Unsicherheit** (ein Sensitivitätsbereich, kein Konfidenzintervall):
    - Die PPL von B und die der beiden Nachbarpunkte werden um ±0,4 % verschoben. Das ist die Seed-Spanne aus
      Stufe 1c: A s0/s1 0,35 %, B-1M s0/s1 0,39 %.
    - Die Extremfälle ergeben einen Bereich für N_eq.
@@ -1417,23 +1424,23 @@ teuren Grafikspeicher liegt? Messung ohne Bestanden-Kriterium.
 
 **Ergebnisse** (`report/offload/*.json`, `report/offload_summary.json`, Grafik `report/offload_cache.png`):
 
-| Variante | Schreiben tok/s (ms/Token, 1. Prompt) | Einlesen tok/s | Cache-Treffer Schreiben / Einlesen | NVMe beim Einlesen | VRAM belegt (gesamt, mit Desktop) | RAM-Spitze (RSS) | Val-PPL ganz |
+| Variante | Schreiben tok/s (ms/Token, 1. Prompt) | Einlesen tok/s | Cache-Treffer Schreiben / Einlesen | NVMe beim Einlesen | VRAM belegt (gesamt, mit Desktop; GiB) | RAM-Spitze (RSS; GiB) | Val-PPL ganz |
 |---|---|---|---|---|---|---|---|
-| a) bf16 im VRAM, mit Graphen | 216 (4,6) | 108.000 | – | – | 13,1 GB | 12,9 GB¹ | 19,9615 |
+| a) bf16 im VRAM, mit Graphen | 216 (4,6) | 108.000 | – | – | 13,1 | 12,9¹ | 19,9615 |
 | a) bf16, ohne Graphen | 171 (5,8) | 108.000 | – | – | | | |
-| a) 4 Bit im VRAM, mit Graphen | 212 (4,7) | 107.500 | – | – | 3,6 GB | 4,0 GB | 19,9795 |
+| a) 4 Bit im VRAM, mit Graphen | 212 (4,7) | 107.500 | – | – | 3,6 | 4,0 | 19,9795 |
 | a) 4 Bit, ohne Graphen | 173 (5,8) | 107.400 | – | – | | | |
-| b) bf16 im RAM | 139 (7,2) | 31.200 | – | – | 0,53 GB | 14,7 GB | 19,9615 |
-| b) fp32 im RAM | 143 (7,0) | 18.900 | – | – | 0,53 GB | 48,8 GB¹ | **19,9601** |
-| b) 4 Bit im RAM | 154 (6,5) | 61.700 | – | – | 0,53 GB | 5,0 GB | = a) 4 Bit² |
-| c) NVMe, ohne Cache | 114 (8,7) | 4.900 | 0 / 0 % | 57 k Lesezugriffe/s, 235 MiB/s | 0,53 GB | 5,1 GB³ | = a) 4 Bit² |
-| c) NVMe, Cache 5 % (155 MB) | 120 (8,3) | 4.500 | 38 / 28 % | 75 k/s | 0,53 GB | 5,3 GB³ | = a) 4 Bit² |
-| c) NVMe, Cache 10 % (310 MB) | 127 (7,8) | 4.400 | 53 / 41 % | 86 k/s | 0,53 GB | 5,5 GB³ | = a) 4 Bit² |
-| c) Cache 10 % + FIFO 20 % | 127 (7,8) | 4.500 | 73 / 52 % | 89 k/s | 0,53 GB | 6,1 GB³ | = a) 4 Bit² |
-| c) NVMe, Cache 30 % (930 MB) | 137 (7,3) | 4.800 | 80 / 72 % | 110 k/s, 469 MiB/s | 0,53 GB | 6,1 GB³ | 19,9795 |
-| c) NVMe, Cache 50 % (1,55 GB) | 138 (7,2) | 6.500 | 92 / 87 % | 111 k/s | 0,53 GB | 6,5 GB³ | = a) 4 Bit² |
-| c) Cache 10 %, **RAM begrenzt 4 GB** | 124 (8,0) | **1.500** | 53 / 41 % | 65 k/s | 0,53 GB | ≤ 4 GB (Scope) | = a) 4 Bit² |
-| c) Cache 30 %, **RAM begrenzt 4 GB** | 133 (7,5) | **2.600** | 80 / 72 % | 84 k/s | 0,53 GB | ≤ 4 GB (Scope) | = a) 4 Bit² |
+| b) bf16 im RAM | 139 (7,2) | 31.200 | – | – | 0,53 | 14,7 | 19,9615 |
+| b) fp32 im RAM | 143 (7,0) | 18.900 | – | – | 0,53 | 48,8¹ | **19,9601** |
+| b) 4 Bit im RAM | 154 (6,5) | 61.700 | – | – | 0,53 | 5,0 | = a) 4 Bit² |
+| c) NVMe, ohne Cache | 114 (8,7) | 4.900 | 0 / 0 % | 57 k Lesezugriffe/s, 235 MiB/s | 0,53 | 5,1³ | = a) 4 Bit² |
+| c) NVMe, Cache 5 % (155 MB) | 120 (8,3) | 4.500 | 38 / 28 % | 75 k/s | 0,53 | 5,3³ | = a) 4 Bit² |
+| c) NVMe, Cache 10 % (310 MB) | 127 (7,8) | 4.400 | 53 / 41 % | 86 k/s | 0,53 | 5,5³ | = a) 4 Bit² |
+| c) Cache 10 % + FIFO 20 % | 127 (7,8) | 4.500 | 73 / 52 % | 89 k/s | 0,53 | 6,1³ | = a) 4 Bit² |
+| c) NVMe, Cache 30 % (930 MB) | 137 (7,3) | 4.800 | 80 / 72 % | 110 k/s, 469 MiB/s | 0,53 | 6,1³ | 19,9795 |
+| c) NVMe, Cache 50 % (1,55 GB) | 138 (7,2) | 6.500 | 92 / 87 % | 111 k/s | 0,53 | 6,5³ | = a) 4 Bit² |
+| c) Cache 10 %, **RAM begrenzt 4 GiB** | 124 (8,0) | **1.500** | 53 / 41 % | 65 k/s | 0,53 | ≤ 4 (Scope)⁴ | = a) 4 Bit² |
+| c) Cache 30 %, **RAM begrenzt 4 GiB** | 133 (7,5) | **2.600** | 80 / 72 % | 84 k/s | 0,53 | ≤ 4 (Scope)⁴ | = a) 4 Bit² |
 
 ¹ Beim Laden: Datei bzw. Checkpoint wird einmal komplett gelesen. Bei b) fp32 zählen die gemappten
 Checkpoint-Seiten mit; die Tabelle selbst belegt 25,8 GB.
@@ -1441,6 +1448,10 @@ Checkpoint-Seiten mit; die Tabelle selbst belegt 25,8 GB.
 nur für c) mit 30 % gerechnet und ergibt ebenfalls genau 19,9795.
 ³ RSS enthält die gemappten Seiten der 4-Bit-Datei. Ohne RAM-Grenze lag die Datei am Ende zu 2–3 GB im
 Seiten-Cache von Linux.
+⁴ Grenze der systemd-Scope (cgroup `MemoryMax=4G`), gezählt wird, was der Kernel dieser Gruppe anrechnet. Das ist
+nicht dasselbe wie „läuft auf einem Rechner mit 4 GB RAM“: Treiber, Desktop und der übrige Seiten-Cache liegen
+außerhalb. Die RSS des Prozesses lag dabei höher (bis ≈ 5,9 GiB), weil sie gemappte Dateiseiten mitzählt
+(korrigiert 2026-10-05 nach Codex-Review; die Einheiten in dieser Tabelle sind GiB, vorher stand „GB“).
 
 **Was das zeigt:**
 - **Qualität: gleich.**
@@ -1689,7 +1700,7 @@ einer Kurve.
 
 **Gleichwertige dichte Größe** (Regeln wie oben festgelegt; `scripts/dense_equiv.py`, `report/dense_equiv.json`):
 
-| | Val-PPL | **gleichwertige dichte Größe** | Bereich (±0,4 %, inkl. Fit) | Fit allein | MACs/Token | Parameter aktiv pro Token / Tabelle |
+| | Val-PPL | **gleichwertige dichte Größe** | Sensitivitätsbereich (±0,4 %, inkl. Fit) | Fit allein | MACs/Token | Parameter aktiv pro Token / Tabelle |
 |---|---|---|---|---|---|---|
 | B-1M | 21,837 | **60 M** | 57–63 M | 58 M | 47,1 M | 23,1 M / 0,40 Mrd. |
 | B-4M | 20,799 | **83 M** | 79–88 M | 83 M | 50,2 M | 26,2 M / 1,61 Mrd. |
@@ -1705,8 +1716,8 @@ Alle drei liegen innerhalb des gemessenen Bereichs; eine Extrapolation war nicht
   also ≈ 2,9× so viel.
 - **Jede Vervierfachung der Tabelle** bringt ≈ 1,4× gleichwertige Größe (60 → 83 → 114 M). Der Gewinn je
   Verdopplung bleibt in diesem Bereich etwa gleich und flacht noch nicht ab.
-- **Der Preis dafür ist Speicher:** Die Tabelle von B-16M hat 6,44 Mrd. Parameter, dreißigmal so viele wie das
-  gleichwertige dichte Modell. Im Training brauchte B-16M ≈ 101 GB GPU-Speicher, D-200M 16 GB. Zum Schreiben muss
+- **Der Preis dafür ist Speicher:** Die Tabelle von B-16M hat 6,44 Mrd. Parameter, 56-mal so viele wie das
+  gleichwertige dichte Modell (114 M; korrigiert 2026-10-05 nach Codex-Review, vorher „dreißigmal“). Im Training brauchte B-16M ≈ 101 GB GPU-Speicher, D-200M 16 GB. Zum Schreiben muss
   die Tabelle aber nicht im Grafikspeicher liegen (Schritt 2).
 
 **Nebenwert WikiText-103, nicht vorab als Kriterium festgelegt:**
@@ -1796,9 +1807,11 @@ Die Grenze je Aufgabe ist max(2 Pp., 2 × Standardfehler der Differenz). Der Sta
 - **Kein Vorteil gegenüber einem gleich teuren Zusatzblock:** Als Zusatz zu einem fertigen, eingefrorenen Qwen
   bringt die Tabelle in diesem Aufbau keinen Vorteil gegenüber einem kleinen dichten Block mit gleichem
   Rechenaufwand. Beide passen Qwen gleich gut an neue Wikipedia-Texte an.
-- **Gespeichert, aber nicht abrufbar:** Die Tabelle speichert die Trainingsartikel als Text sehr stark (PPL auf
-  trainierten Artikeln −58 %, dichte Kontrolle −30 %). Dieses Gespeicherte ist aber kaum als einzelne Fakten
-  abrufbar: Exakte Lücken werden bei Trainings- und Gegenprobe-Artikeln gleich viel besser.
+- **Kein Hinweis auf eingepflanzte Fakten:** Das Add-on mit Tabelle passt sich den Trainingsartikeln als Text sehr
+  stark an (PPL auf trainierten Artikeln −58 %, dichte Kontrolle −30 %). Im Faktentest wird es aber bei Trainings-
+  und Gegenprobe-Artikeln gleich viel besser. Ein gezielter Abruf trainierter Fakten ist damit nicht nachgewiesen.
+  Ob das Gelernte in der Tabelle oder in Keys, Projektionen und Gates steckt, habe ich nicht getestet (korrigiert 2026-10-05 nach Codex-Review;
+  vorher „Gespeichert, aber nicht abrufbar“).
 - **Nebenwirkungen bei der Tabelle:**
   - MMLU (Wissensfragen) sinkt.
   - Auf dem anders aufbereiteten 2023er Val-Set wird Qwen schlechter.
@@ -1947,3 +1960,55 @@ Ausführlich auf Englisch: `docs/kernels.md`.
 - Dateien: `rest.pt`, `values_q4.bin`, `scales_q4.bin`, `hot_rows.npy` (Hardlinks auf die Tabellen-Dateien, sha256
   geprüft), dazu eine neue `meta.json` ohne lokale Pfade und eine Model Card.
 - Für den Upload vorbereitet (Stand 2026-10-05).
+
+## Codex-Review (2026-10-05)
+
+Ein zweites Modell (OpenAI Codex) hat den alten Stand `AngryAnt` (`8cf0226`) gelesen und 22 Befunde gemeldet.
+Ich habe jede genannte Codestelle nachgeprüft.
+
+**Was sich an den Ergebnissen ändert: nichts.**
+- Nach jeder Codeänderung waren bitgleich zu vorher: B-16M-Decode-Logits (Tabelle im VRAM und auf der NVMe),
+  B-1M-Trainings-Logits, Loss und Gradienten sowie die Eval-Logits mit fp32-, bf16- und 4-Bit-Tabelle.
+- `report/qwen/step3_summary.json` kommt unverändert heraus.
+- Die strengere Faktbewertung ändert keine der 4 × 1.000 gespeicherten Antworten.
+
+| Nr. | Befund | Stimmt? | Erledigt |
+|---|---|---|---|
+| 1 | Qwen-Queue meldet „fertig“ trotz gescheiterter Auswertung | ja | „fertig“ und `COMPLETE` nur, wenn alle 11 Schritte gelaufen sind, sonst „UNVOLLSTÄNDIG“ mit Liste; `run_dense` genauso |
+| 2 | `bag_infer` liest über das Ende, wenn Heads × knn kein Vielfaches von 64 ist | ja, 4 × 32 = 128 nicht betroffen | letzter Block maskiert (auch `bag_forward`); Tests mit 96, 48, 40 Lookups und 3 Heads, die alte Version stürzt dabei ab |
+| 3 | mehrere neue Tokens nach gefülltem KV-Cache ohne Kausalmaske | ja, nur Chunk-Prefill | Maske mit Versatz, Test gegen vollen Forward |
+| 4 | Neustart nimmt leere oder halbe Dateien als fertig | ja | Prüfung (nicht leer, gültiges JSON, Status), atomares Schreiben (`smlm/atomic.py`); Dense- und Cloud-Queue: „done“ ohne `model.pt` wird gemeldet statt übersprungen oder neu trainiert. Eine Laufidentität aus Konfigurations- und Datenhash fehlt weiterhin |
+| 5 | Budget-Hochrechnung nach Neustart mit 0 h Auswertung | ja | Schrittzeiten in `step_minutes.json` |
+| 6 | Auswertung liest fest `Q/general_ac.json` | ja | ohne diese Datei `Q/general.json` |
+| 7 | Schritt-Push ohne die Ergebnisdateien | ja | Ergebnisdatei wird mitgepusht |
+| 8 | eingefrorene Tabelle wird trotzdem trainiert, Tabelle allein nicht trainierbar | ja | beides behoben, Tests |
+| 9 | Optimizer-Zustand wird beim Laden falsch übernommen | ja | `load_state_dict` bricht jetzt mit Fehler ab (Training wird nie fortgesetzt) |
+| 10 | BatchNorm im Training nicht präfixkausal | ja | als Grenze im README; alle berichteten PPL im Eval-Modus mit laufender Statistik |
+| 11 | statistische Sicherheit überbehauptet | ja | „echt“ und „belastbar“ umformuliert, Bereiche als Sensitivitätsbereich benannt |
+| 12 | „Gespeichert, aber nicht abrufbar“ erklärt mehr als gemessen | ja | umformuliert: gezielter Abruf nicht nachgewiesen, Ort des Gelernten nicht getestet |
+| 13 | Parität in Kurzfassungen überzogen | ja | README präzisiert (Decoding: Tabellenmodell mit, Modell A ohne Graphen; Kernel „bis auf Rundung“); `final.md` ist privat |
+| 14 | MI350X-Nachtrag nicht belegbar | nein | im Rewrite liegen `runs/amd_mi350x` und der Abschnitt oben; Codex hat den alten Ordner geprüft |
+| 15 | „12“ zählt als richtig für „12.5“ | ja | Regel verschärft, Regressionstest |
+| 16 | nicht unterstützte Größen scheitern erst im Kernel | ja | `mem_impl="triton"` prüft im Konstruktor und meldet klar |
+| 17 | Batch-Teilbarkeit im Qwen-Training, `zero_grad` ohne Wirkung | ja | wird geprüft bzw. ist dokumentiert |
+| 18 | Offload-Bitgleichheit nur über die NLL-Summe belegt | ja | Logits direkt verglichen (`scripts/check_offload_identical.py`): bitgleich mit Triton 3.5; mit Triton 3.8 weichen sie in den letzten Bits ab, gleiche Tokens |
+| 19 | „dreißigmal“ statt 56-mal, GB statt GiB, 4-GB-Scope | ja | korrigiert, Fußnote zur Scope |
+| 20 | v2-Status, Bildlink, „widerlegt“ | ja | korrigiert |
+| 21 | Qwen-Läufe ohne Commit und Versionen | ja | `run-info.json` enthält beides jetzt; Datierung über Seiten-IDs im README genannt |
+| 22 | Fit ist kein exakter Log-Fit | ja | Beschreibung korrigiert; ein exakter Log-Fit verschiebt die Fit-Werte um höchstens 0,3 M (58,5 / 83,4 / 115,7 M) |
+
+**Neu beim Nachprüfen von 18:** Mit dem offiziellen `rocm7.2`-Wheel (Triton 3.8) rechnet `bag_infer` auf der
+kleinen Staging-Tabelle (RAM/NVMe) in anderer Reihenfolge als auf der vollen Tabelle (VRAM).
+- Gegen eine exakte fp64-Summe liegen beide gleich nah, mit einer Abweichung von ≈ 1e-8.
+- Die Logits weichen dadurch um bis zu 0,44 ab (wenige bf16-Stufen). Die gierig erzeugten Tokens waren in allen
+  Prüfungen gleich (`report/offload/identical_check_triton38.json`).
+- Mit Triton 3.5 ist alles bitgleich.
+
+**Nicht gemacht, das wären neue Experimente:** weitere Seeds, Tabellen-Ablation am Qwen-Add-on, Modell A mit
+Graphen, kausale Normierung statt BatchNorm.
+
+**Geprüft:**
+- 127 Tests auf der RX 9070, aus einem frischen Clone mit dem `rocm7.2`-Wheel.
+- Die Qwen-Tests (8) in `.venv-qwen`.
+- Die Kernel-Tests zu den betroffenen Kerneln zusätzlich im CPU-Interpreter.
+- Die Queue-Logik ohne Pod: `tests/test_cloud_queue.py` und der Fake-Modus von `run_dense.py`.

@@ -7,7 +7,7 @@ random tokens:
   train    one optimiser step on 32 x 1024 tokens (micro-batches + gradient accumulation, bf16 autocast)
   prefill  a forward pass over 16 x 1024 tokens
   decode   batch-1 generation with KV cache (the Triton version uses the decode graphs)
-Weights are random, so this measures speed only; correctness is what the tests are for. Needs ~11 GB of GPU memory.
+Weights are random, so this measures speed only; correctness is what the tests are for. Needs ~11 GiB of GPU memory.
 PYTORCH_CUDA_ALLOC_CONF is ignored here: with expandable_segments:True the prefill after training died with a
 hardware exception on my RX 9070 (ROCm 7.2). Without it everything runs. I haven't looked into why yet.
 """
@@ -109,16 +109,16 @@ def main():
     import triton
     p = torch.cuda.get_device_properties(0)
     arch = getattr(p, "gcnArchName", "")
-    print(f"{p.name}{f' ({arch})' if arch else ''}, {p.total_memory / 2**30:.0f} GB | PyTorch {torch.__version__} "
+    print(f"{p.name}{f' ({arch})' if arch else ''}, {p.total_memory / 2**30:.0f} GiB | PyTorch {torch.__version__} "
           f"({'HIP ' + torch.version.hip if torch.version.hip else 'CUDA ' + str(torch.version.cuda)}) | Triton "
           f"{triton.__version__} | Python {platform.python_version()}\n")
     rows = [("no table (A)", measure("A", "torch", args.steps)),
             (f"{args.model}, PyTorch", measure(args.model, "torch", args.steps)),
             (f"{args.model}, Triton kernels", measure(args.model, "triton", args.steps))]
-    print(f"{'':28s} {'train step':>11s} {'train tok/s':>12s} {'prefill tok/s':>14s} {'decode tok/s':>13s} {'peak GB':>8s}")
+    print(f"{'':28s} {'train step':>11s} {'train tok/s':>12s} {'prefill tok/s':>14s} {'decode tok/s':>13s} {'peak GiB':>9s}")
     for name, r in rows:
         print(f"{name:28s} {r['train_ms']:9.0f} ms {r['train_tok_s']:12,.0f} {r['prefill_tok_s']:14,.0f} "
-              f"{r['decode_tok_s']:13.0f} {r['peak_gib']:8.1f}")
+              f"{r['decode_tok_s']:13.0f} {r['peak_gib']:9.1f}")
     a, ref, tri = (r for _, r in rows)
     print(f"\nkernels vs PyTorch: training {ref['train_ms'] / tri['train_ms']:.2f}x, prefill "
           f"{tri['prefill_tok_s'] / ref['prefill_tok_s']:.2f}x, decode {tri['decode_tok_s'] / ref['decode_tok_s']:.2f}x")

@@ -127,7 +127,7 @@ Abstands drauf. Über das Training schwankt der paarweise Unterschied zwischen �
 0,7 %). Die während des Trainings protokollierten Werte (bf16) stimmen mit der Messung (fp32) überein
 (25,453 vs. 25,456; 25,636 vs. 25,640), die Messung misst also, was sie soll.
 
-![Schärfe v2b](report/v2b_ep3_sharpness.png)
+![Schärfe v2b](../../report/v2b_ep3_sharpness.png)
 
 **Was das bedeutet:**
 
@@ -140,8 +140,10 @@ Abstands drauf. Über das Training schwankt der paarweise Unterschied zwischen �
 - Das Modell stützt sich mit v2b etwas stärker auf *bestimmte* Einträge: Speicher auf null → PPL 36,3 /
   36,3 (B: 34,2 / 35,8), zufällige Einträge → 41,2 / 42,4 (B: 37,5 / 40,8). Nutzung (≈ 100 %) und
   Zugriffsverteilung bleiben wie bei B (Top 20 % der Einträge → 57 / 54 % der Zugriffe).
-- **Die Hypothese „flache Softmax bremst den Speicher“ ist damit weitgehend widerlegt.** Mit freier
-  Temperatur wird das Modell nur mäßig schärfer und gewinnt dadurch fast nichts. Der Engpass liegt
+- **Die Hypothese „flache Softmax bremst den Speicher“ hat sich für diese Variante nicht bestätigt.** Mit freier
+  Temperatur wird das Modell nur mäßig schärfer und gewinnt dadurch fast nichts. Andere Wege zu schärferer
+  Auswahl sind damit nicht ausgeschlossen (korrigiert 2026-10-05 nach Codex-Review; vorher „weitgehend widerlegt“, obwohl das Gate bei
+  Seed 1 knapp verfehlt wurde). Der Engpass liegt
   woanders (Kandidaten aus REPORT.md: Datenregime, Werte-LR, Zahl der Speicherschichten).
 
 **Entscheidung nach Vorgabe:** v2b ist nicht klar besser als B → **v2a wird nicht gestartet.**

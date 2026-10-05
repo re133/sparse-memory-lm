@@ -22,11 +22,13 @@ here. The full lab notebook with every criterion, every number and every mishap 
 - **Bigger keeps helping:** going from 1M to 4M to 16M rows gives about 1.4x "equivalent model size" per step, and
   it isn't flattening out yet.
 - **Generating text doesn't need the table in VRAM:** from RAM or straight off an NVMe SSD the model still writes
-  114 to 154 tokens/s on my PC, with bit-identical output. Reading long prompts is a different story.
-- **Portable kernels:** the same hand-written Triton kernels run on three very different GPUs with the same results:
-  a consumer Radeon (RDNA4), AMD's data-centre MI350X (CDNA4) and NVIDIA H100/H200 (Hopper).
+  114 to 154 tokens/s on my PC, with the same output. Reading long prompts is a different story.
+- **Portable kernels:** the same hand-written Triton kernels run on three very different GPUs and give the same
+  training curve up to float rounding: a consumer Radeon (RDNA4), AMD's data-centre MI350X (CDNA4) and NVIDIA
+  H100/H200 (Hopper).
 - **Adding a table to a finished model didn't work:** on Qwen3.5-0.8B it was no better than a small dense add-on with
-  the same compute. It memorised its training articles really well, but it couldn't pull the facts back out.
+  the same compute. Its perplexity on the training articles dropped a lot, but in a fact test it wasn't any better
+  on those articles than on ones it had never seen.
 
 ## Try it
 
@@ -48,14 +50,14 @@ What the last command printed on my card (the first run also shows a few gcc war
 launchers, those are harmless):
 
 ```
-AMD Radeon RX 9070 (gfx1201), 16 GB | PyTorch 2.14.1+rocm7.2 (HIP 7.2.53211) | Triton 3.8.0 | Python 3.14.7
+AMD Radeon RX 9070 (gfx1201), 16 GiB | PyTorch 2.14.1+rocm7.2 (HIP 7.2.53211) | Triton 3.8.0 | Python 3.14.7
 
-                              train step  train tok/s  prefill tok/s  decode tok/s  peak GB
-no table (A)                       333 ms       98,433        437,814           196      7.9
-B-1M-sparse, PyTorch               786 ms       41,709        167,989           158     10.5
-B-1M-sparse, Triton kernels        513 ms       63,879        294,263           201     10.5
+                              train step  train tok/s  prefill tok/s  decode tok/s  peak GiB
+no table (A)                       333 ms       98,341        438,762           199       7.9
+B-1M-sparse, PyTorch               787 ms       41,652        168,342           161      10.5
+B-1M-sparse, Triton kernels        512 ms       64,027        295,060           203      10.5
 
-kernels vs PyTorch: training 1.53x, prefill 1.75x, decode 1.27x
+kernels vs PyTorch: training 1.54x, prefill 1.75x, decode 1.26x
 with the kernels the table model trains at 65% of the speed of the model without a table
 ```
 
@@ -81,27 +83,28 @@ The trained B-16M model is on [Hugging Face](https://huggingface.co/re133/sparse
 .venv/bin/python scripts/demo_generate.py --table vram -i            # table in VRAM, your own prompts
 ```
 
-On my PC (CachyOS's PyTorch 2.14.0; with the pip wheel the sampled text comes out different):
+With the `rocm7.2` wheel from above (other PyTorch builds sample a different text):
 
 ```
-loaded in 1.2 s, table in nvme: 0.27 GB VRAM, 1.8 GB RAM + 3.4 GB mapped files
+loaded in 1.5 s, table in nvme: 0.27 GiB VRAM, 1.8 GiB RAM + 3.8 GiB mapped files
 
 Isaac Newton
 
 Sir Isaac Newton was born on 14 November 1803, the son of the Rev. Samuel Newton of Basing, Middlesex, and his
 wife Elizabeth, daughter of William Wilberforce of Westmorland. He was educated at Harrow and Trinity College,
-Cambridge. [...]
+Cambridge. He matriculated at Magdalen College, Oxford, on 11 June 1841. He was ordained in 1844. [...]
 
-[200 tokens in 1.39 s = 144 tok/s, table in nvme, peak 0.42 GB VRAM, 2.5 GB RAM + 3.5 GB mapped files]
+[200 tokens in 1.48 s = 135 tok/s, table in nvme, peak 0.42 GiB VRAM, 2.5 GiB RAM + 3.9 GiB mapped files]
 ```
 
 - **Memory:** the table has 6.4B parameters and stays on the SSD. The GPU only holds the rest of the model
-  (0.3 GB) plus the rows the current token reads. "Mapped files" are pages of the table file in Linux's page cache, which Linux drops
-  again when it needs the memory.
-- **Same text everywhere:** within one install, `--table ram` writes exactly the same text, and so does
-  `--table vram`, at ~200 tok/s.
-- **Quality:** fluent Wikipedia English, but the facts are made up. This Newton was born in 1803 and became a
-  lawyer. It's a small model trained on 500M tokens, it's here to show what the table costs to run, not what it
+  (0.3 GB) plus the rows the current token reads. "Mapped files" are pages of the table file in Linux's page
+  cache, which Linux drops again when it needs the memory.
+- **Same text everywhere:** `--table ram` and `--table vram` (~200 tok/s) write the same text. With the pip wheel
+  the logits can differ in the last bits between the modes (see above), so a sampled text could in rare cases go
+  its own way.
+- **Quality:** fluent Wikipedia English, but the facts are made up. This Newton was born in 1803 and became an
+  army chaplain. It's a small model trained on 500M tokens, it's here to show what the table costs to run, not what it
   knows. Prompts work best like the training articles: `"Title\n\nFirst words"`.
 
 ## Results
@@ -119,7 +122,9 @@ models share one table between three memory layers.
 | B-16M | 33M | 6.4B | 19.96 | ~114M params (106 to 123M) |
 
 The "as good as" column comes from dense models with 50M, 100M, 200M and 400M parameters (non-embedding) that I
-trained on exactly the same data, interpolated on a log-log curve:
+trained on exactly the same data, interpolated on a log-log curve. The range in brackets shows how far the value
+moves if every perplexity is off by ±0.4% (the seed noise I measured on the 1M model). It's a sensitivity range,
+not a confidence interval.
 
 ![Equivalent dense size](report/dense_equiv.png)
 
@@ -136,11 +141,16 @@ RAM cache for the rows that get read most):
 
 | Table in | Writing (batch 1) | Reading a long prompt | VRAM used |
 |---|---|---|---|
-| VRAM | 212 to 216 tok/s | 108,000 tok/s | 3.6 GB (4-bit) / 13.1 GB (bf16) |
-| RAM | 139 to 154 tok/s | 19,000 to 62,000 tok/s | 0.5 GB |
-| NVMe | 114 to 138 tok/s | 1,500 to 6,500 tok/s | 0.5 GB |
+| VRAM | 212 to 216 tok/s | 108,000 tok/s | 3.6 GiB (4-bit) / 13.1 GiB (bf16) |
+| RAM | 139 to 154 tok/s | 19,000 to 62,000 tok/s | 0.5 GiB |
+| NVMe | 114 to 138 tok/s | 1,500 to 6,500 tok/s | 0.5 GiB |
 
-All three give exactly the same numbers (same perplexity down to the last digit). When writing, the slow part isn't
+All three compute the same: same perplexity down to the last digit, and with my PyTorch build (Triton 3.5) the
+logits are bit-identical too ([check](report/offload/identical_check.json)). With the pip wheel (Triton 3.8) the
+kernel sums in a slightly different order for the small staging table than for the full one, so logits can differ
+in the last bits. Both are equally close to an exact fp64 sum, and the generated tokens stayed the same
+([check](report/offload/identical_check_triton38.json)). VRAM is the whole card as `rocm-smi` reports it, desktop
+included. When writing, the slow part isn't
 the SSD but the three round trips between GPU and CPU per token: even with no cache at all the NVMe version is only
 18% slower than RAM. When reading a prompt every token needs ~270 different rows, and every missed row costs a
 whole 4 KB page from the SSD. That's where it falls apart.
@@ -152,7 +162,8 @@ whole 4 KB page from the SSD. That's where it falls apart.
 **Setup:**
 - Qwen stays frozen. Three extra memory blocks (1M-row table) sit behind its layers, each with a gate that starts at
   zero, so at the start the model is bit-for-bit the original Qwen.
-- Training data: 55M tokens of Wikipedia articles created after Qwen was released, two passes.
+- Training data: 55M tokens of Wikipedia articles created after Qwen was released (dated by page id, so roughly),
+  two passes.
 - Compared against Qwen alone (Q) and against a small dense add-on with the same compute (Q+D).
 
 | | Q | Q + table | Q + dense |
@@ -166,9 +177,11 @@ whole 4 KB page from the SSD. That's where it falls apart.
 **What came out:**
 - **No gain over the dense add-on:** the table helps on new text exactly as much as the dense add-on does. That's
   adapting to Wikipedia, not the table.
-- **Stored, but not retrievable:** it stores the training articles far better, but finds their facts only 2.4
-  points more often than the dense version, and the same 2.2 points more often on articles it has never seen. My
-  bar for "it learned new facts" was +10 points.
+- **No sign of learned facts:** its perplexity on the training articles fell far more than with the dense add-on,
+  but in the fact test it was only 2.4 points ahead of the dense version on those articles, and 2.2 points ahead
+  on articles it had never seen. So it didn't recall facts from its training articles any better. My bar for "it
+  learned new facts" was +10 points. Where in the add-on the training text ended up (table, keys, projections) I
+  didn't test.
 - **Side effects:** it also cost some MMLU, the dense add-on didn't.
 
 ## How it works
@@ -182,14 +195,15 @@ whole 4 KB page from the SSD. That's where it falls apart.
   - One value table shared by all three layers.
 - **Training the table:** row-sparse gradients and a lazy Adam that only touches the rows read in a step
   (`smlm/sparse_values.py`). Same quality as dense Adam on the table, faster, and much less memory.
-- **Triton kernels** (`smlm/kernels.py`), on ROCm and CUDA with identical results:
+- **Triton kernels** (`smlm/kernels.py`), on ROCm and CUDA, matching the PyTorch reference up to float rounding:
   - the backward pass of the table lookup
   - the product-key selection
   - the lookup itself for fp32, bf16 or 4-bit tables
   - the fused lazy Adam step
   - a graph-captured decode path
 
-  On the RX 9070 this made training 1.47x faster and brought decoding to the speed of the plain model. What each
+  On the RX 9070 this made training 1.47x faster and brought batch-1 decoding to the speed of the plain model (the
+  table model replays its memory layers as graphs, the plain model runs without graphs). What each
   kernel does, how much it brings and where its limits are: [docs/kernels.md](docs/kernels.md).
 - **Table outside the GPU:** `smlm/offload.py`.
 - **Qwen add-on:** `smlm/qwen_memory.py`.
@@ -257,6 +271,9 @@ More in [docs/rocm-issues](docs/rocm-issues/README.md).
 - **Equal tokens vs. equal time:** equal tokens isn't equal time. On my hardware the table mostly pays off in
   quality per token, not in quality per hour.
 - **Offloading code:** the RAM/NVMe paths are plain Python/NumPy. There's room for a lot more speed there.
+- **BatchNorm on the query:** during training it normalises with the statistics of the whole batch, so a token's
+  memory lookup is very slightly influenced by later tokens. All perplexities here are measured in eval mode with
+  running statistics, where that doesn't happen, but training losses aren't strictly causal.
 
 ## Related work
 

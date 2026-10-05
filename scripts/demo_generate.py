@@ -6,9 +6,9 @@ r"""Let B-16M write some text, with its 6.4B-parameter table on the SSD, in RAM 
 
 B-16M is the 21M-parameter model from the README with the 16.8M-row table (33M parameters used per token). The
 table is the 4-bit file from scripts/convert_table.py (validation PPL 19.98, against 19.96 with the fp32 table):
-  nvme  memory-mapped from the SSD, the 30% most-read rows cached in RAM (~1 GB). ~0.5 GB of VRAM.
-  ram   whole 4-bit table in RAM (3.2 GB), rows copied to the GPU per token.
-  vram  whole 4-bit table in VRAM (3.3 GB), decode graphs on. The fastest one.
+  nvme  memory-mapped from the SSD, the 30% most-read rows cached in RAM (~0.9 GiB). ~0.5 GiB of VRAM.
+  ram   whole 4-bit table in RAM (3.0 GiB), rows copied to the GPU per token.
+  vram  whole 4-bit table in VRAM (3.3 GiB with the rest of the model), decode graphs on. The fastest one.
 The model was trained on 500M tokens of English Wikipedia, every article as "Title\n\nText", so prompts work best
 in that form: "Volcano\n\nA volcano is" (type \n for a line break). It writes fluent Wikipedia-style English, but
 the facts are mostly made up, it's a small model. Generation stops at the end of an article, at --tokens or at the
@@ -107,7 +107,7 @@ def ram():
     """Own memory of the process, plus the pages of mapped files (nvme: page cache, Linux can drop it any time)."""
     st = dict(line.split(":", 1) for line in open("/proc/self/status"))
     anon, file = (int(st[k].split()[0]) / 2**20 for k in ("RssAnon", "RssFile"))
-    return f"{anon:.1f} GB RAM + {file:.1f} GB mapped files"
+    return f"{anon:.1f} GiB RAM + {file:.1f} GiB mapped files"
 
 
 def main():
@@ -135,7 +135,7 @@ def main():
     model = load(args.tables, args.table, args.cache_frac)
     torch.cuda.synchronize()
     print(f"loaded in {time.perf_counter() - t0:.1f} s, table in {args.table}: "
-          f"{torch.cuda.memory_allocated() / 2**30:.2f} GB VRAM, {ram()}")
+          f"{torch.cuda.memory_allocated() / 2**30:.2f} GiB VRAM, {ram()}")
     generate(model, enc.encode_ordinary("Warm-up\n\n"), 8)        # Triton compiles its kernels on first use
 
     prompts = iter(lambda: input("\nprompt (empty line to quit)> "), "") if args.interactive else [args.prompt]
@@ -145,7 +145,7 @@ def main():
             print("\n" + enc.decode(ids), end="", flush=True)
             out, sec = generate(model, ids, args.tokens, args.temperature, args.top_k, args.seed + k, Printer(enc))
             print(f"\n\n[{len(out)} tokens in {sec:.2f} s = {len(out) / sec:.0f} tok/s, table in {args.table}, "
-                  f"peak {torch.cuda.max_memory_allocated() / 2**30:.2f} GB VRAM, {ram()}]")
+                  f"peak {torch.cuda.max_memory_allocated() / 2**30:.2f} GiB VRAM, {ram()}]")
     except (EOFError, KeyboardInterrupt):
         print()
     if args.table == "nvme":

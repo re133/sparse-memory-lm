@@ -5,7 +5,8 @@
 Dense points: A (runs/s1b/A-s0, seed 0) and D-50M ... D-400M (runs/cloud_dense/D-*-s0), Wikipedia val PPL against
 non-embedding parameters N. For each B (runs/cloud/B-*-s0):
   * main value: piecewise linear interpolation of log PPL over log N between the two neighbouring dense points
-  * comparison: fit PPL = E + a * N^-alpha over all dense points (least squares in log PPL)
+  * comparison: fit PPL = E + a * N^-alpha over all dense points (grid over alpha and E, a by least squares in PPL
+    for each grid point, the point with the smallest squared error in log PPL wins)
   * range: PPL of B and of both neighbours shifted by +-0.4 % (seed spread of stage 1c), extreme cases; widened to the
     fit value if that lies outside
   * bracketing: better than the largest dense model -> "> N_max" (fit extrapolation only as a marked hint);
@@ -53,7 +54,8 @@ def interp(ppl_b, pts):
 
 
 def fit(pts):
-    """PPL = E + a N^-alpha, least squares in log PPL; grid over alpha and E, a by linear least squares."""
+    """PPL = E + a N^-alpha: grid over alpha and E, a by linear least squares in PPL, best grid point by the squared
+    error in log PPL (not an exact least-squares fit in log PPL; that one moves the fitted sizes by at most 0.3M)."""
     n = np.array([p[0] for p in pts], float)
     y = np.array([p[1] for p in pts], float)
     best = None
