@@ -2,3 +2,6 @@
 2026-10-05 06:44:03 ntfy: Qwen-Schritt 3: Setup fertig, Q-Messungen starten (Pod 0.38 h)
 2026-10-05 06:44:03 start Q: scripts/train_qwen_memory.py --kind none --eval_only --out_dir /workspace/AngryAnt/runs/qwen_cloud/Q --model_dir /workspace/models/Qwen3.5-0.8B --data_dir /workspace/AngryAnt/data/qwen_wiki --micro_bs 4
 2026-10-05 06:46:33 end Q rc=0  (2.5 min)
+2026-10-05 06:46:39 ntfy: Qwen Q: fertig (Pod 0.42 h ≈ 1.47 $)
+2026-10-05 06:46:39 start Q_facts: scripts/eval_fact_cloze.py --model_dir /workspace/models/Qwen3.5-0.8B --out /workspace/AngryAnt/runs/qwen_cloud/Q/facts.json
+2026-10-05 06:55:09 end Q_facts rc=0  (8.5 min)
