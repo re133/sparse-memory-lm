@@ -11,7 +11,7 @@ switched on with `mem_impl="triton"`.
 |---|---|---|---|
 | AMD Radeon RX 9070 | RDNA4 (gfx1201), consumer | ROCm 7.2, Triton 3.5 | all pass |
 | AMD Instinct MI350X | CDNA4 (gfx950), data centre | ROCm 7.1, Triton 3.7 | 107 / 107 |
-| NVIDIA H100 / H200 | Hopper | CUDA 12.8, Triton 3.6 / 3.7 | all pass |
+| NVIDIA H200 (and H100) | Hopper | CUDA 12.8, Triton 3.6 (3.7.1 on H100) | all pass on the H200; on the H100 the kernels ran in training and in the Qwen add-on checks |
 
 The same code gives the same results on all of them. The plot below is the same training run (same seed, same data)
 on all three:
