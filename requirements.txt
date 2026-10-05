@@ -1,5 +1,5 @@
-# PyTorch with ROCm comes from the system (Arch/CachyOS python-pytorch-rocm, torch 2.14 / HIP 7.2);
-# the venv is created with --system-site-packages.
+# Install PyTorch first: the official ROCm wheel (pip install torch --index-url https://download.pytorch.org/whl/rocm7.2),
+# the CUDA one, or your distro's package with a --system-site-packages venv (mine: CachyOS python-pytorch-rocm).
 torch>=2.4
 numpy
 tiktoken

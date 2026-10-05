@@ -1,5 +1,9 @@
 # sparse-memory-lm
 
+[![License: Apache 2.0](https://img.shields.io/badge/license-Apache%202.0-blue)](LICENSE)
+![Developed on Radeon RX 9070](https://img.shields.io/badge/developed%20on-Radeon%20RX%209070-ED1C24)
+![Also runs on](https://img.shields.io/badge/also%20runs%20on-Instinct%20MI350X%20%C2%B7%20H100%20%C2%B7%20H200-555)
+
 What happens if you give a tiny language model a really big lookup table?
 
 I trained a small Llama-style model (21M parameters) and added a product-key memory to it: a table with up to
@@ -23,6 +27,78 @@ here. The full lab notebook with every criterion, every number and every mishap 
   a consumer Radeon (RDNA4), AMD's data-centre MI350X (CDNA4) and NVIDIA H100/H200 (Hopper).
 - **Adding a table to a finished model didn't work:** on Qwen3.5-0.8B it was no better than a small dense add-on with
   the same compute. It memorised its training articles really well, but it couldn't pull the facts back out.
+
+## Try it
+
+### The kernels on your GPU
+
+About five minutes, most of it is the PyTorch download. Nothing else to download: the tests and the benchmark use
+random data. Checked from a fresh clone on my RX 9070 with Python 3.14 and the official `rocm7.2` wheel:
+
+```bash
+git clone https://github.com/re133/sparse-memory-lm.git && cd sparse-memory-lm
+python3 -m venv .venv
+.venv/bin/pip install torch --index-url https://download.pytorch.org/whl/rocm7.2
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m pytest -q tests                  # ~1 min
+.venv/bin/python scripts/kernel_speedup.py           # ~40 s
+```
+
+What the last command printed on my card:
+
+```
+AMD Radeon RX 9070 (gfx1201), 16 GB | PyTorch 2.14.1+rocm7.2 (HIP 7.2.53211) | Triton 3.8.0 | Python 3.14.7
+
+                              train step  train tok/s  prefill tok/s  decode tok/s  peak GB
+no table (A)                       333 ms       98,433        437,814           196      7.9
+B-1M-sparse, PyTorch               786 ms       41,709        167,989           158     10.5
+B-1M-sparse, Triton kernels        513 ms       63,879        294,263           201     10.5
+
+kernels vs PyTorch: training 1.53x, prefill 1.75x, decode 1.27x
+with the kernels the table model trains at 65% of the speed of the model without a table
+```
+
+- **What it measures:** random weights, one training step on 32 x 1024 tokens, a prompt of 16 x 1024 tokens, and
+  batch-1 generation. Speed only, the tests check that the kernels compute the right thing.
+- **Radeon:** use the `rocm7.2` wheel. With `rocm7.1` one test aborts on my card
+  ([docs/rocm-issues](docs/rocm-issues/README.md)). On the MI350X I used `rocm7.1` with Python 3.12, and there
+  everything passed.
+- **Distro PyTorch:** if your distro ships PyTorch for ROCm (I normally use CachyOS's `python-pytorch-rocm`), create
+  the venv with `--system-site-packages` and skip the torch line.
+- **NVIDIA:** plain `pip install torch`. The tests passed on an H200; the benchmark script itself I've only run on
+  the RX 9070 so far.
+
+### B-16M writing text with its table on the SSD
+
+The trained B-16M model is on [Hugging Face](https://huggingface.co/re133/sparse-memory-lm-B-16M): the
+16.8M-row table in 4 bit (3.2 GB) plus the rest of the model. The 4-bit table scores 19.98 validation PPL, against
+19.96 for the full fp32 one.
+
+```bash
+.venv/bin/pip install huggingface_hub
+.venv/bin/python scripts/demo_generate.py --download --table nvme     # 3.7 GB into data/tables/B-16M
+.venv/bin/python scripts/demo_generate.py --table vram -i            # table in VRAM, your own prompts
+```
+
+```
+loaded in 1.2 s, table in nvme: 0.27 GB VRAM, 1.8 GB RAM + 3.4 GB mapped files
+
+Isaac Newton
+
+Sir Isaac Newton was born on 14 November 1803, the son of the Rev. Samuel Newton of Basing, Middlesex, and his
+wife Elizabeth, daughter of William Wilberforce of Westmorland. He was educated at Harrow and Trinity College,
+Cambridge. [...]
+
+[200 tokens in 1.39 s = 144 tok/s, table in nvme, peak 0.42 GB VRAM, 2.5 GB RAM + 3.5 GB mapped files]
+```
+
+- **Memory:** the table has 6.4B parameters and stays on the SSD. The GPU only holds the rest of the model
+  (0.3 GB) plus the rows the current token reads. "Mapped files" are pages of the table file in Linux's page cache, which Linux drops
+  again when it needs the memory.
+- **Same text everywhere:** `--table ram` writes exactly the same text, and so does `--table vram`, at ~200 tok/s.
+- **Quality:** fluent Wikipedia English, but the facts are made up. This Newton was born in 1803 and became a
+  lawyer. It's a small model trained on 500M tokens, it's here to show what the table costs to run, not what it
+  knows. Prompts work best like the training articles: `"Title\n\nFirst words"`.
 
 ## Results
 
@@ -116,11 +192,10 @@ whole 4 KB page from the SSD. That's where it falls apart.
 
 ## Running it yourself
 
+Set up the venv as in [Try it](#try-it), then:
+
 ```bash
-python -m venv --system-site-packages .venv          # PyTorch with ROCm or CUDA
-.venv/bin/pip install -r requirements.txt
 .venv/bin/python cloud/fetch_data.py                 # WikiText-103 + Wikipedia at pinned revisions, sha256-checked
-.venv/bin/python -m pytest -q tests                  # TRITON_INTERPRET=1 runs the kernel tests on the CPU
 
 # plain model and B-1M on 500M Wikipedia tokens
 .venv/bin/python -m smlm.train --model A --out_dir runs/A --data wikipedia --tokens 500e6 --extra_val wikitext103
@@ -184,6 +259,11 @@ More in [docs/rocm-issues](docs/rocm-issues/README.md).
 - Lample et al., *Large Memory Layers with Product Keys*, NeurIPS 2019.
 - Berges et al., *Memory Layers at Scale*, 2024. They showed memory layers beating dense models at much larger
   scale. This repo is a small, open counterpart, plus the offloading measurements and the Qwen experiment.
+- Cheng et al., *Conditional Memory via Scalable Lookup: A New Axis of Sparsity for Large Language Models*
+  (Engram), 2026. Also a big lookup table next to the model, but its rows are picked by hashing the last few input
+  tokens. So it's known before the layer runs which rows will be needed, and they can be prefetched from host
+  memory. Product keys pick the rows from the hidden state, so here that's only known once the layer is reached.
+  That is exactly why reading long prompts with the table on the SSD is slow in my measurements.
 - Qwen Team, *Qwen3.5*, 2026 (Qwen3.5-0.8B, Apache 2.0).
 
 ## License
@@ -192,4 +272,6 @@ More in [docs/rocm-issues](docs/rocm-issues/README.md).
 - **Datasets:** WikiText-103 and Wikipedia (CC BY-SA) are downloaded by the scripts, not included.
 - **[data/qwen_fact_cloze.jsonl](data/qwen_fact_cloze.jsonl):** contains short excerpts from English Wikipedia
   articles (CC BY-SA 4.0, © Wikipedia contributors; titles and page ids included).
-- **Qwen3.5-0.8B:** used as is (Apache 2.0) and not redistributed. No checkpoints in the repo.
+- **Qwen3.5-0.8B:** used as is (Apache 2.0) and not redistributed.
+- **B-16M weights:** not in the repo, they're on [Hugging Face](https://huggingface.co/re133/sparse-memory-lm-B-16M)
+  (Apache 2.0, trained on Wikipedia text).
