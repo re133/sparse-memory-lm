@@ -12,7 +12,7 @@ Kernel 1: value-bag backward with row-sparse accumulation (`bag_backward_rows`)
   plain read-add-write, the (at most two) runs at the program borders with an atomic add. Atomics for every
   run were 6x slower on the RX 9070 (17 ms vs 2.7 ms per call at training shape). The per-sample-weight gradient dot(grad_out[n], table[row]) is
   computed in the same pass (consecutive equal rows hit the cache). The `touched` mask is set afterwards with
-  one PyTorch scatter (byte stores from inside kernels proved unsafe, see kernel 3).
+  one PyTorch scatter (simple and safe; see the note at kernel 3).
   Summation order differs from the reference (floating-point rounding only).
 """
 import torch
@@ -84,7 +84,7 @@ def bag_backward_rows(grad_out, indices, weights, table, acc, touched, P=32, blo
     grid = (triton.cdiv(n_pos, P),)
     _bag_bwd_rows_kernel[grid](rows, src, w, g, table, acc, touched.view(torch.uint8), gw, n_pos, K, D,
                                P=P, BLOCK_D=block_d, num_warps=num_warps)
-    touched[flat] = True            # outside the kernel (in-kernel byte stores corrupted neighbours in kernel 3)
+    touched[flat] = True            # outside the kernel (see the note at kernel 3)
     return gw.view(N, K)
 
 
@@ -421,6 +421,7 @@ def lazy_adam_step(param, exp_avg, exp_avg_sq, acc, touched, grad_scale, step, l
     _lazy_adam_kernel[grid](param, exp_avg, exp_avg_sq, acc, touched.view(torch.uint8),
                             grad_scale.reshape(1).float(), rows, lr, beta1, beta2, eps, lr / bc1, bc2 ** 0.5,
                             D=D, BR=rows_per_program, BLOCK_D=block_d, num_warps=4)
-    # cleared here, not in the kernel: a masked byte store of the mask from inside the kernel cleared rows
-    # of neighbouring programs before they had read them (seen on the RX 9070 with 8+ rows per program)
+    # cleared here, not in the kernel. An early version cleared the mask inside the kernel and lost updates of
+    # some rows; minimal reproducers (docs/rocm-issues/repro_byte_store.py) show no byte-store problem in
+    # Triton/ROCm, so that was most likely a bug in that early kernel. One memset afterwards is simple and safe.
     touched.zero_()

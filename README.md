@@ -19,6 +19,8 @@ here. The full lab notebook with every criterion, every number and every mishap 
   it isn't flattening out yet.
 - **Generating text doesn't need the table in VRAM:** from RAM or straight off an NVMe SSD the model still writes
   114 to 154 tokens/s on my PC, with bit-identical output. Reading long prompts is a different story.
+- **Portable kernels:** the same hand-written Triton kernels run on three very different GPUs with the same results:
+  a consumer Radeon (RDNA4), AMD's data-centre MI350X (CDNA4) and NVIDIA H100/H200 (Hopper).
 - **Adding a table to a finished model didn't work:** on Qwen3.5-0.8B it was no better than a small dense add-on with
   the same compute. It memorised its training articles really well, but it couldn't pull the facts back out.
 
@@ -107,7 +109,8 @@ whole 4 KB page from the SSD. That's where it falls apart.
   - the fused lazy Adam step
   - a graph-captured decode path
 
-  On the RX 9070 this made training 1.47x faster and brought decoding to the speed of the plain model.
+  On the RX 9070 this made training 1.47x faster and brought decoding to the speed of the plain model. What each
+  kernel does, how much it brings and where its limits are: [docs/kernels.md](docs/kernels.md).
 - **Table outside the GPU:** `smlm/offload.py`.
 - **Qwen add-on:** `smlm/qwen_memory.py`.
 

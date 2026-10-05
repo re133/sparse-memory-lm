@@ -1879,3 +1879,26 @@ Die Grenze je Aufgabe ist max(2 Pp., 2 × Standardfehler der Differenz). Der Sta
 - PyTorch meldet die Karte als „AMD Radeon Graphics“ (gfx950).
 - Das GPU-Log hat auf der MI350X Temperatur (≈ 62 °C Junction) und Takt erfasst, aber keine Leistung. Der
   Speicherwert im Log ist unplausibel und nicht verwendet.
+
+### Einordnung der Kernel (2026-10-05)
+
+**Was stark ist:**
+- **Portabel:** Derselbe Triton-Code rechnet auf drei grundverschiedenen GPU-Architekturen gleich: Radeon RX 9070
+  (RDNA4, Consumer), Instinct MI350X (CDNA4, Rechenzentrum) und H100/H200 (Hopper).
+- **Tests:** Auf der MI350X bestehen alle 107 Tests ohne Änderung.
+- **Tempo** gegenüber der eigenen PyTorch-Referenz:
+
+  | | RX 9070 | MI350X |
+  |---|---|---|
+  | Training | 1,47× | 1,63× |
+  | Einlesen | 1,79× | 1,88× |
+
+- **Speicher:** Der Lazy-Adam-Kernel arbeitet in place. Erst damit passt B-16M in 101 GB.
+
+**Was die Kernel nicht sind:**
+- **Kein Vergleich mit anderen optimierten Implementierungen**, etwa Metas Code zu „Memory Layers at Scale“.
+- **Die Tabelle kostet weiter Zeit:** Mit Tabelle trainiert das Modell mit 62 % (RX 9070) bzw. 76 % (MI350X) des
+  Tempos ohne Tabelle.
+- **Nicht je GPU abgestimmt**, und nur an kleinen Modellen gemessen.
+
+Ausführlich auf Englisch: `docs/kernels.md`.
