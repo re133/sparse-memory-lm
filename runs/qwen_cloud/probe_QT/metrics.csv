@@ -1,0 +1,2 @@
+step,tokens,val_new_ppl,val_known_ppl,val_known_same_ppl,mem_probe_ppl,val_new_knowledge_ppl,val_known_knowledge_ppl,val_known_same_knowledge_ppl,mem_probe_knowledge_ppl,gates
+0,0,9.977542702073281,8.769480100489925,17.820043923301114,21.01764814251512,11.643224099007577,7.080045840615089,9.502350462876777,23.2853621437783,0.0000 0.0000 0.0000

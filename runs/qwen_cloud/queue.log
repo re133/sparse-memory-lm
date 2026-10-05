@@ -8,3 +8,6 @@
 2026-10-05 06:55:14 ntfy: Qwen Q_facts: fertig (Pod 0.56 h ≈ 1.97 $)
 2026-10-05 06:55:14 start Q_general: scripts/eval_qwen_general.py --model_dir /workspace/models/Qwen3.5-0.8B --batch_size 8 --out /workspace/AngryAnt/runs/qwen_cloud/Q/general.json
 2026-10-05 07:10:44 end Q_general rc=0  (15.5 min)
+2026-10-05 07:10:50 ntfy: Qwen Q_general: fertig (Pod 0.82 h ≈ 2.88 $)
+2026-10-05 07:10:50 start probe_QT: scripts/train_qwen_memory.py --kind memory --out_dir /workspace/AngryAnt/runs/qwen_cloud/probe_QT --max_steps 30 --eval_windows 1 --save 0 --model_dir /workspace/models/Qwen3.5-0.8B --data_dir /workspace/AngryAnt/data/qwen_wiki --micro_bs 4
+2026-10-05 07:12:50 end probe_QT rc=0  (2.0 min)
