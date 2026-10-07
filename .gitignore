@@ -13,3 +13,6 @@ runs/**/*.pt
 
 # personal summary, not part of the public repo
 /final.md
+/CODEX_NOTES.md
+/.cache/
+/.scratch/
