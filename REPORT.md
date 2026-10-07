@@ -2067,3 +2067,32 @@ die Hyper-Connections (mHC) des Papers.
 - Kompletter Durchlauf über 4 M Tokens inkl. Auswertung, Checkpoint und Inferenz-Benchmark für E-1M und E-1M-dense.
 - Ganze Warteschlange mit Mini-Läufen (`--smoke`).
 - Tempo: E-1M ≈ 79.000 tok/s (≈ 1,9 h pro Lauf), E-1M-dense ≈ 64.000 tok/s (≈ 2,3 h). Speicher je ≈ 10,5 GiB.
+
+## Nachtrag Schritt 3: Wo steckt das Gelernte von Q+T? (Tabellen-Ablation, Kriterien vor der Messung, 2026-10-07)
+
+**Frage:** Q+T passt sich den Trainingsartikeln viel stärker an als Q+D (PPL auf trainierten Artikeln −58 % statt
+−30 %). Steckt das in der Wertetabelle oder in Keys, Query-Projektion, BatchNorm, swilu und Gates? Bisher nicht
+getestet (Codex-Befund 12).
+
+**Messung** (zu Hause, RX 9070, `scripts/qwen_table_ablation.py`, kein Training): dasselbe trainierte Add-on
+`runs/qwen_cloud/QT-s0/addons.pt` in drei Varianten.
+- **T:** wie trainiert, zu Hause neu gemessen, damit alle Vergleiche von derselben Karte kommen.
+- **Z (Hauptvariante):** Wertetabelle auf null, alles andere unverändert. Die Add-on-Blöcke liefern dann nur noch den
+  Bias ihrer Ausgabeprojektion.
+- **R:** Wertetabelle neu gezogen, mit derselben Verteilung wie beim Start des Trainings (Normal, σ = 1/√1024).
+- **Gemessen:** PPL auf `mem_probe` (Ausschnitt der Trainingsartikel), `val_new` (neue, nie trainierte Artikel) und
+  `val_known` (Artikel von vor dem Qwen-Stichtag), dazu der Faktentest (je 500 Lücken aus Trainings- und
+  Gegenprobe-Artikeln). Vergleichswert Q: zu Hause gemessen (`runs/qwen/Q-base`, `report/qwen/facts_Q_home.json`).
+
+**Kriterien:**
+- **Anteil der Tabelle** am Gewinn je PPL-Satz, auf log-PPL: s = (ln Z − ln T) / (ln Q − ln T). Bei s = 1 geht mit
+  der Tabelle der ganze Gewinn gegenüber Qwen allein verloren, bei s = 0 nichts.
+  - **„überwiegend in der Tabelle“:** s ≥ 0,5.
+  - **„geteilt“:** 0,2 < s < 0,5.
+  - **„überwiegend im Rest“:** s ≤ 0,2.
+- **Hauptsatz** ist `mem_probe` (die Frage nach dem auswendig Gelernten), `val_new` und `val_known` werden genauso
+  berichtet.
+- **Faktentest:** Trefferquote von T, Z und Q mit gepaarten Bootstrap-Intervallen (95 %) für T − Z. Nur wenn das
+  Intervall die Null ausschließt, heißt es „Faktengewinn hängt an der Tabelle“.
+- **R** wird berichtet, ohne Urteil. R zeigt, ob das Modell den Inhalt der Tabelle braucht oder nur Werte dieser
+  Größenordnung; R schlechter als Q spräche dafür, dass der Rest auf die trainierte Tabelle abgestimmt ist.
