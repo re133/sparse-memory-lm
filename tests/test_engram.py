@@ -160,7 +160,8 @@ def test_both_memories_get_their_own_learning_rate():
 
 def test_dense_variant_same_forward_and_plain_adam():
     """eng_value_grad="dense": same outputs as the row-sparse version; the table gets an ordinary gradient and sits in
-    AdamW's value group (value_lr, no weight decay), i.e. plain Adam on all rows as in the paper."""
+    AdamW's Engram value group (eng_value_lr, default value_lr, no weight decay), i.e. plain Adam on all rows as in
+    the paper."""
     sp, de = tiny(), tiny(eng_value_grad="dense")
     de.load_state_dict(sp.state_dict())
     x = torch.randint(0, 50257, (2, 17))
@@ -168,7 +169,11 @@ def test_dense_variant_same_forward_and_plain_adam():
     opt = build_optimizer(de, 1e-2, 3e-3, 0.1)
     groups = {g["name"]: g for g in opt.param_groups}
     tab = de.engram_layers()[0].values.weight
-    assert any(p is tab for p in groups["memory_values"]["params"]) and groups["memory_values"]["weight_decay"] == 0
+    assert any(p is tab for p in groups["engram_values"]["params"]) and groups["engram_values"]["weight_decay"] == 0
+    assert groups["engram_values"]["lr"] == 3e-3
+    # --eng_value_lr reaches the dense Engram table too (it used to be ignored there)
+    groups = {g["name"]: g for g in build_optimizer(de, 1e-2, 3e-3, 0.1, eng_value_lr=5e-3).param_groups}
+    assert groups["engram_values"]["lr"] == 5e-3 and any(p is tab for p in groups["engram_values"]["params"])
     _, loss = de(x[:, :-1], x[:, 1:])
     loss.backward()
     assert tab.grad is not None and tab.grad.shape == tab.shape

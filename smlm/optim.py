@@ -19,12 +19,13 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
     (same lr / betas / eps, no weight decay) and the two are returned as one OptimizerSet."""
     sparse_tables = row_sparse_tables(model)
     sparse_ids = {id(t) for t in sparse_tables}
-    decay, no_decay, values = [], [], []
+    engram_ids = {id(m.values.weight) for m in model.modules() if getattr(m, "is_engram", False)}
+    decay, no_decay, values, eng_values = [], [], [], []
     for n, p in model.named_parameters():
         if not p.requires_grad or id(p) in sparse_ids:
             continue
         if getattr(p, "pk_value_param", False):
-            values.append(p)
+            (eng_values if id(p) in engram_ids else values).append(p)
         elif p.dim() >= 2 and not getattr(p, "no_weight_decay", False):
             decay.append(p)
         else:
@@ -35,6 +36,9 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
     ]
     if values:
         groups.append({"params": values, "weight_decay": 0.0, "base_lr": value_lr, "name": "memory_values"})
+    if eng_values:                          # dense Engram tables (eng_value_grad="dense"): own LR as in the lazy path
+        groups.append({"params": eng_values, "weight_decay": 0.0, "base_lr": eng_value_lr or value_lr,
+                       "name": "engram_values"})
     for g in groups:
         g["lr"] = g["base_lr"]
     opt = torch.optim.AdamW(groups, betas=betas, eps=eps, fused=True)
