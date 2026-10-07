@@ -54,6 +54,15 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
             tabs = [t for t in sparse_tables if getattr(owners[id(t)], "is_engram", False) == engram]
             if not tabs:
                 continue
+            host_tabs = [t for t in tabs if getattr(t, "host_values", False)]
+            if host_tabs:
+                from .host_optim import HostLazyRowAdam
+                tlr = (eng_value_lr or value_lr) if engram else value_lr
+                lazy.append(HostLazyRowAdam(host_tabs, lr=tlr, betas=betas, eps=eps, state_dtype=value_state,
+                                            name="engram_values" if engram else "memory_values"))
+                tabs = [t for t in tabs if not getattr(t, "host_values", False)]
+                if not tabs:
+                    continue
             impl = "triton" if any(getattr(owners[id(t)], "impl", "torch") == "triton" for t in tabs) else "torch"
             tlr = (eng_value_lr or value_lr) if engram else value_lr
             lazy.append(LazyRowAdam(tabs, lr=tlr, betas=betas, eps=eps, impl=impl, state_dtype=value_state,
@@ -62,11 +71,12 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
     return opt
 
 
-def value_table_memory(model, value_state="fp32"):
+def value_table_memory(model, value_state="fp32", *, host=None):
     """Expected persistent table tensors after optimizer initialization, excluding temporary workspace.
 
     Count shared parameters once and frozen tables as weights only. Dense gradients count at their peak
     allocation (zero_grad(set_to_none=True) releases them); row accumulators persist between steps.
+    host=True/False filters explicitly host-marked/other tables; None keeps the combined estimate.
     """
     if value_state not in ("fp32", "bf16", "int8"):
         raise ValueError(f"unknown value_state: {value_state}")
@@ -74,6 +84,8 @@ def value_table_memory(model, value_state="fp32"):
     out = dict(table_bytes=0, gradient_bytes=0, moment_bytes=0, scale_bytes=0, touched_bytes=0, step_bytes=0)
     for p in model.parameters():
         if not getattr(p, "pk_value_param", False):
+            continue
+        if host is not None and bool(getattr(p, "host_values", False)) != host:
             continue
         n, size = p.numel(), p.element_size()
         out["table_bytes"] += n * size

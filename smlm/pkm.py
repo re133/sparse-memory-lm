@@ -138,6 +138,8 @@ class ProductKeyMemory(nn.Module):
     def read_values(self, indices, weights):
         """indices, weights: (N, heads*knn) -> (N, v_dim) = sum_j weights[:, j] * values[indices[:, j]]"""
         w = self.values.weight
+        if getattr(w, "host_values", False):
+            return self.values.bag(indices, weights, self.impl)
         if self.value_grad == "row_sparse":
             return row_sparse_embedding_bag(indices, weights, w, self.impl)
         if self.value_impl == "embedding_bag":
@@ -149,6 +151,7 @@ class ProductKeyMemory(nn.Module):
         shape = x.shape
         x = x.reshape(-1, self.d_in)
         if (getattr(self, "decode_graph", False) and x.shape[0] == 1 and not self.record
+                and not getattr(self.values.weight, "host_values", False)
                 and not torch.is_grad_enabled() and x.is_cuda):
             return self._graph_forward(x).view(*shape[:-1], self.d_out)
         return self._forward(x).view(*shape[:-1], self.d_out)
