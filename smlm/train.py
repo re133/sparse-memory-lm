@@ -259,6 +259,8 @@ def main():
     ap.add_argument("--eng_value_lr", type=float, default=None, help="Engram tables (default: --value_lr)")
     ap.add_argument("--value_state", choices=["fp32", "bf16", "int8"], default="fp32",
                     help="LazyRowAdam moment storage for PKM and Engram tables (requires row_sparse gradients)")
+    ap.add_argument("--value_device", choices=["gpu", "host"], default="gpu",
+                    help="keep PKM tables and lazy Adam state in host RAM (requires row_sparse PKM)")
     ap.add_argument("--weight_decay", type=float, default=0.1)
     ap.add_argument("--warmup_frac", type=float, default=0.05)
     ap.add_argument("--min_lr_ratio", type=float, default=0.1)
@@ -308,7 +310,11 @@ def main():
             mcfg.mem_score_scale_init = args.mem_score_scale_init
         if args.mem_impl is not None:
             mcfg.mem_impl = args.mem_impl
-    model = Transformer(mcfg).cuda()
+    model = Transformer(mcfg)
+    if args.value_device == "host":
+        from .host_values import enable_host_values
+        model = enable_host_values(model)
+    model = model.cuda()
     opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, eng_value_lr=args.eng_value_lr,
                           value_state=args.value_state)
     mems = model.memory_layers()
@@ -342,6 +348,10 @@ def main():
         "data": {"dataset": args.data or "wikitext103", "data_dir": data_dir(args.data), **meta,
                  **({"extra_val": args.extra_val} if args.extra_val else {})},
     }
+
+    if args.value_device == "host":
+        from .host_optim import value_table_memory_by_device
+        info["value_table_memory_by_device"] = value_table_memory_by_device(model, args.value_state)
 
     def write_info():
         with open(os.path.join(args.out_dir, "run-info.json"), "w") as f:

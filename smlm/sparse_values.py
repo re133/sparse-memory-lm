@@ -45,8 +45,19 @@ def row_store(table):
     """The RowStore attached to a (possibly shared) table parameter; created on first use."""
     st = getattr(table, "row_store", None)
     if st is None or st.acc.device != table.device or st.acc.shape != table.shape:
-        st = RowStore(table)
+        if getattr(table, "host_values", False):
+            from .host_optim import HostRowStore
+            st = HostRowStore(table)
+        else:
+            st = RowStore(table)
         table.row_store = st
+    elif getattr(table, "host_values", False):
+        from .host_optim import HostRowStore
+        if not isinstance(st, HostRowStore):
+            # Enabling host storage on a used CPU table keeps any accumulated micro-batches intact.
+            if table.device.type != "cpu":
+                raise ValueError("host value tables must stay on the CPU")
+            st.__class__ = HostRowStore
     return st
 
 
@@ -126,11 +137,15 @@ def clip_row_sparse(tables, max_norm):
     applied in LazyRowAdam.step (avoids rewriting the whole accumulator). Returns the pre-clip norm."""
     if not tables:
         return None
-    norms = [row_store(t).acc.norm() for t in tables]
+    host = any(getattr(t, "host_values", False) for t in tables)
+    norms = [row_store(t).norm() if getattr(t, "host_values", False) else row_store(t).acc.norm()
+             for t in tables]
+    if host:
+        norms = [n.to(norms[0].device) for n in norms]
     total = torch.linalg.vector_norm(torch.stack(norms))
     coef = torch.clamp(max_norm / (total + 1e-6), max=1.0)
     for t in tables:
-        row_store(t).grad_scale = coef
+        row_store(t).grad_scale = coef.to(t.device) if host else coef
     return total
 
 
