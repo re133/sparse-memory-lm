@@ -264,6 +264,8 @@ def main():
     ap.add_argument("--ce_chunk_size", type=int, default=1024, help="tokens per output-projection chunk with --fused_ce")
     ap.add_argument("--compile", action="store_true", help="compile dense block parts; memory and KV caches stay eager")
     ap.add_argument("--lr", type=float, default=6e-4)
+    ap.add_argument("--optimizer", choices=["adamw", "muon"], default="adamw",
+                    help="hidden projection optimizer; other dense parameters keep AdamW")
     ap.add_argument("--value_lr", type=float, default=1e-3)
     ap.add_argument("--eng_value_lr", type=float, default=None, help="Engram tables (default: --value_lr)")
     ap.add_argument("--value_state", choices=["fp32", "bf16", "int8"], default="fp32",
@@ -332,7 +334,7 @@ def main():
         compile_dense(model)
     loss_options = {"fused_ce": True, "ce_chunk_size": args.ce_chunk_size} if args.fused_ce else {}
     opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, eng_value_lr=args.eng_value_lr,
-                          value_state=args.value_state)
+                          value_state=args.value_state, optimizer=args.optimizer)
     mems = model.memory_layers()
     n_val_words = meta["splits"]["validation"]["n_words"]
     n_val2_words = load_meta(args.extra_val)["splits"]["validation"]["n_words"] if args.extra_val else None
@@ -368,6 +370,9 @@ def main():
     if args.value_device == "host":
         from .host_optim import value_table_memory_by_device
         info["value_table_memory_by_device"] = value_table_memory_by_device(model, args.value_state)
+    if args.optimizer == "muon":
+        from .muon import optimizer_description
+        info["train_config"]["optimizer"] = optimizer_description(opt)
 
     def write_info():
         with open(os.path.join(args.out_dir, "run-info.json"), "w") as f:

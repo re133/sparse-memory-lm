@@ -15,13 +15,19 @@ from .sparse_values import LazyRowAdam, OptimizerSet, clip_row_sparse, row_spars
 
 
 def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e-8, eng_value_lr=None,
-                    value_state="fp32"):
+                    value_state="fp32", optimizer="adamw"):
     """AdamW for everything; value tables with row-sparse gradients get a LazyRowAdam instead
     (same lr / betas / eps, no weight decay) and the two are returned as one OptimizerSet.
-    value_state controls moment storage for both PKM and Engram row-sparse tables.
+    value_state controls moment storage for both PKM and Engram row-sparse tables. optimizer="muon" puts the
+    hidden projections on Muon (smlm/muon.py) and keeps this routing for everything else.
     """
     if value_state not in ("fp32", "bf16", "int8"):
         raise ValueError(f"unknown value_state: {value_state}")
+    if optimizer == "muon":
+        from .muon import build_muon_optimizer
+        return build_muon_optimizer(model, lr, value_lr, weight_decay, betas, eps, eng_value_lr, value_state)
+    if optimizer != "adamw":
+        raise ValueError(f"Unknown optimizer: {optimizer!r}")
     sparse_tables = row_sparse_tables(model)
     sparse_ids = {id(t) for t in sparse_tables}
     decay, no_decay, values = [], [], []
