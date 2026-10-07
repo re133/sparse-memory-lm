@@ -2133,3 +2133,53 @@ getestet (Codex-Befund 12).
 Anpassung an neue Artikel, den Gewinn im Faktentest und auch den Schaden auf älterem Text. Offen bleibt der
 Befund aus Schritt 3: Die gespeicherten Artikel machen die *trainierten* Fakten nicht besser abrufbar als andere.
 Die Frage „Wo steckt es?“ ist damit beantwortet, die Frage „Warum kommt es nicht gezielt wieder heraus?“ nicht.
+
+## Schritt 5: Tabellenzeilen auf der SSD umsortieren (offline durchgerechnet, Kriterien vor der Messung, 2026-10-07)
+
+**Frage:** Läuft B-16M mit der Tabelle auf der SSD, kostet jede Zeile, die nicht im RAM liegt, eine ganze 4-KB-Seite,
+obwohl eine Zeile nur 192 Byte groß ist. Ein Leserkommentar hat es so gesagt: Die Seitenkosten pro fehlender Zeile
+sind vor allem ein Problem der Anordnung. Liest B-16M deutlich weniger Seiten, wenn Zeilen, die zusammen gelesen
+werden, auf derselben Seite liegen?
+
+**Idee:**
+- Zeile r = i · 4096 + j, wobei i und j die Nummern der beiden Teilschlüssel sind. Pro Kopf und Token kommen die
+  32 Zeilen aus nur etwa 14 verschiedenen i (32 der Validierungs-Sitzungen, angeschaut beim Testen des Aufzeichners,
+  nur die heutige Anordnung).
+- Zeilen mit gleichem i liegen schon heute im selben 768-KB-Block, aber auf zufälligen Seiten darin. Sortiert man die
+  j-Achse um, für alle i gleich, sodass oft gemeinsam gewählte j nebeneinander liegen, können Zeilen mit gleichem i
+  eine Seite teilen.
+- Das Modell bleibt exakt dasselbe: Die Teilschlüssel der zweiten Hälfte werden in jedem Kopf und jeder
+  Speicherschicht gleich vertauscht, die Tabellenzeilen passend dazu. Keine Umrechnungstabelle, kein Mehraufwand
+  beim Lesen.
+- Spiegelbildlich: Tabelle transponieren (j außen) und die i-Achse umsortieren.
+
+**Aufbau, festgelegt vor der ersten echten Zahl:**
+- **Aufgezeichnete Zugriffe** (`scripts/record_lookups.py`): welche Zeilen B-16M liest, für Sitzungen von 384 Tokens
+  (128 Prompt + 256 weitere, wie bei der Latenzmessung), 4-Bit-Tabelle, Teacher Forcing (die Fortsetzung ist echter
+  Text, nicht die eigenen Tokens des Modells). 4.608 Sitzungen aus dem Trainingstext, 1.000 aus dem Validierungstext,
+  an zufälligen Stellen mit festem Seed.
+- **Simulation** (`scripts/rs_layout.py`, ohne SSD, ohne GPU), gleiche Einstellung wie bei der Latenzmessung:
+  - die 30 % meistgelesenen Zeilen (`hot_rows.npy`) liegen im RAM, alle anderen kommen von der SSD;
+  - eine einmal gelesene Seite bleibt bis zum Ende der Sitzung im Seiten-Cache, jede Sitzung beginnt kalt;
+  - gezählt werden verschiedene 4-KB-Seiten pro Sitzung, eine Zeile über einer Seitengrenze kostet beide Seiten.
+- **Anordnungen:** A0 heute (i außen); AJ: i außen, j-Achse umsortiert; AI: j außen, i-Achse umsortiert.
+- **AJ und AI lernen** aus 4.096 Trainings-Sitzungen: wie oft zwei Zeilen außerhalb des RAM mit gleichem i (AJ) bzw.
+  gleichem j (AI) in derselben Sitzung gelesen werden. Daraus auf zwei Arten eine Reihenfolge: spektral
+  (Fiedler-Vektor) und gierig (immer die Nummer anhängen, die am häufigsten mit den letzten 21 platzierten zusammen
+  gelesen wurde; auf eine Seite passen 21,3 Zeilen). Vier Kandidaten.
+- **Auswahl:** Die 512 übrigen Trainings-Sitzungen entscheiden, welcher der vier Kandidaten genommen wird (wenigste
+  Seiten pro Sitzung). Die 1.000 Validierungs-Sitzungen werden genau einmal ausgewertet, mit dem gewählten.
+
+**Kriterien:**
+- **Hauptmaß:** Seiten pro Sitzung, gewählte Anordnung gegen A0, relative Änderung über die 1.000
+  Validierungs-Sitzungen, 95-%-Bootstrap-Intervall über die Sitzungen.
+  - **„Lohnt sich“:** ≥ 25 % weniger Seiten. Dann wird die umsortierte Tabelle gebaut, auf gleiche Ausgaben geprüft
+    und auf der SSD gemessen (Prompt-Zeit, Latenz pro Token, Lesezugriffe).
+  - **„Kleiner Gewinn“:** 10–25 % weniger. Nur zusammen mit schnellerem Einlesen (Direct-I/O) weiterverfolgen.
+  - **„Anordnung ist nicht der Hebel“:** < 10 % weniger. Dann beim Einlesen selbst ansetzen (Direct-I/O, io_uring).
+- **Berichtet ohne Urteil:** dasselbe ohne RAM-Cache; Seiten im Prompt und neue Seiten pro weiterem Token getrennt;
+  alle vier Kandidaten auf den 512 Trainings-Sitzungen.
+
+**Vorbehalte:** Es ist eine Simulation. Ein echter Seiten-Cache kann Seiten verwerfen, und die SSD fasst benachbarte
+Seiten zu einer Anfrage zusammen, weniger Seiten heißen also nicht automatisch im selben Maß weniger Zeit. Teacher
+Forcing auf echtem Text statt erzeugtem Text. Ein Modell (B-16M), eine Cache-Größe.

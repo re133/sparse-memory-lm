@@ -2049,3 +2049,49 @@ finding 12).
 adaptation to new articles, the gain in the fact test and also the harm on older text. The finding from step 3 stays
 open: the stored articles don't make the *trained* facts more retrievable than others. So the question "where is it?"
 is answered, the question "why doesn't it come back out in a targeted way?" isn't.
+
+## Step 5: reorder the table rows on the SSD (offline simulation, criteria before measuring, 2026-10-07)
+
+**Question:** When B-16M runs with the table on the SSD, every row that isn't in RAM costs a whole 4 KiB page, but a
+row is only 192 bytes. A reader comment put it this way: the page cost per missed row is mostly a layout problem. Does
+B-16M read clearly fewer pages if rows that are read together sit on the same page?
+
+**Idea:**
+- Row r = i · 4096 + j, where i and j are the indices of the two sub-keys. Per head and token the 32 rows come from
+  only about 14 different i (32 of the validation sessions, looked at while testing the recorder, today's layout only).
+- Rows with the same i already lie in the same 768 KiB block today, but on random pages within it. If the j axis is
+  reordered, the same way for every i, so that j's often chosen together become neighbours, rows with the same i can
+  share a page.
+- The model stays exactly the same: the sub-keys of the second half are permuted in the same way in every head and
+  every memory layer, the table rows accordingly. No lookup table, no extra work when reading.
+- Mirror image: transpose the table (j outside) and reorder the i axis.
+
+**Setup, fixed before the first real number:**
+- **Recorded lookups** (`scripts/record_lookups.py`): which rows B-16M reads, for sessions of 384 tokens (128 prompt +
+  256 more, as in the latency measurement), 4-bit table, teacher forcing (the continuation is real text, not the
+  model's own tokens). 4,608 sessions from the training text, 1,000 from the validation text, at seeded random
+  positions.
+- **Simulation** (`scripts/rs_layout.py`, no SSD, no GPU), same setting as the latency measurement:
+  - the 30% hottest rows (`hot_rows.npy`) are in RAM, all others come from the SSD;
+  - a page read once stays in the page cache until the end of the session, every session starts cold;
+  - counted: distinct 4 KiB pages per session, a row across a page boundary costs both pages.
+- **Layouts:** A0 today (i outside); AJ: i outside, j axis reordered; AI: j outside, i axis reordered.
+- **Learning AJ and AI** from 4,096 training sessions: how often two non-RAM rows with the same i (AJ) or the same j
+  (AI) are read in the same session. Two ways to get an order from that: spectral (Fiedler vector) and greedy (always
+  append the index with the most co-reads with the last 21 placed ones; a page holds 21.3 rows). Four candidates.
+- **Choice:** the 512 other training sessions decide which of the four candidates is used (fewest pages per session).
+  The 1,000 validation sessions are evaluated exactly once, with the chosen one.
+
+**Criteria:**
+- **Main measure:** pages per session, chosen layout against A0, relative change over the 1,000 validation sessions,
+  95% bootstrap interval over the sessions.
+  - **"Worth it":** ≥ 25% fewer pages. Then the reordered table gets built, checked to give the same outputs, and
+    measured on the SSD (prompt time, per-token latency, reads).
+  - **"Small gain":** 10–25% fewer. Only worth pursuing together with faster reading (direct I/O).
+  - **"Layout is not the lever":** < 10% fewer. Then the reading itself is the place to start (direct I/O, io_uring).
+- **Reported without a verdict:** the same without the RAM cache; prompt pages and new pages per continuation token
+  separately; all four candidates on the 512 training sessions.
+
+**Caveats:** It's a simulation. A real page cache can drop pages, and the SSD merges neighbouring pages into one
+request, so fewer pages don't automatically mean the same share less time. Teacher forcing on real text instead of
+generated text. One model (B-16M), one cache size.
