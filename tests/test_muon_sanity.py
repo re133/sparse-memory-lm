@@ -1,10 +1,13 @@
 """Tiny paired learning check: python -m pytest -q tests/test_muon_sanity.py."""
 import math
+import os
+import sys
 
 import pytest
 import torch
 
-from smlm.bench_muon import compare_linear_optimizers, compare_optimizers, main
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts"))
+from bench_muon import compare_linear_optimizers, compare_optimizers, main  # noqa: E402
 
 
 @pytest.mark.parametrize("device", ["cpu", pytest.param("cuda", marks=pytest.mark.skipif(

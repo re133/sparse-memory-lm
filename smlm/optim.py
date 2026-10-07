@@ -41,7 +41,7 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
             decay.append(p)
         else:
             no_decay.append(p)
-    if values and value_state != "fp32":
+    if (values or eng_values) and value_state != "fp32":
         raise ValueError("value_state requires row_sparse gradients for every trainable value table")
     groups = [
         {"params": decay, "weight_decay": weight_decay, "base_lr": lr, "name": "decay"},

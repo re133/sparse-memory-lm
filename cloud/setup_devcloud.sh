@@ -44,11 +44,11 @@ $HAS_ONLY || QUEUE_ARGS+=(--only env,tests,speed)
 
 transfer_help() {
   cat <<'TRANSFER'
-Run these commands on the PC BEFORE starting the VM setup; replace VM_HOST:
+Run these commands on the PC BEFORE starting the VM setup; replace VM_HOST and LOCAL_REPO:
 VM_HOST='root@YOUR_VM_IP'
-LOCAL_REPO='/mnt/sandisk/Sparse-Memory-LM/wt-mi300'
-LOCAL_DATA='/mnt/sandisk/Sparse-Memory-LM/AngryAnt/data'
-LOCAL_PYTHON='/mnt/sandisk/Sparse-Memory-LM/AngryAnt/.venv/bin/python'
+LOCAL_REPO="$HOME/sparse-memory-lm"          # your checkout on the PC
+LOCAL_DATA="$LOCAL_REPO/data"
+LOCAL_PYTHON="$LOCAL_REPO/.venv/bin/python"
 REMOTE_REPO='/root/sparse-memory-lm'
 LOCAL_RESULTS="$PWD/devcloud-results"
 # Prepare this cache on the PC BEFORE allocating the VM; source caches are read only.

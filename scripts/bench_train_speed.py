@@ -21,7 +21,7 @@ import traceback
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
-DEFAULT_DATA = ROOT.parent / "AngryAnt" / "data" / "wikipedia_en_gpt2"
+DEFAULT_DATA = ROOT / "data" / "wikipedia_en_gpt2"
 
 
 def make_cases(presets, micro_sizes, batch_seqs, micro_table):

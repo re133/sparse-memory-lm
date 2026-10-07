@@ -1,23 +1,27 @@
 """Paired optimizer sanity check on a tiny synthetic next-token task; no corpus or run files.
 
-OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 python -m smlm.bench_muon --device cpu
-python -m smlm.bench_muon --task linear --device cpu
-python -m smlm.bench_muon --device cuda --steps 240
-python -m smlm.bench_muon --task projections --preset A --device cuda --steps 30 --timing-warmup 5
+OMP_NUM_THREADS=4 MKL_NUM_THREADS=4 python scripts/bench_muon.py --device cpu
+python scripts/bench_muon.py --task linear --device cpu
+python scripts/bench_muon.py --device cuda --steps 240
+python scripts/bench_muon.py --task projections --preset A --device cuda --steps 30 --timing-warmup 5
 """
 import argparse
 import copy
 import json
 import math
+import os
+import sys
 import time
 from collections import Counter
 
 import torch
 import torch.nn.functional as F
 
-from .model import ModelConfig, Transformer
-from .muon import Muon, muon_parameters
-from .optim import build_optimizer, clip_grads, lr_multiplier, set_lr
+ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, ROOT)
+from smlm.model import ModelConfig, Transformer  # noqa: E402
+from smlm.muon import Muon, muon_parameters  # noqa: E402
+from smlm.optim import build_optimizer, clip_grads, lr_multiplier, set_lr  # noqa: E402
 
 
 def _batches(count, batch_seqs, seq_len, vocab_size, generator, permutation):
