@@ -255,6 +255,8 @@ def main():
     ap.add_argument("--batch_seqs", type=int, default=32)
     ap.add_argument("--micro_bs", type=int, default=None)
     ap.add_argument("--lr", type=float, default=6e-4)
+    ap.add_argument("--optimizer", choices=["adamw", "muon"], default="adamw",
+                    help="hidden projection optimizer; other dense parameters keep AdamW")
     ap.add_argument("--value_lr", type=float, default=1e-3)
     ap.add_argument("--eng_value_lr", type=float, default=None, help="Engram tables (default: --value_lr)")
     ap.add_argument("--weight_decay", type=float, default=0.1)
@@ -307,7 +309,8 @@ def main():
         if args.mem_impl is not None:
             mcfg.mem_impl = args.mem_impl
     model = Transformer(mcfg).cuda()
-    opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, eng_value_lr=args.eng_value_lr)
+    opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, eng_value_lr=args.eng_value_lr,
+                          optimizer=args.optimizer)
     mems = model.memory_layers()
     n_val_words = meta["splits"]["validation"]["n_words"]
     n_val2_words = load_meta(args.extra_val)["splits"]["validation"]["n_words"] if args.extra_val else None
@@ -335,6 +338,10 @@ def main():
         "data": {"dataset": args.data or "wikitext103", "data_dir": data_dir(args.data), **meta,
                  **({"extra_val": args.extra_val} if args.extra_val else {})},
     }
+
+    if args.optimizer == "muon":
+        from .muon import optimizer_description
+        info["train_config"]["optimizer"] = optimizer_description(opt)
 
     def write_info():
         with open(os.path.join(args.out_dir, "run-info.json"), "w") as f:

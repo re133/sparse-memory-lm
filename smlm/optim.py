@@ -14,9 +14,15 @@ import torch
 from .sparse_values import LazyRowAdam, OptimizerSet, clip_row_sparse, row_sparse_tables
 
 
-def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e-8, eng_value_lr=None):
+def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e-8, eng_value_lr=None,
+                    optimizer="adamw"):
     """AdamW for everything; value tables with row-sparse gradients get a LazyRowAdam instead
     (same lr / betas / eps, no weight decay) and the two are returned as one OptimizerSet."""
+    if optimizer == "muon":
+        from .muon import build_muon_optimizer
+        return build_muon_optimizer(model, lr, value_lr, weight_decay, betas, eps, eng_value_lr)
+    if optimizer != "adamw":
+        raise ValueError(f"Unknown optimizer: {optimizer!r}")
     sparse_tables = row_sparse_tables(model)
     sparse_ids = {id(t) for t in sparse_tables}
     decay, no_decay, values = [], [], []
