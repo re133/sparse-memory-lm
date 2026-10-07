@@ -5,7 +5,7 @@
 Every run: settings and data of B-1M-sparse s0 (500 M Wikipedia tokens, data seed 1234, init seed 0, value LR
 2.4e-3, micro-batch 4, eval every 10 M tokens, WikiText-103 val as second set), Triton kernels
 (--mem_impl triton). GPU temperature / power / clocks every 10 s in <run>/gpu_thermal.csv.
-After every run: status block in REPORT.md (scripts/cloud_status.py), commit + push of the small run files
+After every run: status block in REPORT.de.md (scripts/cloud_status.py), commit + push of the small run files
 (run-info, metrics, logs, thermal CSV; checkpoints stay on the disk), optional phone notification (ntfy).
 At the end: sha256 manifest of all checkpoints (pushed), then the Pod is stopped through the Runpod API with the
 Pod's own key (cloud/stop_pod.sh): the GPU is released and compute billing stops; the volume /workspace with the
@@ -131,7 +131,7 @@ def run(name, model):
     info = json.load(open(os.path.join(out, "run-info.json"))) if os.path.exists(os.path.join(out, "run-info.json")) else {}
     ppl = info.get("results", {}).get("val_ppl")
     pushed = git_push(f"Cloud: {name} {st or 'failed'}" + (f", val PPL {ppl:.3f}" if ppl else ""),
-                      small_files(out) + [os.path.join(OUT, "queue.log"), "REPORT.md",
+                      small_files(out) + [os.path.join(OUT, "queue.log"), "REPORT.de.md",
                                           os.path.join("report", "cloud_status.json")])
     notify(f"SMLM cloud: {name} {st or 'failed'}" + (f", val PPL {ppl:.3f}" if ppl else "") +
            ("" if pushed else " (git push FAILED)"))

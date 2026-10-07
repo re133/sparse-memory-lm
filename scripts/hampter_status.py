@@ -1,6 +1,6 @@
-"""Status of the Hampter queue (stage 1c) -> block between the HAMPTER-STATUS markers in REPORT.md and
+"""Status of the Hampter queue (stage 1c) -> block between the HAMPTER-STATUS markers in REPORT.de.md and
 report/hampter_status.json. Called by scripts/run_hampter.py after every run; safe to run at any time.
-Criteria exactly as fixed in REPORT.md before the start (section "Stufe 1c").
+Criteria exactly as fixed before the start (REPORT.md, section "Stage 1c").
 """
 import csv
 import json
@@ -188,7 +188,7 @@ def main():
     with open(os.path.join(ROOT, "report", "hampter_status.json"), "w") as f:
         json.dump({"runs": S, "criteria": C}, f, indent=2)
     block = render(S, C)
-    rp = os.path.join(ROOT, "REPORT.md")
+    rp = os.path.join(ROOT, "REPORT.de.md")
     text = open(rp).read()
     if BEGIN in text and END in text:
         a, rest = text.split(BEGIN, 1)

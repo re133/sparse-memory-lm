@@ -130,7 +130,7 @@ class Job:
         files = rc.small_files(self.out) + [f for f in extra if os.path.exists(f)]
         pushed = (True if FAKE else
                   rc.git_push(f"Cloud: {self.name} {st or 'failed'}" + (f", val PPL {ppl:.3f}" if ppl else ""),
-                              files + [os.path.join(rc.OUT, "queue.log"), "REPORT.md",
+                              files + [os.path.join(rc.OUT, "queue.log"), "REPORT.de.md",
                                        os.path.join("report", "cloud_status.json")]))
         rc.notify(f"SMLM cloud: {self.name} {st or 'FAILED (not restarted)'}" + (f", val PPL {ppl:.3f}" if ppl else "")
                   + ("" if pushed else " (git push FAILED)"))

@@ -10,7 +10,7 @@ Euro-Werte: EZB-Kurs vom 02.10.2026, 1 € = 1,1225 $.
   ist kein Speicher mehr belegt.
 - **Korrektur der Kosten:** Die letzte Cloud-Runde hat laut Runpod-Abrechnung **25,51 $** gekostet (GPU
   24,98 $, Platte 0,52 $), nicht 21,01 $ wie von mir gemeldet. Meine Abfrage kam zu früh, als die Abrechnung
-  noch nicht vollständig war. REPORT.md ist korrigiert.
+  noch nicht vollständig war. REPORT.de.md ist korrigiert.
 - **Folge:** Bei 50 $ Aufladung sind noch **≈ 24,50 $ (≈ 21,80 €)** übrig, nicht ≈ 29 $. Ich plane mit
   diesem Wert. **Bitte nenne mir den genauen Stand aus dem Dashboard.** Über die Schnittstelle kann ich ihn
   nicht lesen.
@@ -343,7 +343,7 @@ Nur ein Entwurf, nichts wird veröffentlicht.
 
 ## Ordnung
 
-- Jeder Schritt bekommt einen Abschnitt in REPORT.md.
+- Jeder Schritt bekommt einen Abschnitt in REPORT.de.md.
 - Die Kriterien für Schritt 3 kommen erst nach deiner Freigabe hinein, vor jedem Lauf.
 - Nach jedem abgeschlossenen Schritt bekommst du eine kurze md-Datei aufs Handy.
 - **Reihenfolge nach deinem Go:**

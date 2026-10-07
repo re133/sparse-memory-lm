@@ -13,7 +13,7 @@ actually worth, what it costs, and whether the table even has to sit in GPU memo
 
 Before every run I wrote down what would count as a success. Some things worked out, some didn't. Both are in
 here. The full lab notebook with every criterion, every number and every mishap is [REPORT.md](REPORT.md)
-(in German).
+(the German original I wrote along the way is [REPORT.de.md](REPORT.de.md)).
 
 **[Look inside the table](https://re133.github.io/sparse-memory-lm/explorer/)** ·
 **[Model on Hugging Face](https://huggingface.co/fechyy/sparse-memory-lm-B-16M)** ·

@@ -1,5 +1,5 @@
-"""Status of the cloud queue -> block between the CLOUD-STATUS markers in REPORT.md and report/cloud_status.json.
-Criteria exactly as fixed in REPORT.md before the build ("Kriterien für die Cloud-Läufe").
+"""Status of the cloud queue -> block between the CLOUD-STATUS markers in REPORT.de.md (German original) and
+report/cloud_status.json. Criteria exactly as fixed before the build (REPORT.md, "Criteria for the cloud runs").
 """
 import json
 import os
@@ -90,7 +90,7 @@ def main():
     with open(os.path.join(ROOT, "report", "cloud_status.json"), "w") as f:
         json.dump({"runs": S, "criteria": V, "verdict": word}, f, indent=2)
     block = render(S, V, word)
-    rp = os.path.join(ROOT, "REPORT.md")
+    rp = os.path.join(ROOT, "REPORT.de.md")
     text = open(rp).read()
     if BEGIN in text and END in text:
         a, rest = text.split(BEGIN, 1)

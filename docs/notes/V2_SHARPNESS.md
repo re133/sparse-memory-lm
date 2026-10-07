@@ -54,7 +54,7 @@ Zugriffs-Grafiken die `.npz`/`.npy` aus `../AngryAnt/runs/ep1` dazukopieren oder
 
 ## Bewertung (vor den Läufen festgelegt)
 
-Gleiche Kriterien und Schwellen wie in Stufe 1 (REPORT.md), je Variante gegen A und C aus `runs/ep1`:
+Gleiche Kriterien und Schwellen wie in Stufe 1 (REPORT.de.md), je Variante gegen A und C aus `runs/ep1`:
 G = (PPL_A − PPL_v)/(PPL_A − PPL_C) ≥ 0,5 und Unterschied zu A > 2·s, Tabelle gesund. Zusätzlich
 berichtet: paarweise Differenz zu B bei gleichem Seed, effektiv gemischte Einträge je Kopf und die
 gelernte Skala. Eine Variante gilt nur dann als „schärfer“, wenn die effektiv gemischten Einträge
@@ -144,6 +144,6 @@ Abstands drauf. Über das Training schwankt der paarweise Unterschied zwischen �
   Temperatur wird das Modell nur mäßig schärfer und gewinnt dadurch fast nichts. Andere Wege zu schärferer
   Auswahl sind damit nicht ausgeschlossen (korrigiert 2026-10-05 nach Codex-Review; vorher „weitgehend widerlegt“, obwohl das Gate bei
   Seed 1 knapp verfehlt wurde). Der Engpass liegt
-  woanders (Kandidaten aus REPORT.md: Datenregime, Werte-LR, Zahl der Speicherschichten).
+  woanders (Kandidaten aus REPORT.de.md: Datenregime, Werte-LR, Zahl der Speicherschichten).
 
 **Entscheidung nach Vorgabe:** v2b ist nicht klar besser als B → **v2a wird nicht gestartet.**

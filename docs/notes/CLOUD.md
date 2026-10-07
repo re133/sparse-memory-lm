@@ -4,8 +4,8 @@ Kurz: Pod in der Runpod-Konsole anlegen → Starter-Paket hochkopieren → ein B
 → der Pod stoppt sich selbst → Ergebnisse per `git pull`, Checkpoints per `rsync` holen → Pod löschen.
 
 **Was läuft:** B-1M (Kontrolle), B-4M, B-16M mit denselben Daten, Einstellungen und demselben Val-Set wie
-B-1M-sparse s0. Je 500 M Tokens, Triton-Kernels. Die Kriterien stehen in REPORT.md (Abschnitt
-„Kriterien für die Cloud-Läufe“). Nach jedem Lauf landet ein Zwischenstand in REPORT.md auf GitHub.
+B-1M-sparse s0. Je 500 M Tokens, Triton-Kernels. Die Kriterien stehen in REPORT.de.md (Abschnitt
+„Kriterien für die Cloud-Läufe“). Nach jedem Lauf landet ein Zwischenstand in REPORT.de.md auf GitHub.
 
 Kein Runpod-Plugin und kein API-Key nötig: Du legst den Pod selbst in der Weboberfläche an. Zum Stoppen am
 Ende benutzt der Pod den Schlüssel, den Runpod automatisch in jeden Pod legt und der nur für diesen Pod gilt.
@@ -80,10 +80,10 @@ Mit `Strg-b`, dann `d` löst du dich von der Sitzung; die Verbindung darfst du t
 ## 4. Während der Läufe
 
 **Bitte während der Läufe nichts nach `main` pushen.** Der Pod holt sich zwar vor jedem Push den neuesten
-Stand, aber ein Konflikt, z. B. in REPORT.md, würde seine Pushes blockieren. Die Ergebnisse lägen dann nur
+Stand, aber ein Konflikt, z. B. in REPORT.de.md, würde seine Pushes blockieren. Die Ergebnisse lägen dann nur
 im Pod.
 
-- **Zwischenstand:** nach jedem Lauf in **REPORT.md** auf GitHub (Abschnitt „Zwischenstand Cloud“),
+- **Zwischenstand:** nach jedem Lauf in **REPORT.de.md** auf GitHub (Abschnitt „Zwischenstand Cloud“),
   dazu eine ntfy-Nachricht.
 - **Live:** `ssh root@<IP> -p <PORT>`, dann `tmux attach -t queue` oder
   `tail -f /workspace/AngryAnt/runs/cloud/queue.log`.

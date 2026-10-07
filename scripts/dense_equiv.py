@@ -1,4 +1,4 @@
-"""Step 1 evaluation (rules pre-registered in REPORT.md, "Schritt 1"): equivalent dense size of B-1M / B-4M / B-16M.
+"""Step 1 evaluation (rules pre-registered in REPORT.md, "Step 1"): equivalent dense size of B-1M / B-4M / B-16M.
 
   python scripts/dense_equiv.py            -> report/dense_equiv.json, report/dense_equiv.png, markdown table on stdout
 

@@ -81,7 +81,7 @@ def git_info():
         except Exception:
             return None
     # run outputs (runs/, report/) and the report text are not code and do not make the tree "dirty"
-    status = run("status", "--porcelain", "--", ".", ":!runs", ":!report", ":!REPORT.md")
+    status = run("status", "--porcelain", "--", ".", ":!runs", ":!report", ":!REPORT.md", ":!REPORT.de.md")
     return {"commit": run("rev-parse", "HEAD"), "dirty": bool(status), "dirty_files": status.splitlines() if status else []}
 
 

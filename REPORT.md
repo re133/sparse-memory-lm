@@ -1,2133 +1,2051 @@
-# Stufe 1: Verbessert eine Product-Key-Speicherschicht ein kleines Sprachmodell bei gleichem Rechenaufwand?
+# Stage 1: Does a product-key memory layer improve a small language model at equal compute?
 
-> **Kurzfassung.** Ja, aber nur wenig. Bei gleichem Rechenaufwand pro Token senkt die Speicherschicht (B)
-> die Validierungs-Perplexity gegenüber der Baseline (A) um 2,0 % nach 1 Epoche und um 4,4 % nach 3 Epochen.
-> Nach den **vor den Läufen festgelegten** Kriterien heißt das: **1 Epoche „lohnt sich nicht“** (Unterschied
-> innerhalb des Seed-Rauschens), **3 Epochen „unklar“** (Unterschied echt, aber B schließt nur 20 % der
-> Lücke zum gleich großen dichten Modell C, gefordert waren 50 %). Die Tabelle ist gesund (≈ 100 % Nutzung)
-> und wird stark genutzt; ein Implementierungsfehler wurde nicht gefunden. Auffällig ist eine fast flache
-> Gewichtung innerhalb der Top-32. Dafür ist der Branch `v2-sharpness` vorbereitet (später gelaufen: v2b wird
-> schärfer, gewinnt aber praktisch nichts, siehe `docs/notes/V2_SHARPNESS.md`; korrigiert 2026-10-05 nach Codex-Review).
-> Kosten von B trotz gleicher FLOPs: −21 % Trainings-, −31 % Prefill-Durchsatz, +1,6 GiB VRAM.
+*This is the English version of the lab notebook. The German original is [REPORT.de.md](REPORT.de.md); where the
+two differ, the German one is the record that was written while the work happened. Quotes of the original German
+specifications are kept in German with a translation.*
+
+> **Summary.** Yes, but only a little. At equal compute per token, the memory layer (B) lowers the validation
+> perplexity against the baseline (A) by 2.0% after 1 epoch and by 4.4% after 3 epochs.
+> By the criteria **fixed before the runs** this means: **1 epoch "not worth it"** (difference within seed noise),
+> **3 epochs "unclear"** (the difference is real, but B closes only 20% of the gap to the equally large dense model C,
+> 50% was required). The table is healthy (≈ 100% usage) and heavily used; no implementation bug was found. What
+> stands out is an almost flat weighting within the top 32. The branch `v2-sharpness` was prepared for that (it ran
+> later: v2b gets sharper but gains practically nothing, see `docs/notes/V2_SHARPNESS.md`; corrected 2026-10-05 after
+> the Codex review).
+> Cost of B despite equal FLOPs: −21% training throughput, −31% prefill throughput, +1.6 GiB VRAM.
 >
-> **Nachtrag Stufe 1b/1c (2026-10-03):** Mit 1M-Tabelle, 3 Speicherschichten und frischen Wikipedia-Daten
-> liegt B-1M bei gleicher Tokenzahl stabil 15 % vor A (2 Seeds je Modell). Ein sparsamer Optimizer
-> liefert dieselbe Qualität und ist 1,15× schneller. Bei **gleicher Trainingszeit** schrumpft der Vorsprung
-> aber auf 3 % („konkurrenzfähig“, der „klare Vorteil“ von 5 % wurde verfehlt). Details: Abschnitte Stufe 1b und 1c.
+> **Addendum stages 1b/1c (2026-10-03):** With a 1M table, 3 memory layers and fresh Wikipedia data, B-1M is a
+> steady 15% ahead of A at equal tokens (2 seeds per model). A sparse optimizer gives the same quality and is 1.15×
+> faster. At **equal training time** the lead shrinks to 3% ("competitive", the "clear advantage" of 5% was
+> missed). Details: sections stage 1b and 1c.
 >
-> **Nachtrag Cloud (2026-10-04, Runpod H200):** Größere Tabellen bringen bei gleicher Tokenzahl deutlich mehr.
-> B-4M ist 4,75 % besser als B-1M, B-16M weitere 4,0 % (gegenüber B-1M −8,6 %). Das vorher festgelegte
-> Kriterium „lohnt sich“ ist erfüllt. B-1M in der Cloud trifft den Wert von zu Hause exakt (21,837), die
-> Triton-Kernels verändern also nichts. Ein Seed je Größe, Kosten 25,51 $ (zuerst zu niedrig mit 21 $ angegeben).
+> **Addendum cloud (2026-10-04, Runpod H200):** Bigger tables bring clearly more at equal tokens.
+> B-4M is 4.75% better than B-1M, B-16M another 4.0% (−8.6% against B-1M). The pre-registered criterion "worth it"
+> is met. B-1M in the cloud matches the value from home exactly (21.837), so the Triton kernels change nothing. One
+> seed per size, cost 25.51 $ (first reported too low as 21 $).
 >
-> **Nachtrag Schritte 1–3 (2026-10-05):**
-> - **Schritt 1 (H100):** Dichte Vergleichsmodelle zeigen: B-1M, B-4M und B-16M sind so gut wie dichte Modelle mit
->   ≈ 60, 83 und 114 M Parametern ohne Embeddings, bei einem Drittel bis der Hälfte der Rechenarbeit pro Token.
-> - **Schritt 2 (zu Hause):** B-16M schreibt mit der Tabelle im RAM (139–154 tok/s) oder auf der NVMe (114–138 tok/s)
->   bitgleich zur Tabelle im Grafikspeicher (212 tok/s). Die Logits sind einzeln verglichen
->   (`report/offload/identical_check.json`); das gilt für Triton 3.5, mit Triton 3.8 weichen sie in den letzten
->   Bits ab (Abschnitt „Codex-Review“). Lange Texte einlesen ist außerhalb des Grafikspeichers aber 2- bis 70-mal
->   langsamer.
-> - **Schritt 3 (Qwen3.5-0.8B mit Tabelle als Zusatz):**
->   - Hilft nur so viel wie ein gleich teurer dichter Zusatzblock.
->   - Schadet nach den Kriterien: MMLU −2,7 Pp., +7 % PPL auf anders aufbereitetem Text.
->   - Pflanzt kein abrufbares Wissen ein (+2,4 Pp. Faktentreffer gegenüber der Kontrolle, gefordert 10).
-> - **Kosten:** Schritt 1 ≈ 17 $, Schritt 3 ≈ 22,50 $; darin ≈ 7,40 $ Leerlauf durch einen eigenen Fehler (siehe
->   Schritt 3). Die Beträge sind vorläufig, weil die Runpod-Abrechnung nachhinkt.
+> **Addendum steps 1–3 (2026-10-05):**
+> - **Step 1 (H100):** Dense comparison models show that B-1M, B-4M and B-16M are as good as dense models with
+>   ≈ 60, 83 and 114 M non-embedding parameters, at a third to half of the compute per token.
+> - **Step 2 (at home):** B-16M writes with the table in RAM (139–154 tok/s) or on the NVMe (114–138 tok/s)
+>   bit-identically to the table in VRAM (212 tok/s). The logits were compared one by one
+>   (`report/offload/identical_check.json`); that holds for Triton 3.5, with Triton 3.8 they differ in the last bits
+>   (section "Codex review"). Reading long texts outside VRAM, however, is 2 to 70 times slower.
+> - **Step 3 (Qwen3.5-0.8B with a table as an add-on):**
+>   - Helps only as much as an equally expensive dense add-on block.
+>   - Does harm by the criteria: MMLU −2.7 pp, +7% PPL on differently formatted text.
+>   - Doesn't plant retrievable knowledge (+2.4 pp fact hits against the control, 10 were required).
+> - **Cost:** step 1 ≈ 17 $, step 3 ≈ 22.50 $, including ≈ 7.40 $ of idle time caused by my own mistake (see
+>   step 3). The amounts are provisional because Runpod's billing lags behind.
 
-Die Erfolgskriterien wurden festgelegt, bevor ein Lauf gestartet wurde (Commit `bc13f1b`, präzisiert in
-`f79e240` vor dem ersten Ergebnis).
+The success criteria were fixed before any run started (commit `bc13f1b`, made more precise in `f79e240` before the
+first result).
 
-## Erfolgskriterien (vor den Läufen festgelegt)
+## Success criteria (fixed before the runs)
 
-Vorgabe (wörtlich übernommen):
+Specification (quoted verbatim, German original):
 
-- **lohnt sich:** Key-Nutzung deutlich über 50 % **und** B schließt mindestens die halbe
-  Perplexity-Lücke zwischen A und C
-- **unklar:** B besser als A, aber knapp → erst Implementierung und Tabellengesundheit prüfen
-- **lohnt sich nicht:** B trotz gesunder Tabelle auf A-Niveau
+- **lohnt sich** (worth it): Key-Nutzung deutlich über 50 % **und** B schließt mindestens die halbe
+  Perplexity-Lücke zwischen A und C (key usage clearly above 50% **and** B closes at least half the perplexity gap
+  between A and C)
+- **unklar** (unclear): B besser als A, aber knapp → erst Implementierung und Tabellengesundheit prüfen (B better
+  than A, but narrowly → check the implementation and table health first)
+- **lohnt sich nicht** (not worth it): B trotz gesunder Tabelle auf A-Niveau (B at A's level despite a healthy table)
 
-Operationalisierung (so wird es ausgewertet, getrennt für den 1-Epochen- und den 3-Epochen-Lauf):
+Operationalisation (this is how it's evaluated, separately for the 1-epoch and the 3-epoch run):
 
-| Größe | Definition |
+| Quantity | Definition |
 |---|---|
-| PPL | Token-Perplexity (GPT-2-BPE) auf dem **gesamten** WikiText-103-Validierungsset am Ende des Trainings, nicht überlappende 1024er-Fenster, Modell im Eval-Modus. A und B: Mittel über 2 Init-Seeds, C: 1 Seed. |
-| Lückenschluss G | G = (PPL_A − PPL_B) / (PPL_A − PPL_C). „Mindestens die halbe Lücke“ heißt G ≥ 0,5. |
-| Key-Nutzung | Anteil der 262.144 Einträge, die auf dem Validierungsset (≈ 247 k Tokens, ≈ 31,7 M Lesezugriffe) mindestens einmal gelesen werden (Definition „memory usage“ nach Lample et al. 2019). „Deutlich über 50 %“ lege ich als **≥ 60 % bei beiden B-Seeds** fest (meine Interpretation). |
-| Tabellengesundheit | Nutzung wie oben, dazu KL(Zugriffsgewichte ‖ Gleichverteilung) und der Anteil der Zugriffe, der auf das meistgelesene 1 % der Einträge fällt. Eine Tabelle mit ≥ 60 % Nutzung, bei der aber > 50 % aller Zugriffe auf 1 % der Einträge fallen, gilt **nicht** als gesund. |
-| Zufallsrauschen | Seed-Spanne s = max(\|PPL_A,s0 − PPL_A,s1\|, \|PPL_B,s0 − PPL_B,s1\|). Ein Unterschied A↔B gilt erst als echt, wenn \|PPL_A − PPL_B\| > 2·s. |
-| „knapp“ (→ unklar) | B besser als A um mehr als 2·s, aber G < 0,5. |
-| „auf A-Niveau“ (→ lohnt sich nicht) | \|PPL_A − PPL_B\| ≤ 2·s, oder B schlechter als A. |
+| PPL | Token perplexity (GPT-2 BPE) on the **whole** WikiText-103 validation set at the end of training, non-overlapping windows of 1024, model in eval mode. A and B: mean over 2 init seeds, C: 1 seed. |
+| Gap closure G | G = (PPL_A − PPL_B) / (PPL_A − PPL_C). "At least half the gap" means G ≥ 0.5. |
+| Key usage | Share of the 262,144 entries that are read at least once on the validation set (≈ 247 k tokens, ≈ 31.7 M reads) (definition of "memory usage" after Lample et al. 2019). I set "clearly above 50%" as **≥ 60% for both B seeds** (my interpretation). |
+| Table health | Usage as above, plus KL(access weights ‖ uniform) and the share of reads that fall on the most-read 1% of entries. A table with ≥ 60% usage where > 50% of all reads fall on 1% of the entries does **not** count as healthy. |
+| Random noise | Seed spread s = max(\|PPL_A,s0 − PPL_A,s1\|, \|PPL_B,s0 − PPL_B,s1\|). A difference A↔B only counts as real if \|PPL_A − PPL_B\| > 2·s. |
+| "narrowly" (→ unclear) | B better than A by more than 2·s, but G < 0.5. |
+| "at A's level" (→ not worth it) | \|PPL_A − PPL_B\| ≤ 2·s, or B worse than A. |
 
-Fälle, die die Vorgabe nicht abdeckt: Ist die Tabelle **nicht** gesund (Nutzung < 60 % oder starke
-Konzentration), ist das Ergebnis **nicht schlüssig**, unabhängig von der Perplexity. Dann wird zuerst
-die Speicherschicht repariert (Query-Normalisierung, Lernraten), bevor ein Urteil gefällt wird.
+Cases the specification doesn't cover: if the table is **not** healthy (usage < 60% or strong concentration), the
+result is **inconclusive**, regardless of the perplexity. Then the memory layer gets fixed first (query
+normalisation, learning rates) before a verdict.
 
-## Versuchsaufbau
+## Setup
 
-**Daten.** WikiText-103 (raw, HF `Salesforce/wikitext`), GPT-2-BPE via `tiktoken`: 117,98 M Trainings-,
-247 k Validierungs-, 283 k Test-Tokens. Training auf nicht überlappenden 1025er-Fenstern, deren
-Reihenfolge pro Epoche nur vom Daten-Seed (1234) abhängt. Alle Modelle sehen also exakt denselben
-Token-Strom in derselben Reihenfolge. 1 Epoche = 3600 Schritte à 32 × 1024 = 32.768 Tokens.
+**Data.** WikiText-103 (raw, HF `Salesforce/wikitext`), GPT-2 BPE via `tiktoken`: 117.98 M training, 247 k
+validation, 283 k test tokens. Training on non-overlapping windows of 1025 whose order per epoch depends only on the
+data seed (1234). So all models see exactly the same token stream in the same order. 1 epoch = 3600 steps of
+32 × 1024 = 32,768 tokens.
 
-**Modelle** (Llama-Stil: RMSNorm, RoPE, SwiGLU, keine Biases, Ein-/Ausgabe-Embedding geteilt, Kontext 1024):
+**Models** (Llama style: RMSNorm, RoPE, SwiGLU, no biases, tied input/output embedding, context 1024):
 
-| | Aufbau | Params ohne Emb. | Params gesamt | aktiv/Token ohne Emb. | MACs/Token (Forward) |
+| | Architecture | Params without emb. | Params total | active/token without emb. | MACs/token (forward) |
 |---|---|---|---|---|---|
-| A | d=384, 12 Layer, 6 Köpfe, SwiGLU 1024 | 21,24 M | 40,56 M | 21,24 M | 45,27 M |
-| B | wie A, FFN von Layer 7 (Index 6) → PKM | 121,94 M | 141,26 M | 21,33 M | 45,35 M |
-| C | d=768, 16 Layer, 12 Köpfe, SwiGLU 2304 | 122,71 M | 161,34 M | 122,71 M | 173,90 M |
+| A | d=384, 12 layers, 6 heads, SwiGLU 1024 | 21.24 M | 40.56 M | 21.24 M | 45.27 M |
+| B | like A, FFN of layer 7 (index 6) → PKM | 121.94 M | 141.26 M | 21.33 M | 45.35 M |
+| C | d=768, 16 layers, 12 heads, SwiGLU 2304 | 122.71 M | 161.34 M | 122.71 M | 173.90 M |
 
-C ist auf B's Parameter **ohne Embeddings** abgeglichen (wie A „ohne Embeddings“ spezifiziert ist).
-„Aktiv/Token“ für B = alle dichten Parameter außer der Wertetabelle (inkl. aller Sub-Keys, die
-vollständig gescannt werden) + die 4 × 32 × 384 tatsächlich gelesenen Werte. MACs enthalten LM-Kopf
-und Attention (mittlerer kausaler Kontext 512).
+C is matched to B's parameters **without embeddings** (the way A is specified "without embeddings").
+"Active/token" for B = all dense parameters except the value table (including all sub-keys, which are scanned
+completely) + the 4 × 32 × 384 values actually read. MACs include the LM head and attention (mean causal context
+512).
 
-**Speicherschicht (B).** 512² = 262.144 Einträge, 4 Köpfe, Top-k 32, Key-Dim 256 (2 × 128), Werte-Dim 384,
-geteilte Wertetabelle (100,7 M Parameter). Aufbau nach der Meta-Referenzimplementierung
-(`facebookresearch/memory`, `lingua/product_key/memory.py`): eigene Sub-Keys je Kopf, exakte Top-k über
-das Produkt (Top-k je Hälfte, dann k×k-Kandidaten), Softmax über die k Scores je Kopf, Köpfe summiert,
-swilu-Ausgang `W2(m(x) ⊙ silu(W1 x))` („Memory+“), Initialisierung wie dort. Zusätzlich **BatchNorm auf
-der Query** (Lample et al. 2019, Abschn. 4.5: hebt die Nutzung bei 1 M Einträgen von 25,8 % auf 80,3 %;
-PEER nutzt es ebenso). Im Training sieht BatchNorm Statistiken über die Batch (also auch spätere Tokens);
-alle Auswertungen laufen im Eval-Modus mit festen Statistiken, ein Unit-Test prüft die Kausalität dort.
-Rechenaufwand des Ersatzes: entferntes FFN 1,18 M MACs/Token, Speicherschicht 1,26 M (Query 0,39 M,
-Sub-Key-Scores 0,52 M, Werte lesen 0,05 M, swilu 0,30 M).
+**Memory layer (B).** 512² = 262,144 entries, 4 heads, top-k 32, key dim 256 (2 × 128), value dim 384, shared value
+table (100.7 M parameters). Built after Meta's reference implementation (`facebookresearch/memory`,
+`lingua/product_key/memory.py`): own sub-keys per head, exact top-k over the product (top-k per half, then k×k
+candidates), softmax over the k scores per head, heads summed, swilu output `W2(m(x) ⊙ silu(W1 x))` ("Memory+"),
+initialisation as there. In addition **BatchNorm on the query** (Lample et al. 2019, sect. 4.5: raises usage at 1 M
+entries from 25.8% to 80.3%; PEER uses it too). In training BatchNorm sees statistics over the batch (so also later
+tokens); all evaluations run in eval mode with fixed statistics, and a unit test checks causality there.
+Compute of the replacement: removed FFN 1.18 M MACs/token, memory layer 1.26 M (query 0.39 M, sub-key scores
+0.52 M, reading values 0.05 M, swilu 0.30 M).
 
-**Optimierung** (identisch für A/B/C): AdamW (β = 0,9/0,95, ε = 1e-8, Weight Decay 0,1 auf Matrizen),
-Spitzen-LR 6e-4, linearer Warmup über 5 % der Schritte, Cosine auf 10 %, Gradient-Clipping 1,0, bf16-Autocast
-mit fp32-Gewichten. **Ausnahme Speicherwerte** (laut Papern): LR 1e-3 absolut (Lample et al.: „higher Adam
-learning rate of 10⁻³“ für die sparse aktualisierten Werte; Meta: `value_fixed_lr=0.001`), gleicher
-Verlaufs-Multiplikator, kein Weight Decay, eigenes Clipping (wie Meta `train.py`). Verhältnis Werte/Rest
-also 1,7× statt 4× bei Lample. Mikro-Batch 8 (A, B) bzw. 4 (C) mit Gradient-Akkumulation auf 32 Sequenzen.
+**Optimisation** (identical for A/B/C): AdamW (β = 0.9/0.95, ε = 1e-8, weight decay 0.1 on matrices), peak LR 6e-4,
+linear warmup over 5% of the steps, cosine to 10%, gradient clipping 1.0, bf16 autocast with fp32 weights.
+**Exception: memory values** (following the papers): LR 1e-3 absolute (Lample et al.: "higher Adam learning rate of
+10⁻³" for the sparsely updated values; Meta: `value_fixed_lr=0.001`), same schedule multiplier, no weight decay, own
+clipping (as Meta's `train.py`). So the ratio values/rest is 1.7× instead of 4× in Lample. Micro-batch 8 (A, B) or
+4 (C) with gradient accumulation to 32 sequences.
 
-**Seeds.** Daten-Seed 1234 für alle. Init-Seeds 0 und 1 für A und B, 0 für C. GPU-Kernels (Atomics in
-`embedding_bag`-Backward, Flash-Attention-Backward) sind nicht bitgenau deterministisch.
+**Seeds.** Data seed 1234 for all. Init seeds 0 and 1 for A and B, 0 for C. GPU kernels (atomics in the
+`embedding_bag` backward, flash attention backward) are not bit-exactly deterministic.
 
-**Messungen.** Validierungs-PPL alle 4 M (1 Epoche) bzw. 8 M Tokens (3 Epochen) über das ganze Val-Set,
-dazu der mittlere Train-Loss im selben Intervall. Tokens/s im Training ohne Evaluierungszeit (Median über
-10-Schritt-Fenster). Inferenz: (a) Batch-1-Decoding mit KV-Cache, 128 Prompt- + 256 neue Tokens,
-gierig; (b) Batched-Forward 16 × 1024 („Prefill“). Spitzen-VRAM = `torch.cuda.max_memory_allocated`
-während des Trainings (ohne Evaluierung). Für B: Key-Nutzung, KL und Konzentration auf dem Val-Set bei
-jeder Evaluierung, Nutzung im Training je Intervall, Zugriffshistogramm über das gesamte Training und
-über das Val-Set, sowie eine Index-Stichprobe (die ersten 65.536 Val-Tokens in Textreihenfolge:
-Indizes [Token, Kopf, k] als int32, rohe Scores, Token-IDs) in `runs/*/B-*/mem_index_sample.npz`.
+**Measurements.** Validation PPL every 4 M (1 epoch) or 8 M tokens (3 epochs) over the whole val set, plus the mean
+training loss over the same interval. Tokens/s in training without evaluation time (median over 10-step windows).
+Inference: (a) batch-1 decoding with KV cache, 128 prompt + 256 new tokens, greedy; (b) batched forward 16 × 1024
+("prefill"). Peak VRAM = `torch.cuda.max_memory_allocated` during training (without evaluation). For B: key usage,
+KL and concentration on the val set at every evaluation, usage in training per interval, access histogram over the
+whole training and over the val set, and an index sample (the first 65,536 val tokens in text order: indices
+[token, head, k] as int32, raw scores, token ids) in `runs/*/B-*/mem_index_sample.npz`.
 
-**Unit-Tests** (`tests/test_pkm.py`, CPU und GPU, fp64): Product-Key-Top-k = Brute-Force-Top-k über alle
-n² Keys (Scores und Index-Mengen exakt); Gradient der Wertetabelle ist genau auf den gelesenen Zeilen
-≠ 0 (beide Implementierungen); beide Wertelese-Implementierungen stimmen in Ausgabe und Gradienten
-überein; Kausalität im Eval-Modus (mit und ohne Speicher); KV-Cache-Decoding = voller Forward.
+**Unit tests** (`tests/test_pkm.py`, CPU and GPU, fp64): product-key top-k = brute-force top-k over all n² keys
+(scores and index sets exact); the gradient of the value table is ≠ 0 exactly on the rows that were read (both
+implementations); both value-read implementations agree in output and gradients; causality in eval mode (with and
+without memory); KV-cache decoding = full forward.
 
-## Ergebnisse
+## Results
 
-### Probelauf: 20 M Tokens, je 1 Seed (Pipeline-Check, nicht für das Urteil)
+### Trial run: 20 M tokens, 1 seed each (pipeline check, not for the verdict)
 
-| Lauf | Val-PPL | Test-PPL | Val-PPL (Wort) | Train tok/s | Decode b=1 tok/s | Prefill tok/s | VRAM Train | Key-Nutzung Val | Top-1 %-Anteil | KL |
+| Run | Val PPL | Test PPL | Val PPL (word) | Train tok/s | Decode b=1 tok/s | Prefill tok/s | VRAM train | Key usage val | Top-1% share | KL |
 |---|---|---|---|---|---|---|---|---|---|---|
-| A-s0 | 138,92 | 140,84 | 272,8 | 91.542 | 213 | 383.125 | 7,89 GiB | – | – | – |
-| B-s0 | 135,68 | 137,64 | 265,6 | 73.043 | 197 | 269.315 | 9,47 GiB | 81,8 % | 33,0 % | 2,03 |
-| C-s0 | 107,75 | 110,12 | 204,4 | 34.441 | 165 | 131.093 | 7,91 GiB | – | – | – |
+| A-s0 | 138.92 | 140.84 | 272.8 | 91,542 | 213 | 383,125 | 7.89 GiB | – | – | – |
+| B-s0 | 135.68 | 137.64 | 265.6 | 73,043 | 197 | 269,315 | 9.47 GiB | 81.8% | 33.0% | 2.03 |
+| C-s0 | 107.75 | 110.12 | 204.4 | 34,441 | 165 | 131,093 | 7.91 GiB | – | – | – |
 
-![Val-PPL Probelauf](report/probe_val_ppl.png)
+![Val PPL trial run](report/probe_val_ppl.png)
 
-- B liegt 2,3 % unter A (−3,2 PPL), C 22 % darunter. Lückenschluss G = 0,10. Mit nur einem Seed ist das
-  Rauschen nicht messbar; der Probelauf diente nur dazu, die Pipeline zu prüfen.
-- **Die Key-Nutzung bricht am Anfang ein und erholt sich dann.** Nach der Initialisierung werden 99 %
-  der Einträge gelesen, nach 2 M Tokens nur noch 9 % (85 % aller Zugriffe auf 1 % der Einträge),
-  danach steigt die Nutzung stetig auf 82 % bei 20 M Tokens (Top-1 %-Anteil 33 %, weiter fallend).
-  Die Key-Normen bleiben dabei gleichmäßig (max/min ≈ 1,3) und fast alle 512 Sub-Keys je Hälfte werden
-  gelesen. Der Einbruch kommt also nicht von „Hub-Keys“ mit großer Norm, sondern daher, dass die Queries
-  früh im Training wenig divers sind (Residual-Stream noch niedrigrangig) und sich nur wenige
-  Kombinationen der beiden Hälften durchsetzen. Für Stufe 3 heißt das: Die Zugriffsverteilung hängt
-  stark vom Trainingsstand ab, Messungen an früh gestoppten Modellen sind nicht repräsentativ.
+- B is 2.3% below A (−3.2 PPL), C 22% below. Gap closure G = 0.10. With only one seed the noise can't be measured;
+  the trial run was only there to check the pipeline.
+- **Key usage collapses at the start and then recovers.** After initialisation 99% of the entries are read, after
+  2 M tokens only 9% (85% of all reads on 1% of the entries), after that usage rises steadily to 82% at 20 M tokens
+  (top-1% share 33%, still falling). The key norms stay even (max/min ≈ 1.3) and almost all 512 sub-keys per half
+  get read. So the collapse doesn't come from "hub keys" with a large norm, but from queries that are not very
+  diverse early in training (residual stream still low-rank), so only a few combinations of the two halves win.
+  For stage 3 this means: the access distribution depends strongly on how far training is, and measurements on
+  models stopped early are not representative.
 
-![Tabellengesundheit Probelauf](report/probe_memory_health.png)
+![Table health trial run](report/probe_memory_health.png)
 
-- Git: A-s0 lief auf `bc13f1b`, B-s0 und C-s0 auf `fef54eb`. Dazwischen änderten sich nur `REPORT.md`
-  und das Auswerte-Skript, nicht der Trainingscode. Das `dirty: true` in deren `run-info.json` kommt
-  allein vom damals noch nicht versionierten Ordner `runs/` (danach behoben: Ausgaben zählen nicht mehr).
+- Git: A-s0 ran on `bc13f1b`, B-s0 and C-s0 on `fef54eb`. In between only `REPORT.md` and the evaluation script
+  changed, not the training code. The `dirty: true` in their `run-info.json` comes only from the folder `runs/`,
+  which wasn't versioned at the time (fixed afterwards: outputs no longer count).
 
-### 1 Epoche: 118 M Tokens (A, B je 2 Seeds; C 1 Seed)
+### 1 epoch: 118 M tokens (A, B 2 seeds each; C 1 seed)
 
-| Lauf | Val-PPL | Test-PPL | Val-PPL (Wort) | Train tok/s | Decode b=1 tok/s | Prefill tok/s | VRAM Train | Trainzeit | Key-Nutzung Val | Top-1 %-Anteil | KL |
+| Run | Val PPL | Test PPL | Val PPL (word) | Train tok/s | Decode b=1 tok/s | Prefill tok/s | VRAM train | Train time | Key usage val | Top-1% share | KL |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| A-s0 | 35,26 | 35,24 | 57,4 | 91.705 | 217 | 383.407 | 7,89 GiB | 21 min | – | – | – |
-| A-s1 | 34,93 | 34,77 | 56,8 | 91.640 | 218 | 384.460 | 7,89 GiB | 21 min | – | – | – |
-| B-s0 | 34,63 | 34,56 | 56,2 | 72.445 | 199 | 264.882 | 9,47 GiB | 27 min | 99,2 % | 18,4 % | 1,08 |
-| B-s1 | 34,12 | 34,05 | 55,3 | 72.241 | 203 | 264.573 | 9,47 GiB | 27 min | 99,7 % | 15,5 % | 0,91 |
-| C-s0 | 25,80 | 26,02 | 40,3 | 34.468 | 165 | 130.976 | 7,91 GiB | 57 min | – | – | – |
+| A-s0 | 35.26 | 35.24 | 57.4 | 91,705 | 217 | 383,407 | 7.89 GiB | 21 min | – | – | – |
+| A-s1 | 34.93 | 34.77 | 56.8 | 91,640 | 218 | 384,460 | 7.89 GiB | 21 min | – | – | – |
+| B-s0 | 34.63 | 34.56 | 56.2 | 72,445 | 199 | 264,882 | 9.47 GiB | 27 min | 99.2% | 18.4% | 1.08 |
+| B-s1 | 34.12 | 34.05 | 55.3 | 72,241 | 203 | 264,573 | 9.47 GiB | 27 min | 99.7% | 15.5% | 0.91 |
+| C-s0 | 25.80 | 26.02 | 40.3 | 34,468 | 165 | 130,976 | 7.91 GiB | 57 min | – | – | – |
 
-**Auswertung gegen die vorab festgelegten Kriterien:**
+**Evaluation against the pre-registered criteria:**
 
-| Größe | Wert |
+| Quantity | Value |
 |---|---|
-| PPL A (Mittel; Seeds) | 35,09 (35,26 / 34,93) |
-| PPL B (Mittel; Seeds) | 34,38 (34,63 / 34,12) |
-| PPL C | 25,80 |
-| Seed-Spanne s | 0,51 (aus B; A: 0,32) → Schwelle 2·s = 1,02 |
-| PPL_A − PPL_B | +0,72 (**innerhalb** 2·s) |
-| Lückenschluss G | **0,08** |
-| Key-Nutzung (min.) / Top-1 %-Anteil (max.) | 99,2 % / 18,4 % → **Tabelle gesund** |
-| **Urteil** | **lohnt sich nicht** (B auf A-Niveau, trotz gesunder Tabelle) |
+| PPL A (mean; seeds) | 35.09 (35.26 / 34.93) |
+| PPL B (mean; seeds) | 34.38 (34.63 / 34.12) |
+| PPL C | 25.80 |
+| Seed spread s | 0.51 (from B; A: 0.32) → threshold 2·s = 1.02 |
+| PPL_A − PPL_B | +0.72 (**within** 2·s) |
+| Gap closure G | **0.08** |
+| Key usage (min.) / top-1% share (max.) | 99.2% / 18.4% → **table healthy** |
+| **Verdict** | **not worth it** (B at A's level, despite a healthy table) |
 
-Hinweis zur Einstufung: Die Schwelle 2·s und die Zuordnung „B besser, aber innerhalb 2·s → auf
-A-Niveau“ sind **meine** Operationalisierung der Vorgabe. Nach dem Wortlaut („B besser als A, aber
-knapp“) wäre auch **„unklar“** vertretbar, denn B ist in allen vier Paarungen besser. Die bei „unklar“
-verlangten Prüfungen (Implementierung, Tabellengesundheit) sind unten trotzdem gemacht.
+Note on the classification: the threshold 2·s and the mapping "B better, but within 2·s → at A's level" are **my**
+operationalisation of the specification. Going by the wording ("B better than A, but narrowly"), **"unclear"** would
+also be defensible, since B is better in all four pairings. The checks required for "unclear" (implementation,
+table health) are done below anyway.
 
-![Val-PPL 1 Epoche](report/ep1_val_ppl.png)
+![Val PPL 1 epoch](report/ep1_val_ppl.png)
 
-![Abstand zu A, 1 Epoche](report/ep1_relative_to_A.png)
+![Distance to A, 1 epoch](report/ep1_relative_to_A.png)
 
-**Was die Zahlen sagen, ohne Schönfärberei:**
+**What the numbers say, without sugar-coating:**
 
-- B ist in allen vier A/B-Paarungen besser als A, und das gleichmäßig ab etwa 30 M Tokens um ≈ 2 %
-  (Val wie Test). Das spricht für einen echten, aber kleinen Effekt. Nach dem vorab festgelegten
-  Kriterium reicht er nicht: 0,72 PPL liegen unter 2·s = 1,02, und mit zwei Seeds je Modell ist auch
-  „B schlägt A in allen Paarungen“ nicht belastbar (bei Zufall träte das in 1 von 6 Fällen auf).
-- **Selbst wenn der Effekt echt ist, ist er viel zu klein.** B schließt 8 % der Lücke zu C, gefordert
-  waren 50 %. Der Vorsprung wächst über die Epoche auch nicht, er bleibt bei ≈ 2 % (siehe Grafik).
-  Die 100 M zusätzlichen Parameter von B bringen also bei weitem nicht, was dieselbe Zahl dichter
-  Parameter in C bringt (−26,5 % PPL), allerdings bei 3,8× so vielen MACs pro Token für C.
-- **C ist bei 1 Epoche deutlich untertrainiert** (≈ 1 Token je Parameter statt ≈ 20). Die Lücke A↔C
-  wäre bei einem ausgereizten C eher noch größer; der Vergleich ist für B damit eher günstig.
-- **Kosten von B:** gleiche FLOPs wie A, aber 21 % weniger Trainingsdurchsatz, 31 % weniger
-  Prefill-Durchsatz, 7 % langsameres Batch-1-Decoding und 1,6 GiB mehr VRAM (Wertetabelle mit
-  Gradient und Adam-Zuständen: 100,7 M × 16 Byte).
+- B is better than A in all four A/B pairings, evenly by ≈ 2% from about 30 M tokens on (val and test alike). That
+  points to a real but small effect. By the pre-registered criterion it isn't enough: 0.72 PPL is below
+  2·s = 1.02, and with two seeds per model "B beats A in all pairings" isn't solid either (by chance it would
+  happen in 1 of 6 cases).
+- **Even if the effect is real, it's far too small.** B closes 8% of the gap to C, 50% was required. The lead
+  doesn't grow over the epoch either, it stays at ≈ 2% (see plot). So B's 100 M extra parameters bring nowhere near
+  what the same number of dense parameters brings in C (−26.5% PPL), though C needs 3.8× as many MACs per token.
+- **C is clearly undertrained at 1 epoch** (≈ 1 token per parameter instead of ≈ 20). With a fully trained C the gap
+  A↔C would be even bigger; the comparison is, if anything, favourable for B.
+- **Cost of B:** same FLOPs as A, but 21% less training throughput, 31% less prefill throughput, 7% slower batch-1
+  decoding and 1.6 GiB more VRAM (value table with gradient and Adam states: 100.7 M × 16 bytes).
 
-**Tabellengesundheit und Implementierung** (Pflichtprüfung, bevor ein Urteil zählt):
+**Table health and implementation** (mandatory check before a verdict counts):
 
-![Tabellengesundheit 1 Epoche](report/ep1_memory_health.png)
+![Table health 1 epoch](report/ep1_memory_health.png)
 
-- Nutzung 99,2 / 99,7 %, KL 1,08 / 0,91, das meistgelesene 1 % der Einträge bekommt 18 / 16 % der
-  Zugriffe, nur 0,3–0,8 % der Einträge werden auf dem Val-Set nie gelesen. Im Training wurde jeder
-  Eintrag gelesen (seltenster ≈ 2.400×). Der Einbruch am Anfang (s. Probelauf) erholt sich nach
-  ≈ 20 M Tokens vollständig.
-- **Die Speicherschicht trägt tatsächlich etwas bei** (`scripts/diagnose_memory.py`, erste 32.768
-  Val-Tokens, `runs/ep1/B-*/diagnostics.json`): Setzt man ihre Ausgabe auf null, steigt die PPL von 31,3
-  auf 35,5 (s0) bzw. 30,6 auf 35,7 (s1). Liest man statt der gefundenen zufällige Einträge, steigt sie
-  auf 36,0 bzw. 36,5. Es kommt also darauf an, *welche* Einträge die Suche findet. Die Ausgabenorm der
-  Schicht (2,5–2,8) liegt über der der benachbarten dichten FFNs (1,2–2,6). Die 4 Köpfe lesen pro Token
-  fast immer 128 verschiedene Einträge.
-- Die Unit-Tests (exakte Top-k, Gradient nur in gelesene Werte, Kausalität, KV-Cache) sind grün.
-  Einen Implementierungsfehler habe ich nicht gefunden.
-- **Auffälligkeit: Die Gewichtung innerhalb der Top-32 ist fast flach.** Effektiv mischt jeder Kopf
-  30,5 von 32 Einträgen (exp(Entropie)), das Top-1-Gewicht liegt bei 0,066 (gleichverteilt: 0,031).
-  Die Score-Skala ist seit der Initialisierung kaum gewachsen (Key-Norm 0,41 → 0,48, BatchNorm-γ ≈ 1,09).
-  Die Schicht ruft also nicht gezielt wenige Einträge ab, sondern mittelt grob über 128. Das passt zum
-  Befund „ersetzt ein FFN und etwas mehr, aber nicht viel mehr“: Ohne Speicher fehlt dem Modell eine
-  ganze Schicht (+14–16 % PPL), mit Speicher ist es nur 2 % besser als A.
+- Usage 99.2 / 99.7%, KL 1.08 / 0.91, the most-read 1% of the entries get 18 / 16% of the reads, only 0.3–0.8% of
+  the entries are never read on the val set. In training every entry was read (the rarest ≈ 2,400×). The collapse
+  at the start (see trial run) recovers completely after ≈ 20 M tokens.
+- **The memory layer really contributes something** (`scripts/diagnose_memory.py`, first 32,768 val tokens,
+  `runs/ep1/B-*/diagnostics.json`): setting its output to zero raises the PPL from 31.3 to 35.5 (s0) and from 30.6
+  to 35.7 (s1). Reading random entries instead of the ones found raises it to 36.0 and 36.5. So it matters *which*
+  entries the search finds. The layer's output norm (2.5–2.8) is above that of the neighbouring dense FFNs
+  (1.2–2.6). The 4 heads almost always read 128 different entries per token.
+- The unit tests (exact top-k, gradient only into values that were read, causality, KV cache) are green. I didn't
+  find an implementation bug.
+- **Something stands out: the weighting within the top 32 is almost flat.** Effectively each head mixes 30.5 of 32
+  entries (exp(entropy)), the top-1 weight is 0.066 (uniform: 0.031). The score scale has barely grown since
+  initialisation (key norm 0.41 → 0.48, BatchNorm γ ≈ 1.09). So the layer doesn't retrieve a few entries in a
+  targeted way, it roughly averages over 128. That fits the finding "replaces an FFN and a bit more, but not much
+  more": without the memory the model is missing a whole layer (+14–16% PPL), with it it's only 2% better than A.
 
-**Zugriffsmuster (für Stufe 3, `report/ep1_access_stats.json`):**
+**Access pattern (for stage 3, `report/ep1_access_stats.json`):**
 
-![Zugriffsverteilung 1 Epoche](report/ep1_access_distribution.png)
+![Access distribution 1 epoch](report/ep1_access_distribution.png)
 
 | | B-s0 | B-s1 |
 |---|---|---|
-| Anteil der Zugriffe auf die Top 1 / 10 / 20 / 50 % (Val) | 18 / 55 / 71 / 91 % | 16 / 50 / 66 / 89 % |
-| Val-Zugriffe, die die Top 20 % aus dem **Training** abdecken | 68 % | 63 % |
-| Rangkorrelation der Zugriffszahlen Training ↔ Val (Spearman) | 0,89 | 0,89 |
-| Zugriffe, die schon in den letzten 1 / 16 / 256 Tokens gelesen wurden | 0,7 / 11,7 / 52,5 % | 0,9 / 11,5 / 50,2 % |
+| Share of reads on the top 1 / 10 / 20 / 50% (val) | 18 / 55 / 71 / 91% | 16 / 50 / 66 / 89% |
+| Val reads covered by the top 20% from **training** | 68% | 63% |
+| Rank correlation of read counts training ↔ val (Spearman) | 0.89 | 0.89 |
+| Reads already read within the last 1 / 16 / 256 tokens | 0.7 / 11.7 / 52.5% | 0.9 / 11.5 / 50.2% |
 
-Die Verteilung ist deutlich schief, aber kein extremer Zipf: Ein Cache mit den 20 % meistgelesenen
-Einträgen (im Training ermittelt; hier 52 k Einträge × 384 × 2 Byte ≈ 40 MB in bf16) fängt ≈ 65 % der
-Lesezugriffe auf dem Val-Set ab. Aufeinanderfolgende Tokens lesen
-fast disjunkte Einträge (< 1 % Wiederholung zum direkten Vorgänger); über ein Fenster von 256 Tokens
-wiederholt sich aber die Hälfte. Für die SSD-Auslagerung heißt das: ≈ 35 % der 128 Lesezugriffe pro
-Token müssten auch mit einem Hot-Set-Cache noch zufällig von der SSD kommen.
+The distribution is clearly skewed, but not an extreme Zipf: a cache of the 20% most-read entries (determined in
+training; here 52 k entries × 384 × 2 bytes ≈ 40 MB in bf16) catches ≈ 65% of the reads on the val set. Consecutive
+tokens read almost disjoint entries (< 1% repetition to the direct predecessor); over a window of 256 tokens,
+however, half of them repeat. For offloading to an SSD this means: ≈ 35% of the 128 reads per token would still have
+to come randomly from the SSD even with a hot-set cache.
 
-![Train- vs. Val-Loss 1 Epoche](report/ep1_train_vs_val.png)
+![Train vs. val loss 1 epoch](report/ep1_train_vs_val.png)
 
-Bei 1 Epoche gibt es erwartungsgemäß kein Auswendiglernen (jedes Fenster wird genau einmal gesehen);
-dass Train über Val liegt, ist der nachlaufende Intervall-Mittelwert, s. Grenzen.
+At 1 epoch there is, as expected, no memorisation (every window is seen exactly once); train being above val is the
+lagging interval mean, see limitations.
 
-**Inferenz-VRAM** (fp32-Gewichte unter bf16-Autocast, Spitze `max_memory_allocated`; gilt auch für 3 Epochen):
-Batch-1-Decoding A 1,16 GiB, B 1,54 GiB, C 1,46 GiB; Prefill 16 × 1024 A 2,75 GiB, B 3,13 GiB, C 3,11 GiB.
-Die Wertetabelle von B belegt allein 0,38 GiB (fp32), in bf16 wären es 0,19 GiB.
+**Inference VRAM** (fp32 weights under bf16 autocast, peak `max_memory_allocated`; also applies to 3 epochs):
+batch-1 decoding A 1.16 GiB, B 1.54 GiB, C 1.46 GiB; prefill 16 × 1024 A 2.75 GiB, B 3.13 GiB, C 3.11 GiB.
+B's value table alone takes 0.38 GiB (fp32), in bf16 it would be 0.19 GiB.
 
-**Herkunft:** A-s0 lief auf `4f0e5fb`, alle anderen 1-Epochen-Läufe auf `6859f1f`. Zwischen diesen
-Commits hat sich nur der Bericht geändert, nicht `smlm/` oder `scripts/run_suite.py`. B-s1 ist als
-`dirty` markiert, allein wegen des damals noch nicht versionierten Analyse-Skripts
-`scripts/diagnose_memory.py`, das beim Training nicht verwendet wird.
+**Provenance:** A-s0 ran on `4f0e5fb`, all other 1-epoch runs on `6859f1f`. Between these commits only the report
+changed, not `smlm/` or `scripts/run_suite.py`. B-s1 is marked `dirty`, only because of the analysis script
+`scripts/diagnose_memory.py`, which wasn't versioned at the time and isn't used in training.
 
-### 3 Epochen: 354 M Tokens, eigener Cosine-Plan (A, B je 2 Seeds; C 1 Seed)
+### 3 epochs: 354 M tokens, own cosine schedule (A, B 2 seeds each; C 1 seed)
 
-Eigener Lauf mit Warmup (540 Schritte) und Cosine über alle 10.800 Schritte; die Zwischenstände bei
-118 M Tokens sind daher **nicht** mit dem Ende des 1-Epochen-Laufs vergleichbar (dort war die LR schon
-abgeklungen). Jede Epoche hat ihre eigene, vom Daten-Seed festgelegte Reihenfolge.
+A separate run with warmup (540 steps) and cosine over all 10,800 steps; the intermediate values at 118 M tokens are
+therefore **not** comparable with the end of the 1-epoch run (there the LR had already decayed). Each epoch has its
+own order, fixed by the data seed.
 
-| Lauf | Val-PPL | Test-PPL | Val-PPL (Wort) | Train tok/s | Decode b=1 tok/s | Prefill tok/s | VRAM Train | Trainzeit | Key-Nutzung Val | Top-1 %-Anteil | KL |
+| Run | Val PPL | Test PPL | Val PPL (word) | Train tok/s | Decode b=1 tok/s | Prefill tok/s | VRAM train | Train time | Key usage val | Top-1% share | KL |
 |---|---|---|---|---|---|---|---|---|---|---|---|
-| A-s0 | 24,81 | 24,99 | 38,5 | 91.659 | 219 | 383.220 | 7,89 GiB | 64 min | – | – | – |
-| A-s1 | 24,65 | 24,84 | 38,2 | 91.478 | 217 | 384.725 | 7,89 GiB | 64 min | – | – | – |
-| B-s0 | 23,80 | 24,02 | 36,7 | 71.935 | 203 | 264.825 | 9,47 GiB | 82 min | 99,97 % | 11,0 % | 0,63 |
-| B-s1 | 23,47 | 23,76 | 36,1 | 71.640 | 206 | 265.278 | 9,47 GiB | 82 min | 99,99 % | 11,0 % | 0,59 |
-| C-s0 | 19,15 | 19,51 | 28,7 | 34.607 | 164 | 131.352 | 7,91 GiB | 170 min | – | – | – |
+| A-s0 | 24.81 | 24.99 | 38.5 | 91,659 | 219 | 383,220 | 7.89 GiB | 64 min | – | – | – |
+| A-s1 | 24.65 | 24.84 | 38.2 | 91,478 | 217 | 384,725 | 7.89 GiB | 64 min | – | – | – |
+| B-s0 | 23.80 | 24.02 | 36.7 | 71,935 | 203 | 264,825 | 9.47 GiB | 82 min | 99.97% | 11.0% | 0.63 |
+| B-s1 | 23.47 | 23.76 | 36.1 | 71,640 | 206 | 265,278 | 9.47 GiB | 82 min | 99.99% | 11.0% | 0.59 |
+| C-s0 | 19.15 | 19.51 | 28.7 | 34,607 | 164 | 131,352 | 7.91 GiB | 170 min | – | – | – |
 
-**Auswertung gegen die vorab festgelegten Kriterien:**
+**Evaluation against the pre-registered criteria:**
 
-| Größe | Wert |
+| Quantity | Value |
 |---|---|
-| PPL A (Mittel; Seeds) | 24,73 (24,81 / 24,65) |
-| PPL B (Mittel; Seeds) | 23,63 (23,80 / 23,47) |
-| PPL C | 19,15 |
-| Seed-Spanne s | 0,33 (aus B; A: 0,16) → Schwelle 2·s = 0,67 |
-| PPL_A − PPL_B | +1,10 (**über** 2·s) |
-| Lückenschluss G | **0,20** |
-| Key-Nutzung (min.) / Top-1 %-Anteil (max.) | 99,97 % / 11,0 % → **Tabelle gesund** |
-| **Urteil** | **unklar** (B echt besser als A, aber knapp: G < 0,5) |
+| PPL A (mean; seeds) | 24.73 (24.81 / 24.65) |
+| PPL B (mean; seeds) | 23.63 (23.80 / 23.47) |
+| PPL C | 19.15 |
+| Seed spread s | 0.33 (from B; A: 0.16) → threshold 2·s = 0.67 |
+| PPL_A − PPL_B | +1.10 (**above** 2·s) |
+| Gap closure G | **0.20** |
+| Key usage (min.) / top-1% share (max.) | 99.97% / 11.0% → **table healthy** |
+| **Verdict** | **unclear** (B really better than A, but narrowly: G < 0.5) |
 
-Auf dem Test-Set ergibt sich dasselbe Bild (A 24,92, B 23,89, C 19,51 → −4,1 %, G = 0,19).
+The test set gives the same picture (A 24.92, B 23.89, C 19.51 → −4.1%, G = 0.19).
 
-![Val-PPL 3 Epochen](report/ep3_val_ppl.png)
+![Val PPL 3 epochs](report/ep3_val_ppl.png)
 
-![Abstand zu A, 3 Epochen](report/ep3_relative_to_A.png)
+![Distance to A, 3 epochs](report/ep3_relative_to_A.png)
 
-**Was die Zahlen sagen:**
+**What the numbers say:**
 
-- **Mit mehr Daten wächst der Vorsprung von B, bleibt aber klein.** Relativ zu A: −0,8 % bei 40 M Tokens,
-  −2,0 % bei 80 M, −2,9 % bei 120 M, −4,0 % bei 176 M, dann ab ≈ 240 M Tokens konstant bei −4,4 %
-  (beide Seeds, siehe Grafik). Der Lückenschluss G steigt entsprechend auf ≈ 0,20 und bleibt dort.
-  Beide B-Seeds liegen jetzt klar unter beiden A-Seeds.
-- **Für „lohnt sich“ fehlt mehr als die Hälfte.** C ist auch nach 3 Epochen 22,6 % besser als A
-  (bei 3,8× MACs/Token und weiter untertrainiert: ≈ 3 Tokens je Parameter). B holt davon ein Fünftel.
-- **Auswendiglernen** (Val-Loss minus Train-Loss am Ende, nats): A 0,014 / 0,015, B 0,035 / 0,043,
-  C 0,119. In Epoche 2 und 3 fällt der Train-Loss an den Epochengrenzen sichtbar ab. B lernt etwas
-  mehr auswendig als A, viel weniger als C; der Val-Loss von B fällt trotzdem bis zum Ende weiter.
+- **With more data B's lead grows, but stays small.** Relative to A: −0.8% at 40 M tokens, −2.0% at 80 M, −2.9% at
+  120 M, −4.0% at 176 M, then constant at −4.4% from ≈ 240 M tokens on (both seeds, see plot). The gap closure G
+  rises accordingly to ≈ 0.20 and stays there. Both B seeds are now clearly below both A seeds.
+- **More than half is missing for "worth it".** Even after 3 epochs C is 22.6% better than A (at 3.8× the
+  MACs/token and still undertrained: ≈ 3 tokens per parameter). B gets a fifth of that.
+- **Memorisation** (val loss minus train loss at the end, nats): A 0.014 / 0.015, B 0.035 / 0.043, C 0.119. In
+  epochs 2 and 3 the training loss visibly drops at the epoch boundaries. B memorises a bit more than A, much less
+  than C; B's val loss still keeps falling until the end.
 
-![Train- vs. Val-Loss 3 Epochen](report/ep3_train_vs_val.png)
+![Train vs. val loss 3 epochs](report/ep3_train_vs_val.png)
 
-**Tabellengesundheit und Implementierung** (Pflichtprüfung bei „unklar“, `runs/ep3/B-*/diagnostics.json`,
-erste 32.768 Val-Tokens, GPU):
+**Table health and implementation** (mandatory check for "unclear", `runs/ep3/B-*/diagnostics.json`, first 32,768
+val tokens, GPU):
 
-- Nutzung 99,97 / 99,99 %, KL 0,63 / 0,59, das meistgelesene 1 % bekommt 11 % der Zugriffe; im Training
-  wurde jeder Eintrag gelesen (seltenster 961× bzw. 1.632×, Median ≈ 100 k×). Gesünder als nach 1 Epoche.
-- **Das Modell stützt sich nach 3 Epochen viel stärker auf den Speicher:** Ausgabe auf null → PPL
-  21,8 → 31,3 (s0) bzw. 21,4 → 32,7 (s1), also +44 / +53 % (nach 1 Epoche: +14 / +16 %). Zufällige statt
-  gefundener Einträge → 34,3 bzw. 37,3. Ohne Speicher ist B damit deutlich schlechter als A. Die
-  Ausgabenorm der Schicht (7,4 / 8,3) ist die größte aller FFN-Positionen in der Mitte (Nachbarn 2,8–5,2).
-- **Die Gewichtung innerhalb der Top-32 wird mit dem Training etwas schärfer, bleibt aber flach:**
-  effektiv 28,6 / 28,3 von 32 Einträgen je Kopf (nach 1 Epoche 30,5), Top-1-Gewicht 0,094 / 0,097.
-  Key-Norm 0,41 → 0,59 / 0,61, BatchNorm-γ 1,0 → 1,33 / 1,37. Die Skala wächst also, aber langsam.
-- Unit-Tests grün; kein Implementierungsfehler gefunden. Die Tabelle funktioniert und wird genutzt;
-  offen ist, warum sie so wenig über eine zusätzliche dichte Schicht hinaus bringt (siehe Einordnung).
+- Usage 99.97 / 99.99%, KL 0.63 / 0.59, the most-read 1% get 11% of the reads; in training every entry was read
+  (the rarest 961× and 1,632×, median ≈ 100 k×). Healthier than after 1 epoch.
+- **After 3 epochs the model relies much more on the memory:** output set to zero → PPL 21.8 → 31.3 (s0) and
+  21.4 → 32.7 (s1), so +44 / +53% (after 1 epoch: +14 / +16%). Random instead of found entries → 34.3 and 37.3.
+  Without the memory B is clearly worse than A. The layer's output norm (7.4 / 8.3) is the largest of all FFN
+  positions in the middle (neighbours 2.8–5.2).
+- **The weighting within the top 32 gets a bit sharper with training, but stays flat:** effectively 28.6 / 28.3 of
+  32 entries per head (after 1 epoch 30.5), top-1 weight 0.094 / 0.097. Key norm 0.41 → 0.59 / 0.61, BatchNorm γ
+  1.0 → 1.33 / 1.37. So the scale grows, but slowly.
+- Unit tests green; no implementation bug found. The table works and is used; the open question is why it brings so
+  little beyond an extra dense layer (see discussion).
 
-![Tabellengesundheit 3 Epochen](report/ep3_memory_health.png)
+![Table health 3 epochs](report/ep3_memory_health.png)
 
-**Zugriffsmuster (für Stufe 3, `report/ep3_access_stats.json`):**
+**Access pattern (for stage 3, `report/ep3_access_stats.json`):**
 
 | | B-s0 | B-s1 |
 |---|---|---|
-| Anteil der Zugriffe auf die Top 1 / 10 / 20 / 50 % (Val) | 11 / 40 / 56 / 83 % | 11 / 39 / 55 / 82 % |
-| Val-Zugriffe, die die Top 20 % aus dem **Training** abdecken | 54 % | 52 % |
-| Rangkorrelation der Zugriffszahlen Training ↔ Val (Spearman) | 0,90 | 0,90 |
-| Zugriffe, die schon in den letzten 1 / 16 / 256 Tokens gelesen wurden | 0,9 / 9,4 / 44,8 % | 0,7 / 8,9 / 42,8 % |
+| Share of reads on the top 1 / 10 / 20 / 50% (val) | 11 / 40 / 56 / 83% | 11 / 39 / 55 / 82% |
+| Val reads covered by the top 20% from **training** | 54% | 52% |
+| Rank correlation of read counts training ↔ val (Spearman) | 0.90 | 0.90 |
+| Reads already read within the last 1 / 16 / 256 tokens | 0.9 / 9.4 / 44.8% | 0.7 / 8.9 / 42.8% |
 
-Mit längerem Training verteilen sich die Zugriffe **gleichmäßiger**: Ein Hot-Set-Cache aus 20 % der
-Einträge fängt nach 3 Epochen nur noch ≈ 53 % der Lesezugriffe ab (nach 1 Epoche ≈ 65 %). Für die
-SSD-Auslagerung ist das eine schlechte Nachricht: Je besser die Tabelle genutzt wird, desto weniger hilft
-Caching. Die Rangfolge „heißer“ Einträge ist zwischen Training und Val aber stabil (Spearman 0,90).
+With longer training the reads spread out **more evenly**: a hot-set cache of 20% of the entries catches only ≈ 53%
+of the reads after 3 epochs (after 1 epoch ≈ 65%). For SSD offloading that's bad news: the better the table is used,
+the less caching helps. The ranking of "hot" entries is stable between training and val, though (Spearman 0.90).
 
-![Zugriffsverteilung 3 Epochen](report/ep3_access_distribution.png)
+![Access distribution 3 epochs](report/ep3_access_distribution.png)
 
-**Herkunft:** A-s0 lief auf `6859f1f` (als `dirty` markiert, nur wegen des unversionierten
-`scripts/diagnose_memory.py`), alle anderen 3-Epochen-Läufe auf `e44a197`. Trainingscode identisch zu
-allen 1-Epochen-Läufen (`git diff a27c99d 1a43e0d -- smlm/ scripts/run_suite.py` ist leer).
+**Provenance:** A-s0 ran on `6859f1f` (marked `dirty`, only because of the unversioned `scripts/diagnose_memory.py`),
+all other 3-epoch runs on `e44a197`. Training code identical to all 1-epoch runs
+(`git diff a27c99d 1a43e0d -- smlm/ scripts/run_suite.py` is empty).
 
-## Einordnung
+## Discussion
 
-**Antwort auf die Frage dieser Stufe.** Eine Product-Key-Speicherschicht verbessert das kleine Modell bei
-gleichem Rechenaufwand pro Token **messbar, aber wenig**: −2,0 % PPL nach 118 M Tokens (nicht von
-Seed-Rauschen zu trennen), −4,4 % nach 354 M Tokens (echt). Nach den vorab festgelegten Kriterien reicht
-das in keinem der beiden Läufe für „lohnt sich“: B schließt 8 % bzw. 20 % der Lücke zum gleich großen
-dichten Modell, gefordert waren 50 %. Ich rede das nicht schön: In dieser Konfiguration sind 100 M
-zusätzliche Parameter in der Tabelle ungefähr so viel wert wie ein Fünftel der Wirkung derselben Zahl
-dichter Parameter.
+**Answer to this stage's question.** At equal compute per token, a product-key memory layer improves the small model
+**measurably, but only a little**: −2.0% PPL after 118 M tokens (can't be separated from seed noise), −4.4% after
+354 M tokens (real). By the pre-registered criteria that's not enough for "worth it" in either run: B closes 8% and
+20% of the gap to the equally large dense model, 50% was required. I won't sugar-coat it: in this configuration,
+100 M extra parameters in the table are worth about a fifth of what the same number of dense parameters does.
 
-**Was dagegen spricht, dass es nur ein Bug ist:** Die Tests sind grün, die Tabelle ist gesund und wird
-breit genutzt, und das Modell stützt sich nach 3 Epochen stark auf sie (+44–53 % PPL ohne Speicher;
-zufällige Einträge sind noch schlechter). Der Speicher funktioniert also. Er bringt nur wenig mehr als
-das FFN, das er ersetzt.
+**What speaks against it being just a bug:** the tests are green, the table is healthy and broadly used, and after 3
+epochs the model relies heavily on it (+44–53% PPL without the memory; random entries are even worse). So the memory
+works. It just brings little more than the FFN it replaces.
 
-**Mögliche Gründe** (nach meiner Einschätzung der Wahrscheinlichkeit geordnet, keiner davon ist hier
-belegt):
+**Possible reasons** (ordered by my estimate of how likely they are, none of them shown here):
 
-1. **Flache Gewichtung innerhalb der Top-k.** Jeder Kopf mischt 28–30 von 32 Einträgen fast gleich
-   stark; die Schicht ruft kaum gezielt ab. Kandidaten: Die Query-BatchNorm fixiert die Query-Skala, und
-   Weight Decay zieht die Keys klein. Dafür ist `v2-sharpness` vorbereitet (v2a: kein Weight Decay auf
-   den Keys; v2b: zusätzlich lernbare Temperatur), siehe `docs/notes/V2_SHARPNESS.md`.
-2. **Datenregime.** Der Vorsprung wächst mit den Daten (2 % → 4,4 %), sättigt aber ab ≈ 240 M Tokens,
-   während das Training dieselben 118 M Tokens wiederholt. Die Paper zeigen den Nutzen bei Hunderten
-   Milliarden Tokens und vor allem auf faktenlastigen QA-Aufgaben; Perplexity auf WikiText-103 misst
-   „Wissen abrufen“ nur indirekt.
-3. **Lernrate der Werte.** 1e-3 bei Basis-LR 6e-4 ist ein Verhältnis von 1,7× (Lample: 4×).
-4. **Nur eine Speicherschicht.** Meta (Memory+) nutzt drei Schichten mit geteilter Tabelle.
-5. **Kleiner Rechenkern.** Mit d = 384 und 21 M dichten Parametern ist auch die Query-Netz-Kapazität
-   klein.
+1. **Flat weighting within the top-k.** Each head mixes 28–30 of 32 entries almost equally; the layer hardly
+   retrieves in a targeted way. Candidates: the query BatchNorm fixes the query scale, and weight decay pulls the
+   keys small. `v2-sharpness` is prepared for that (v2a: no weight decay on the keys; v2b: additionally a learnable
+   temperature), see `docs/notes/V2_SHARPNESS.md`.
+2. **Data regime.** The lead grows with data (2% → 4.4%), but saturates from ≈ 240 M tokens on, while training
+   repeats the same 118 M tokens. The papers show the benefit at hundreds of billions of tokens and mostly on
+   fact-heavy QA tasks; perplexity on WikiText-103 measures "retrieving knowledge" only indirectly.
+3. **Learning rate of the values.** 1e-3 at a base LR of 6e-4 is a ratio of 1.7× (Lample: 4×).
+4. **Only one memory layer.** Meta (Memory+) uses three layers with a shared table.
+5. **Small compute core.** With d = 384 and 21 M dense parameters the capacity of the query network is small too.
 
-**Kosten.** Gleiche FLOPs, aber B trainiert 21 % langsamer, ist im Prefill 31 % und im Batch-1-Decoding
-≈ 6 % langsamer und braucht 1,6 GiB mehr VRAM. Das liegt an den unregelmäßigen Speicherzugriffen
-(Gather/Scatter, Adam über 100 M Werte), nicht an Rechenarbeit, und ist genau der Teil, um den es in
-den späteren Stufen geht. **Wichtige Einschränkung:** Verglichen wurde bei gleicher Token-Zahl und
-gleichen FLOPs, nicht bei gleicher Rechenzeit. In derselben Wall-Clock-Zeit hätte A auf dieser Hardware
-≈ 27 % mehr Tokens gesehen. Ob B dann noch vorne läge, wurde nicht gemessen; beim Wachstum von A
-zwischen 1 und 3 Epochen ist das nicht selbstverständlich.
+**Cost.** Same FLOPs, but B trains 21% slower, is 31% slower at prefill and ≈ 6% slower at batch-1 decoding, and
+needs 1.6 GiB more VRAM. That comes from the irregular memory access (gather/scatter, Adam over 100 M values), not
+from compute, and it's exactly the part the later stages are about. **Important limitation:** the comparison is at
+equal tokens and equal FLOPs, not at equal compute time. In the same wall-clock time A would have seen ≈ 27% more
+tokens on this hardware. Whether B would still be ahead then wasn't measured; given how much A improves between 1 and
+3 epochs, that's not a given.
 
-**Für das Gesamtprojekt.** Stufe 1 widerlegt den Ansatz nicht, liefert aber noch keinen Grund, ihn zu
-skalieren. Vor Stufe 2 würde ich die vorbereiteten v2-Varianten laufen lassen (≈ 2 h). Bringen sie die
-Gewichtung nicht deutlich schärfer und B nicht deutlich weiter, wären mehr Daten (größerer Korpus statt
-Wiederholung), mehrere Speicherschichten und eine höhere Werte-LR die nächsten Hebel. Für Stufe 3
-wichtig: Die Zugriffe werden mit besserem Training gleichmäßiger verteilt, Hot-Set-Caching hilft dann
-weniger (20 % der Einträge → 53 % der Zugriffe).
+**For the whole project.** Stage 1 doesn't refute the approach, but it doesn't give a reason to scale it yet either.
+Before stage 2 I would run the prepared v2 variants (≈ 2 h). If they don't make the weighting clearly sharper and
+don't bring B clearly further, the next levers would be more data (a bigger corpus instead of repetition), several
+memory layers and a higher value LR. Important for stage 3: with better training the reads are spread more evenly,
+so hot-set caching helps less (20% of the entries → 53% of the reads).
 
-## Grenzen dieser Untersuchung
+## Limitations of this study
 
-- **C ist bei 1 Epoche deutlich untertrainiert.** 118 M Tokens auf 122,7 M Parameter (ohne Embeddings)
-  sind ≈ 1 Token pro Parameter; compute-optimal (Chinchilla) wären ≈ 20. Der Abstand A↔C und damit die
-  Lücke, die B schließen soll, ist bei 1 Epoche kleiner als bei einem ausgereizten C. Der 3-Epochen-Lauf
-  mildert das nur etwas (≈ 3 Tokens/Parameter), wiederholt dafür aber die Daten.
-- **Seed-Rauschen ist grob geschätzt.** Mit 2 Seeds ist s eine einzelne Differenz, keine Streuung. Das
-  Kriterium bleibt wie festgelegt, ist aber eher optimistisch, was die Trennschärfe angeht.
-- **Der Train-Loss in den Kurven hinkt hinterher.** Er ist der Mittelwert über das jeweilige
-  Eval-Intervall, in dem das Modell noch besser wird; Train > Val früh im Training ist ein Artefakt, kein
-  Fehler. Aussagekräftig für Auswendiglernen ist im 3-Epochen-Lauf, ob sich der Abstand schließt oder umkehrt.
-- **BatchNorm auf der Query** sieht im Training die Batch-Statistik inklusive späterer Tokens (bei 8.192
-  Tokens pro Mikro-Batch ein sehr schwacher Kanal). Alle berichteten Zahlen sind im Eval-Modus mit
-  festen Statistiken gemessen; die Kausalität dort ist per Test geprüft.
-- **Dichter Adam auf der Wertetabelle.** Der Unit-Test zeigt, dass Gradienten nur in gelesene Einträge
-  fließen. Adams Momentum bewegt aber auch ungelesene Einträge noch einige Schritte weiter. Für das
-  spätere Ziel „einzelne Einträge gezielt aktualisieren“ braucht es einen sparsamen Optimierer
-  (z. B. SparseAdam / lazy Adam); das war nicht Teil dieser Stufe.
-- **Durchsatz** ist im PyTorch-Eager-Modus ohne eigene Kernels gemessen. Batch-1-Decoding ist durch den
-  Kernel-Start-Overhead begrenzt (≈ 150–210 tok/s für alle Modelle) und sagt nichts über die
-  Speicherbandbreite aus, um die es in späteren Stufen geht. B ist im Training ≈ 20 % langsamer als A,
-  trotz gleicher FLOPs (Gather/Scatter auf der 100-M-Tabelle, Adam über 100 M Werte).
-- **Perplexity** ist auf GPT-2-BPE-Tokens berechnet und nicht direkt mit den wortbasierten
-  WikiText-103-Werten aus der Literatur vergleichbar (die Wort-PPL-Spalte rechnet die Gesamt-NLL auf die
-  217.646 Wörter + `<eos>` um und ist nur grob vergleichbar).
-- **Kleiner Maßstab, ein Datensatz.** Die Paper zeigen den Nutzen von Speicherschichten bei
-  Billionen von Tokens und faktenlastigen QA-Aufgaben; WikiText-103 mit ≤ 354 M Tokens ist ein weit
-  kleineres Regime.
+- **C is clearly undertrained at 1 epoch.** 118 M tokens for 122.7 M parameters (without embeddings) is ≈ 1 token
+  per parameter; compute-optimal (Chinchilla) would be ≈ 20. The distance A↔C, and with it the gap B is supposed to
+  close, is smaller at 1 epoch than with a fully trained C. The 3-epoch run softens this only a little
+  (≈ 3 tokens/parameter), and repeats the data instead.
+- **Seed noise is a rough estimate.** With 2 seeds, s is a single difference, not a spread. The criterion stays as
+  fixed, but it's rather optimistic about how well it separates.
+- **The training loss in the curves lags behind.** It's the mean over each eval interval, during which the model
+  keeps improving; train > val early in training is an artefact, not a bug. What matters for memorisation in the
+  3-epoch run is whether the gap closes or reverses.
+- **BatchNorm on the query** sees the batch statistics in training, including later tokens (with 8,192 tokens per
+  micro-batch a very weak channel). All reported numbers are measured in eval mode with fixed statistics; causality
+  there is checked by a test.
+- **Dense Adam on the value table.** The unit test shows that gradients only flow into entries that were read. But
+  Adam's momentum keeps moving entries that weren't read for a few more steps. The later goal "update single entries
+  in a targeted way" needs a sparse optimizer (e.g. SparseAdam / lazy Adam); that wasn't part of this stage.
+- **Throughput** is measured in PyTorch eager mode without custom kernels. Batch-1 decoding is limited by kernel
+  launch overhead (≈ 150–210 tok/s for all models) and says nothing about the memory bandwidth the later stages are
+  about. B is ≈ 20% slower than A in training despite equal FLOPs (gather/scatter on the 100 M table, Adam over
+  100 M values).
+- **Perplexity** is computed on GPT-2 BPE tokens and can't be compared directly with the word-level WikiText-103
+  values in the literature (the word-PPL column converts the total NLL to the 217,646 words + `<eos>` and is only
+  roughly comparable).
+- **Small scale, one dataset.** The papers show the benefit of memory layers at trillions of tokens and on
+  fact-heavy QA tasks; WikiText-103 with ≤ 354 M tokens is a far smaller regime.
 
-## Artefakte
+## Artefacts
 
-- `runs/<phase>/<lauf>/run-info.json`, `metrics.csv`, `train_log.csv`, `stdout.log`: in Git.
-- `runs/<phase>/<lauf>/model.pt` (Gewichte, fp32), bei B zusätzlich `mem_access_train.npy`
-  (Lesezugriffe je Eintrag über das ganze Training), `mem_access_val.npz` (Zugriffe und summierte
-  Softmax-Gewichte je Eintrag auf dem Val-Set) und `mem_index_sample.npz` (Index-Stichprobe für Stufe 3):
-  nur auf der Platte (`.gitignore`, zu groß für Git).
-- Grafiken und Tabellen: `report/`, erzeugt mit `scripts/make_report.py probe ep1 ep3`.
+- `runs/<phase>/<run>/run-info.json`, `metrics.csv`, `train_log.csv`, `stdout.log`: in git.
+- `runs/<phase>/<run>/model.pt` (weights, fp32), for B also `mem_access_train.npy` (reads per entry over the whole
+  training), `mem_access_val.npz` (reads and summed softmax weights per entry on the val set) and
+  `mem_index_sample.npz` (index sample for stage 3): only on disk (`.gitignore`, too big for git).
+- Plots and tables: `report/`, made with `scripts/make_report.py probe ep1 ep3`.
 
-## Stufe 1b: Schnelltest B-1M (Kriterium vor dem Lauf festgelegt, 2026-10-02)
+## Stage 1b: quick test B-1M (criterion fixed before the run, 2026-10-02)
 
-> Status: **abgeschlossen am 2026-10-02.** Kriterium unverändert seit `0832753`; beide Läufe auf `5fe3245`,
-> nicht dirty. **Ergebnis: Kriterium erfüllt** (B-1M −15,1 % Val-PPL gegenüber A) **→ großer Test.**
+> Status: **finished on 2026-10-02.** Criterion unchanged since `0832753`; both runs on `5fe3245`, not dirty.
+> **Result: criterion met** (B-1M −15.1% val PPL against A) **→ big test.**
 
-**Frage:** Bringt eine größere Speicherkonfiguration auf frischen (nicht wiederholten) Daten einen
-deutlichen Vorteil? Erst wenn ja, folgt ein großer Test.
+**Question:** Does a bigger memory configuration on fresh (non-repeated) data bring a clear advantage? Only if so,
+a big test follows.
 
-**Aufbau (je 1 Seed, Init-Seed 0, gleicher Daten-Seed):**
+**Setup (1 seed each, init seed 0, same data seed):**
 
 | | A | B-1M |
 |---|---|---|
-| Rechenkern | wie Stufe 1 (d = 384, 12 Layer) | wie A |
-| Speicher | – | 3 Speicherschichten statt der FFNs in Layer 3, 7, 11 (Index 2, 6, 10; zentriert, Abstand 4 wie Meta „Memory+“) |
-| Tabelle | – | **eine geteilte** Wertetabelle mit 1024² = 1.048.576 Einträgen × 384 (402,7 M Parameter); Keys, Query-Netz, BatchNorm und swilu je Schicht eigen |
-| Suche | – | je Schicht 4 Köpfe, Top-32, Key-Dim 256 |
-| Werte-LR | – | **4 × Basis-LR** = 2,4e-3 (Lample-Verhältnis), gleicher Verlauf, kein Weight Decay |
-| Rest | Optimierung wie Stufe 1 (AdamW, LR 6e-4, Warmup 5 %, Cosine auf 10 %, 32.768 Tokens/Schritt) | wie A |
-| Daten | **500 M frische Tokens**, jede Sequenz genau einmal (15.258 Schritte) | gleicher Token-Strom |
+| Compute core | as stage 1 (d = 384, 12 layers) | like A |
+| Memory | – | 3 memory layers instead of the FFNs in layers 3, 7, 11 (index 2, 6, 10; centred, spacing 4 as Meta "Memory+") |
+| Table | – | **one shared** value table with 1024² = 1,048,576 entries × 384 (402.7 M parameters); keys, query network, BatchNorm and swilu per layer |
+| Search | – | per layer 4 heads, top-32, key dim 256 |
+| Value LR | – | **4 × base LR** = 2.4e-3 (Lample's ratio), same schedule, no weight decay |
+| Rest | optimisation as stage 1 (AdamW, LR 6e-4, warmup 5%, cosine to 10%, 32,768 tokens/step) | like A |
+| Data | **500 M fresh tokens**, every sequence exactly once (15,258 steps) | same token stream |
 
-Parameter: A 40,6 M (21,2 M ohne Embeddings); B-1M 444,9 M (425,6 M ohne Embeddings, davon 402,7 M
-Tabelle), aktiv pro Token 23,1 M. MACs/Token: A 45,3 M, B-1M 47,1 M (+4 %, weil die Sub-Key-Suche über
-1024 statt 512 Keys pro Hälfte läuft).
+Parameters: A 40.6 M (21.2 M without embeddings); B-1M 444.9 M (425.6 M without embeddings, of which 402.7 M table),
+active per token 23.1 M. MACs/token: A 45.3 M, B-1M 47.1 M (+4%, because the sub-key search runs over 1024 instead of
+512 keys per half).
 
-**Daten:** englische Wikipedia (`wikimedia/wikipedia`, Dump 20231101.en, GPT-2-BPE). Artikel werden per
-festem Seed gemischt; alle Artikel, deren Titel im WikiText-103-Validierungs- oder -Testset vorkommen,
-werden ausgeschlossen. Ein disjunkter Satz Wikipedia-Artikel (≈ 1 M Tokens) dient als Validierungsset.
+**Data:** English Wikipedia (`wikimedia/wikipedia`, dump 20231101.en, GPT-2 BPE). Articles are shuffled with a
+fixed seed; all articles whose title appears in the WikiText-103 validation or test set are excluded. A disjoint set
+of Wikipedia articles (≈ 1 M tokens) serves as validation set.
 
-**Daten, tatsächlich** (`scripts/prepare_wikipedia.py`, `data/wikipedia_en_gpt2/meta.json`): 6.407.814
-Artikel im Dump; Training 505 M Tokens aus 689.951 zufällig gewählten Artikeln (davon werden 500 M genutzt),
-Validierung 1,48 M Tokens aus 1.917 disjunkten Artikeln. Von den 122 WikiText-103-Val/Test-Titeln lagen
-14 in den ausgewählten Artikeln und wurden entfernt (erwartet bei 12,5 % Auswahl: ≈ 15). Umbenannte
-Artikel können dem Titelabgleich entgehen.
+**Data, as built** (`scripts/prepare_wikipedia.py`, `data/wikipedia_en_gpt2/meta.json`): 6,407,814 articles in the
+dump; training 505 M tokens from 689,951 randomly chosen articles (500 M of them are used), validation 1.48 M tokens
+from 1,917 disjoint articles. Of the 122 WikiText-103 val/test titles, 14 were among the chosen articles and were
+removed (expected at 12.5% selection: ≈ 15). Renamed articles can slip through the title match.
 
-**Vorab gemessen** (79 Schritte, Mikro-Batch 4): B-1M 35,7 k tok/s und 11,7 GiB VRAM-Spitze im Training
-(geschätzt waren 40–55 k tok/s und 10,5–11,5 GiB; Abbruchgrenzen 30 k tok/s bzw. 15 GiB). Erwartete
-Laufzeit damit ≈ 4,1 h für B-1M und ≈ 1,6 h für A.
+**Measured beforehand** (79 steps, micro-batch 4): B-1M 35.7 k tok/s and 11.7 GiB peak VRAM in training (estimated
+were 40–55 k tok/s and 10.5–11.5 GiB; abort limits 30 k tok/s and 15 GiB). Expected run time ≈ 4.1 h for B-1M and
+≈ 1.6 h for A.
 
-**Kriterium (Vorgabe):** B-1M hat **mindestens 10 % niedrigere Val-PPL als A**, sonst kein großer Test.
-Operationalisierung: Token-Perplexity am Ende des Trainings auf dem zurückgehaltenen
-Wikipedia-Validierungsset (gleiche Aufbereitung wie das Training), Eval-Modus;
-**erfüllt, wenn PPL(B-1M) ≤ 0,90 × PPL(A).** Das Seed-Rauschen lag in Stufe 1 bei ≈ 1–1,4 % der PPL und
-damit weit unter der 10-%-Schwelle; ein Seed je Modell reicht für diese Entscheidung.
+**Criterion (specification):** B-1M has **at least 10% lower val PPL than A**, otherwise no big test.
+Operationalisation: token perplexity at the end of training on the held-out Wikipedia validation set (same
+preprocessing as training), eval mode; **met if PPL(B-1M) ≤ 0.90 × PPL(A).** Seed noise in stage 1 was ≈ 1–1.4% of
+the PPL and so far below the 10% threshold; one seed per model is enough for this decision.
 
-Zusätzlich berichtet, aber nicht entscheidend: WikiText-103-Val-PPL (anderes Textformat, daher nur
-A↔B-1M vergleichbar, nicht mit Stufe 1), Tabellengesundheit (Nutzung, Konzentration, KL), Schärfe der
-Softmax, Durchsatz, VRAM. Ist die Tabelle ungesund (< 60 % Nutzung), wird das als möglicher Grund
-genannt; die Entscheidungsregel bleibt trotzdem wie vorgegeben.
+Also reported, but not decisive: WikiText-103 val PPL (different text format, so only comparable A↔B-1M, not with
+stage 1), table health (usage, concentration, KL), sharpness of the softmax, throughput, VRAM. If the table is
+unhealthy (< 60% usage), that's named as a possible reason; the decision rule stays as specified.
 
-### Ergebnis Stufe 1b
+### Result stage 1b
 
-| | Val-PPL Wikipedia (entscheidend) | Val-PPL WikiText-103 (nur berichtet) | Train tok/s | VRAM Train | Trainzeit | Decode b=1 tok/s | Prefill tok/s |
+| | Val PPL Wikipedia (decisive) | Val PPL WikiText-103 (reported only) | Train tok/s | VRAM train | Train time | Decode b=1 tok/s | Prefill tok/s |
 |---|---|---|---|---|---|---|---|
-| A | 25,67 | 78,38 | 91.563 | 7,89 GiB | 91 min | 220 | 385.525 |
-| B-1M | **21,80** | 66,28 | 33.383 | 11,70 GiB | 249 min | 175 | 150.398 |
-| B-1M / A | **0,849 (−15,1 %)** | 0,846 (−15,4 %) | 0,36 | | 2,7× | 0,80 | 0,39 |
+| A | 25.67 | 78.38 | 91,563 | 7.89 GiB | 91 min | 220 | 385,525 |
+| B-1M | **21.80** | 66.28 | 33,383 | 11.70 GiB | 249 min | 175 | 150,398 |
+| B-1M / A | **0.849 (−15.1%)** | 0.846 (−15.4%) | 0.36 | | 2.7× | 0.80 | 0.39 |
 
-**Kriterium PPL(B-1M) ≤ 0,90 × PPL(A): erfüllt (0,849) → großer Test.** Das Seed-Rauschen lag in Stufe 1 bei
-≈ 1–1,4 %; der Abstand von 15 % liegt weit darüber, auch mit nur einem Seed je Modell.
+**Criterion PPL(B-1M) ≤ 0.90 × PPL(A): met (0.849) → big test.** Seed noise in stage 1 was ≈ 1–1.4%; the distance of
+15% is far above that, even with only one seed per model.
 
-![Val-PPL Stufe 1b](report/s1b_val_ppl.png)
+![Val PPL stage 1b](report/s1b_val_ppl.png)
 
-![Abstand zu A, Stufe 1b](report/s1b_relative_to_A.png)
+![Distance to A, stage 1b](report/s1b_relative_to_A.png)
 
-**Verlauf:** Der Vorsprung von B-1M wächst über das ganze Training: −10,0 % bei 100 M Tokens, −12,4 % bei
-200 M, −14,0 % bei 300 M, −15,1 % am Ende, und ist am Ende noch nicht ganz gesättigt. Auf dem
-WikiText-Validierungsset (anderes Textformat, nie trainiert) ist der Abstand gleich groß (−15,4 %).
-Auswendiglernen ist bei frischen Daten kein Thema: Val minus Train liegt bei beiden Modellen gleich
-(≈ 0,07 nats, Unterschied zwischen Trainings- und Validierungsartikeln).
+**Course:** B-1M's lead grows over the whole training: −10.0% at 100 M tokens, −12.4% at 200 M, −14.0% at 300 M,
+−15.1% at the end, and at the end it isn't quite saturated yet. On the WikiText validation set (different text
+format, never trained on) the distance is just as big (−15.4%). Memorisation isn't an issue with fresh data: val
+minus train is the same for both models (≈ 0.07 nats, the difference between training and validation articles).
 
-**Tabelle und Speicher** (`runs/s1b/B-1M-s0/diagnostics.json`, erste 246.784 Val-Tokens):
+**Table and memory** (`runs/s1b/B-1M-s0/diagnostics.json`, first 246,784 val tokens):
 
-- Nutzung der geteilten Tabelle 100 %, das meistgelesene 1 % bekommt 11,8 % der Zugriffe, KL 0,62.
-  Einzeln liest die Schicht in Layer 3 91,9 % der Einträge (Top-1 %-Anteil 26 %), Layer 7 und 11 je ≈ 99 %.
-  Jeder Eintrag wurde im Training gelesen (10 %-Quantil ≈ 44 k, Median ≈ 115 k Zugriffe).
-- **Das Modell hängt stark am Speicher:** alle drei Speicherschichten auf null → PPL 22,5 → 88,0;
-  zufällige statt gefundener Einträge → 93,8. Die Ausgabenormen der Speicherschichten (4,6 / 11,0 / 20,2)
-  wachsen mit der Tiefe wie die der dichten FFNs.
-- Die Gewichtung innerhalb der Top-32 ist wie in Stufe 1 flach (effektiv 28,6 von 32 Einträgen,
-  Top-1-Gewicht 0,095; je Schicht 29,1 / 28,6 / 28,0). Der Gewinn kommt also nicht über schärferes Abrufen.
-- Die Werte haben sich stark bewegt (Norm ≈ 3,6–3,7 statt 1,0 bei der Initialisierung, Werte-LR 2,4e-3).
+- Usage of the shared table 100%, the most-read 1% get 11.8% of the reads, KL 0.62. On its own, the layer in
+  layer 3 reads 91.9% of the entries (top-1% share 26%), layers 7 and 11 ≈ 99% each. Every entry was read in
+  training (10% quantile ≈ 44 k, median ≈ 115 k reads).
+- **The model depends heavily on the memory:** all three memory layers set to zero → PPL 22.5 → 88.0; random
+  instead of found entries → 93.8. The output norms of the memory layers (4.6 / 11.0 / 20.2) grow with depth like
+  those of the dense FFNs.
+- The weighting within the top 32 is flat as in stage 1 (effectively 28.6 of 32 entries, top-1 weight 0.095; per
+  layer 29.1 / 28.6 / 28.0). So the gain doesn't come from sharper retrieval.
+- The values have moved a lot (norm ≈ 3.6–3.7 instead of 1.0 at initialisation, value LR 2.4e-3).
 
-![Tabellengesundheit Stufe 1b](report/s1b_memory_health.png)
+![Table health stage 1b](report/s1b_memory_health.png)
 
-**Zugriffsmuster (Stufe 3, `report/s1b_access_stats.json`):** Top 1 / 10 / 20 / 50 % der Einträge bekommen
-12 / 39 / 55 / 82 % der Val-Zugriffe; die im Training heißesten 20 % decken 53 % der Val-Zugriffe ab
-(Spearman 0,92). Wiederholung innerhalb von 1 / 16 / 256 Tokens: 1,6 / 11,3 / 41,5 % (über alle drei
-Schichten). Die Index-Stichprobe hat jetzt die Form [Token, Schicht, Kopf, k].
+**Access pattern (stage 3, `report/s1b_access_stats.json`):** the top 1 / 10 / 20 / 50% of the entries get
+12 / 39 / 55 / 82% of the val reads; the 20% hottest in training cover 53% of the val reads (Spearman 0.92).
+Repetition within 1 / 16 / 256 tokens: 1.6 / 11.3 / 41.5% (over all three layers). The index sample now has the shape
+[token, layer, head, k].
 
-**Was das Ergebnis nicht sagt (nichts schönreden):**
+**What the result doesn't say (no sugar-coating):**
 
-- **Gleiche FLOPs, aber nicht gleiche Zeit.** B-1M hat +4 % MACs pro Token, braucht auf dieser Hardware
-  aber 2,7× so lange (33,4 k statt 91,6 k tok/s), 48 % mehr VRAM (11,7 statt 7,9 GiB), ist im Prefill
-  2,6× und im Batch-1-Decoding 1,25× langsamer. In derselben Rechenzeit hätte A ≈ 2,7× so viele Tokens
-  sehen können. Wie gut A dann wäre, wurde nicht gemessen; As eigene Kurve fällt zwischen 250 M und 500 M
-  Tokens noch um 18 % (Zwischenstand bei hoher LR gegen Endstand, daher nur ein grober Hinweis). Die
-  Frage „lohnt sich der Speicher pro Rechenzeit?“ ist damit offen und gehört in den großen Test bzw. in die
-  späteren Stufen (eigene Kernels, Auslagerung).
-- **Mehrere Dinge gleichzeitig geändert.** Gegenüber Stufe 1 (B: −4,4 % bei 354 M wiederholten Tokens)
-  unterscheiden sich Tabellengröße (4×), Zahl der Speicherschichten (3 statt 1), Werte-LR (2,4× höher),
-  Datensatz und Wiederholung. Welcher Faktor wie viel bringt, sagt dieser Test nicht.
-- **Kein dichter Vergleich mit gleicher Parameterzahl.** B-1M hat 445 M Parameter (A: 41 M). Ein C-artiges
-  Modell fehlt hier; der Schnelltest beantwortet nur „deutlich besser als A bei gleichem Rechenaufwand
-  pro Token?“.
-- **Ein Seed je Modell**, ein Datensatz, ein Zeitpunkt (500 M Tokens).
+- **Equal FLOPs, but not equal time.** B-1M has +4% MACs per token, but needs 2.7× as long on this hardware
+  (33.4 k instead of 91.6 k tok/s), 48% more VRAM (11.7 instead of 7.9 GiB), and is 2.6× slower at prefill and
+  1.25× slower at batch-1 decoding. In the same compute time A could have seen ≈ 2.7× as many tokens. How good A
+  would be then wasn't measured; A's own curve still drops by 18% between 250 M and 500 M tokens (intermediate value
+  at a high LR against the final value, so only a rough hint). The question "is the memory worth it per compute
+  time?" is open and belongs in the big test or the later stages (custom kernels, offloading).
+- **Several things changed at once.** Compared with stage 1 (B: −4.4% at 354 M repeated tokens), table size (4×),
+  number of memory layers (3 instead of 1), value LR (2.4× higher), dataset and repetition all differ. This test
+  doesn't say which factor brings how much.
+- **No dense comparison with the same parameter count.** B-1M has 445 M parameters (A: 41 M). A C-like model is
+  missing here; the quick test only answers "clearly better than A at equal compute per token?".
+- **One seed per model**, one dataset, one point in time (500 M tokens).
 
+## Extra test: quantising B-1M's value table (no training, 2026-10-02)
 
+Only the value table of `runs/s1b/B-1M-s0` is quantised afterwards (in memory, the checkpoint is only read: SHA-256
+identical before and after the test); all other weights stay fp32. Measured on the complete Wikipedia validation set
+(1,484,009 tokens), same evaluation code as in training. Script: `scripts/quantize_table_eval.py`, raw data:
+`report/quant_B-1M-s0.json`.
 
-## Zusatztest: Quantisierung der Wertetabelle von B-1M (ohne Training, 2026-10-02)
+**Method** (one fp16 scale per row, i.e. per entry with 384 values; 2.1 MB for all scales): 8/4/3/2 bit like
+llama.cpp `Q_0`, but per row: codes from −2^(b−1) to 2^(b−1)−1, the value with the largest magnitude in the row is hit
+exactly. Ternary like BitNet b1.58: scale = mean magnitude of the row, values −1/0/+1.
 
-Nur die Wertetabelle von `runs/s1b/B-1M-s0` wird nachträglich quantisiert (im Speicher, Checkpoint nur gelesen:
-SHA-256 vor und nach dem Test identisch); alle anderen Gewichte bleiben fp32. Gemessen auf dem kompletten
-Wikipedia-Validierungsset (1,484,009 Tokens), gleicher Auswertungscode wie im Training.
-Skript: `scripts/quantize_table_eval.py`, Rohdaten: `report/quant_B-1M-s0.json`.
-
-**Verfahren** (ein fp16-Skalierungsfaktor pro Zeile, also pro Eintrag mit 384 Werten; 2,1 MB für alle Faktoren):
-8/4/3/2 Bit wie llama.cpp `Q_0`, aber pro Zeile: Codes von −2^(b−1) bis 2^(b−1)−1, der betragsgrößte Wert der
-Zeile wird exakt getroffen. Ternär wie BitNet b1.58: Skala = mittlerer Betrag der Zeile, Werte −1/0/+1.
-
-| Bits pro Wert | Tabelle (MB) | Val-PPL Wikipedia | Verlust gegenüber unquantisiert | rel. Fehler der Tabelle |
+| Bits per value | Table (MB) | Val PPL Wikipedia | Loss against unquantised | rel. error of the table |
 |---|---|---|---|---|
-| 32 (fp32, Referenz) | 1.610,6 | 21,801 | – | 0,000 |
-| 16 (bf16) | 805,3 | 21,800 | −0,001 (−0,00 %) | 0,002 |
-| 8 | 404,8 | 21,799 | −0,002 (−0,01 %) | 0,007 |
-| 4 | 203,4 | 21,828 | +0,027 (+0,12 %) | 0,115 |
-| 3 | 153,1 | 21,911 | +0,110 (+0,50 %) | 0,231 |
-| 2 | 102,8 | 22,281 | +0,480 (+2,20 %) | 0,467 |
-| 1,6 (ternär, 1,58 Bit Information) | 82,6 | 25,237 | +3,436 (+15,76 %) | 0,512 |
+| 32 (fp32, reference) | 1,610.6 | 21.801 | – | 0.000 |
+| 16 (bf16) | 805.3 | 21.800 | −0.001 (−0.00%) | 0.002 |
+| 8 | 404.8 | 21.799 | −0.002 (−0.01%) | 0.007 |
+| 4 | 203.4 | 21.828 | +0.027 (+0.12%) | 0.115 |
+| 3 | 153.1 | 21.911 | +0.110 (+0.50%) | 0.231 |
+| 2 | 102.8 | 22.281 | +0.480 (+2.20%) | 0.467 |
+| 1.6 (ternary, 1.58 bits of information) | 82.6 | 25.237 | +3.436 (+15.76%) | 0.512 |
 
-**Einordnung:**
+**Discussion:**
 
-- Bis 4 Bit kostet die Quantisierung praktisch nichts: +0,12 % PPL bei einem Achtel der fp32-Größe
-  (203 statt 1.611 MB). 8 Bit und bf16 sind nicht von fp32 zu unterscheiden. 3 Bit kostet 0,5 %, 2 Bit 2,2 %.
-- Ternär bricht ein (+15,8 %, PPL 25,24): Damit ist fast der ganze Vorsprung vor A (25,67) weg. Bemerkenswert,
-  weil der relative Fehler der Tabelle bei 2 Bit (0,47) und ternär (0,51) ähnlich ist; die vierte Stufe und die
-  Absmax-Skala von 2 Bit erhalten offenbar die großen Werte, auf die es ankommt.
-- Für Stufe 3 (SSD): Bei 4 Bit ist ein Eintrag 194 Byte groß (384 × 0,5 + 2). Pro Token und Speicherschicht
-  werden 128 Einträge gelesen, also ≈ 25 KB; die ganze Tabelle passt mit 203 MB problemlos in den RAM.
-- Einschränkungen: nur nachträgliche Quantisierung (quantisierungsbewusstes Training könnte 2 Bit und ternär
-  verbessern), ein Modell, ein Seed, nur die Tabelle (der Rest bleibt fp32), je Stufe ein Verfahren.
+- Down to 4 bits quantisation costs practically nothing: +0.12% PPL at an eighth of the fp32 size (203 instead of
+  1,611 MB). 8 bits and bf16 can't be told apart from fp32. 3 bits cost 0.5%, 2 bits 2.2%.
+- Ternary collapses (+15.8%, PPL 25.24): that removes almost the whole lead over A (25.67). Remarkable, because the
+  relative error of the table is similar at 2 bits (0.47) and ternary (0.51); the fourth level and the absmax scale
+  of 2 bits apparently keep the large values that matter.
+- For stage 3 (SSD): at 4 bits an entry is 194 bytes (384 × 0.5 + 2). Per token and memory layer 128 entries are
+  read, so ≈ 25 KB; the whole table fits easily into RAM at 203 MB.
+- Limitations: only post-training quantisation (quantisation-aware training could improve 2 bits and ternary), one
+  model, one seed, only the table (the rest stays fp32), one method per bit width.
 
-## Stufe 1c („Hampter“): sparsamer Optimizer, zweiter Seed, gleiche Rechenzeit (Kriterien vor dem Start festgelegt, 2026-10-03)
+## Stage 1c ("Hampter"): sparse optimizer, second seed, equal compute time (criteria fixed before the start, 2026-10-03)
 
-> Status: **abgeschlossen am 2026-10-03** (Warteschlange 01:01–14:07, alle vier Läufe auf `0a5260e`, nicht dirty).
-> Kriterien und Ablauf festgelegt in Commit `8cd1fde`, bevor einer der Läufe gestartet wurde.
-> **Ergebnis: Optimizer ok – erfüllt (+0,16 %). Stabil – erfüllt (beide Seeds −15 % gegenüber A).
-> Gleiche Rechenzeit – „konkurrenzfähig“ (−3,0 %), der „klare Vorteil“ (≥ 5 %) wurde verfehlt.**
+> Status: **finished on 2026-10-03** (queue 01:01–14:07, all four runs on `0a5260e`, not dirty).
+> Criteria and procedure fixed in commit `8cd1fde`, before any of the runs started.
+> **Result: optimizer ok – met (+0.16%). Stable – met (both seeds −15% against A).
+> Equal compute time – "competitive" (−3.0%), the "clear advantage" (≥ 5%) was missed.**
 
-**Fragen:** (1) Liefert ein Optimizer, der nur die gelesenen Tabellenzeilen anfasst, dasselbe Ergebnis wie
-der dichte? (2) Ist der Vorsprung von B-1M aus dem Schnelltest über zwei Seeds stabil? (3) Hält B-1M mit,
-wenn A dieselbe **Rechenzeit** (statt derselben Tokenzahl) bekommt?
+**Questions:** (1) Does an optimizer that only touches the table rows that were read give the same result as the
+dense one? (2) Is B-1M's lead from the quick test stable over two seeds? (3) Does B-1M keep up when A gets the same
+**compute time** (instead of the same number of tokens)?
 
-### Schritt 1–2: sparsamer Optimizer und Messung (vor der Freigabe)
+### Steps 1–2: sparse optimizer and measurement (before the go)
 
-- **Optimizer** (`smlm/sparse_values.py`, Modell `B-1M-sparse`): Die Wertetabelle bekommt keinen dichten
-  Gradienten mehr. Gelesene Zeilen werden in einem eigenen Akkumulator gesammelt, Adam (ohne Weight Decay)
-  aktualisiert nur gelesene Zeilen. Werte **und** Adam-Zustand nicht gelesener Zeilen bleiben bitgenau
-  gleich (Unit-Test `tests/test_sparse_values.py`, CPU und GPU; dazu gleiche Gradienten wie der dichte Pfad,
-  gleiche Clipping-Norm, erster Schritt identisch mit `torch.optim.Adam`). Alle anderen Parameter: AdamW wie
-  bisher. Ohne eigene Kernels.
-- **Unterschied zum bisherigen B-1M:** Dort bewegt AdamW über das Momentum auch Zeilen, die im Schritt nicht
-  gelesen wurden. Bei 32.768 Tokens pro Schritt wird aber fast jede Zeile gelesen, deshalb wird ein
-  ähnliches Ergebnis erwartet, aber nicht vorausgesetzt (dafür das Kriterium „Optimizer ok“).
-- **Geschwindigkeit** (je 122 Schritte, Mikro-Batch 4): 39.525 tok/s gegenüber 35.374 tok/s dicht =
-  **1,12×**. Die geforderte 1,5× wurde verfehlt und gemeldet; Entscheidung: trotzdem laufen lassen,
-  Grenze entfällt, kein eigener Kernel. VRAM-Spitze 11,66 statt 11,70 GiB.
-  Rohdaten: `report/hampter_measure_B-1M-sparse.json`, `report/hampter_measure_B-1M_dense.json`.
-- **Wartet die GPU auf Daten?** Nein: GPU-Auslastung im Median und Minimum 100 %, der Datenpfad
-  (Memmap → pinned → GPU) braucht 0,2 ms je Schritt (0,02 % von 829 ms). Prozess-CPU ≈ 4,7 Kerne, RSS
-  3,2 GB, System-RAM 14,6 von 125 GB. **Am Datenpfad wurde deshalb nichts geändert.**
-- **Wärme** (10 min B-1M-sparse unter Volllast): edge 51 °C, Hotspot 82 °C, Speicher 82 °C, ≈ 240 W,
-  nach 3 min konstant, keine Drosselung.
+- **Optimizer** (`smlm/sparse_values.py`, model `B-1M-sparse`): the value table no longer gets a dense gradient.
+  Rows that were read are collected in their own accumulator, and Adam (without weight decay) updates only rows
+  that were read. Values **and** Adam state of rows that weren't read stay bit-exactly the same (unit test
+  `tests/test_sparse_values.py`, CPU and GPU; plus the same gradients as the dense path, the same clipping norm, and
+  a first step identical to `torch.optim.Adam`). All other parameters: AdamW as before. No custom kernels.
+- **Difference from the previous B-1M:** there, AdamW's momentum also moves rows that weren't read in a step. With
+  32,768 tokens per step almost every row is read, though, so a similar result is expected, but not assumed (that's
+  what the criterion "optimizer ok" is for).
+- **Speed** (122 steps each, micro-batch 4): 39,525 tok/s against 35,374 tok/s dense = **1.12×**. The required 1.5×
+  was missed and reported; decision: run anyway, the limit is dropped, no custom kernel. Peak VRAM 11.66 instead of
+  11.70 GiB. Raw data: `report/hampter_measure_B-1M-sparse.json`, `report/hampter_measure_B-1M_dense.json`.
+- **Is the GPU waiting for data?** No: GPU utilisation 100% at median and minimum, the data path (memmap → pinned →
+  GPU) takes 0.2 ms per step (0.02% of 829 ms). Process CPU ≈ 4.7 cores, RSS 3.2 GB, system RAM 14.6 of 125 GB.
+  **So nothing was changed in the data path.**
+- **Heat** (10 min of B-1M-sparse under full load): edge 51 °C, hotspot 82 °C, memory 82 °C, ≈ 240 W, constant after
+  3 min, no throttling.
 
-### Läufe (Warteschlange `scripts/run_hampter.py`, ohne Eingriff, in dieser Reihenfolge)
+### Runs (queue `scripts/run_hampter.py`, unattended, in this order)
 
-| # | Lauf | Daten | Tokens | geschätzte Dauer | VRAM (Spitze Training) |
+| # | Run | Data | Tokens | estimated duration | VRAM (training peak) |
 |---|---|---|---|---|---|
-| 1 | B-1M-sparse, Init-Seed 0 | wie Schnelltest (500 M Wikipedia, Daten-Seed 1234) | 500 M | ≈ 3,8 h | ≈ 11,7 GiB |
-| 2 | A bei gleicher Rechenzeit wie Lauf 1, Init-Seed 0 | 1,5-Mrd.-Token-Wikipedia-Strom (s. u.) | Trainzeit(1) × tok/s(A) ≈ 1,16 Mrd. | ≈ 3,8 h | ≈ 7,9 GiB |
-| 3 | A, Init-Seed 1 | wie Schnelltest | 500 M | ≈ 1,6 h | ≈ 7,9 GiB |
-| 4 | B-1M-sparse, Init-Seed 1 | wie Schnelltest | 500 M | ≈ 3,8 h | ≈ 11,7 GiB |
+| 1 | B-1M-sparse, init seed 0 | as quick test (500 M Wikipedia, data seed 1234) | 500 M | ≈ 3.8 h | ≈ 11.7 GiB |
+| 2 | A at the same compute time as run 1, init seed 0 | 1.5 B-token Wikipedia stream (see below) | train time(1) × tok/s(A) ≈ 1.16 B | ≈ 3.8 h | ≈ 7.9 GiB |
+| 3 | A, init seed 1 | as quick test | 500 M | ≈ 1.6 h | ≈ 7.9 GiB |
+| 4 | B-1M-sparse, init seed 1 | as quick test | 500 M | ≈ 3.8 h | ≈ 11.7 GiB |
 
-Summe ≈ 13 h. Alles andere wie im Schnelltest: Werte-LR 2,4e-3, Mikro-Batch 4 (B) bzw. 8 (A), Auswertung
-alle 10 M Tokens, WikiText-103-Val als zweites Val-Set. Mikro-Batch 8 für B-1M-sparse ist ausgeschlossen:
-Er füllte im Test 99 % des VRAM und löste einen Grafik-Reset des Desktops aus (2026-10-03, 00:14).
+Total ≈ 13 h. Everything else as in the quick test: value LR 2.4e-3, micro-batch 4 (B) or 8 (A), evaluation every
+10 M tokens, WikiText-103 val as second val set. Micro-batch 8 for B-1M-sparse is ruled out: in the test it filled
+99% of the VRAM and triggered a graphics reset of the desktop (2026-10-03, 00:14).
 
-**Vorab geprüft (Funktionstests, nicht Teil der Auswertung):**
+**Checked beforehand (function tests, not part of the evaluation):**
 
-- **Paarung:** B-1M-sparse s0 mit dem echten 500-M-Plan startet bitgleich wie B-1M s0 (Val-PPL bei Schritt 0
-  identisch). Die Trainingsverluste der ersten 60 Schritte stimmen auf 5–6 Stellen überein. Damit misst
-  „Optimizer ok“ den Optimizer und nicht eine geänderte Initialisierung.
-- **Abbruchpfad:** Ein erzwungener Abbruch endet mit Exit-Code 3 und Status `aborted`, `abort_check` steht in
-  `run-info.json`.
-- **Komplettlauf** bis Inferenz-Benchmark: fehlerfrei. Dabei gefunden und behoben: Der Gradienten-Akkumulator
-  der Tabelle (1,5 GiB) blieb über den Autograd-Graphen des letzten Verlusts bis zum Inferenz-Benchmark
-  belegt. Die VRAM-Werte der Inferenz wären dadurch um 1,5 GiB zu hoch gewesen; jetzt 2,31 / 3,89 GiB wie
-  beim dichten B-1M. Auf das Training hat das keinen Einfluss.
-- **Keine VRAM-Obergrenze für PyTorch:** Getestet wurde eine Grenze von 13,5 GiB. Sie greift auf diesem
-  ROCm-Stack nicht, weil mit `expandable_segments` freigegebener Speicher nicht an den Treiber
-  zurückgeht. Der Prozess belegte trotz Grenze das ganze VRAM, und der Inferenz-Benchmark brach ab
-  (bei einem Testlauf, der wegen 3 Warmup-Schritten divergierte und dadurch mehr Speicher brauchte).
-  Darum bleibt die Konfiguration, die im Schnelltest 4,4 h und im 10-min-Wärmetest ohne Probleme lief
-  (Spitze ≈ 11,7 GiB PyTorch, ≈ 14,1 GiB belegt insgesamt).
+- **Pairing:** B-1M-sparse s0 with the real 500 M schedule starts bit-identically to B-1M s0 (val PPL at step 0
+  identical). The training losses of the first 60 steps agree to 5–6 digits. So "optimizer ok" measures the
+  optimizer and not a changed initialisation.
+- **Abort path:** a forced abort ends with exit code 3 and status `aborted`, `abort_check` is in `run-info.json`.
+- **Complete run** up to the inference benchmark: no errors. Found and fixed along the way: the table's gradient
+  accumulator (1.5 GiB) stayed allocated through the autograd graph of the last loss until the inference
+  benchmark. The inference VRAM values would have been 1.5 GiB too high; now 2.31 / 3.89 GiB as with the dense
+  B-1M. It has no effect on training.
+- **No VRAM cap for PyTorch:** a cap of 13.5 GiB was tested. It doesn't work on this ROCm stack, because memory
+  freed with `expandable_segments` doesn't go back to the driver. The process took the whole VRAM despite the cap,
+  and the inference benchmark aborted (in a test run that diverged because of 3 warmup steps and therefore needed
+  more memory). So the configuration stays the one that ran without problems in the quick test for 4.4 h and in the
+  10-min heat test (peak ≈ 11.7 GiB PyTorch, ≈ 14.1 GiB used in total).
 
-- **Gleiche Rechenzeit:** Tokenbudget von A = reine Trainzeit von Lauf 1 (ohne Auswertungen) × gemessener
-  Durchsatz von A s0 im Schnelltest (Tokens / reine Trainzeit = 91.569 tok/s), abgerundet auf ganze
-  Schritte. A bekommt einen eigenen Cosine-Plan über diese Länge (Warmup 5 %, Abfall auf 10 %). Damit A
-  keine Daten wiederholt, wurde ein größerer Wikipedia-Ausschnitt aufbereitet
-  (`data/wikipedia_en_gpt2_1500m`, Artikelband 0,35 statt 0,125): **gleiches Val-Set** (bytegleich), und die
-  ersten 505 M Trainingstokens sind bytegleich mit den Schnelltest-Daten (beides mit `cmp` geprüft). 1,5 Mrd.
-  Trainingstokens aus 2.052.458 Artikeln; 34 der 122 WikiText-Val/Test-Titel lagen im breiteren Band und
-  wurden entfernt. Bei langsamerem Lauf 1 (z. B. GPU
-  durch den Desktop belegt) bekäme A mehr Tokens; deshalb wird der Durchsatzverlauf von Lauf 1 mitberichtet.
-- **Temperatur:** alle 10 s edge, Hotspot, Speicher, Leistung, Shader- und Speichertakt, Lüfter, VRAM in
-  `runs/hampter/<lauf>/gpu_thermal.csv`; Höchstwerte im Zwischenstand.
+- **Equal compute time:** A's token budget = pure training time of run 1 (without evaluations) × measured throughput
+  of A s0 in the quick test (tokens / pure training time = 91,569 tok/s), rounded down to whole steps. A gets its own
+  cosine schedule over that length (warmup 5%, decay to 10%). So that A doesn't repeat data, a bigger Wikipedia
+  slice was prepared (`data/wikipedia_en_gpt2_1500m`, article band 0.35 instead of 0.125): **same val set**
+  (byte-identical), and the first 505 M training tokens are byte-identical to the quick-test data (both checked with
+  `cmp`). 1.5 B training tokens from 2,052,458 articles; 34 of the 122 WikiText val/test titles were in the wider band
+  and were removed. If run 1 were slower (e.g. GPU used by the desktop), A would get more tokens; that's why the
+  throughput history of run 1 is reported too.
+- **Temperature:** every 10 s edge, hotspot, memory, power, shader and memory clock, fan, VRAM in
+  `runs/hampter/<run>/gpu_thermal.csv`; maxima in the status.
 
-### Kriterien (Vorgabe wörtlich, darunter die Auswertung)
+### Criteria (specification verbatim, evaluation below)
 
-- **Optimizer ok:** B-1M-sparse s0 höchstens 2 % schlechter als das bisherige B-1M s0.
-- **Stabil:** Beide B-1M-sparse-Seeds mindestens 10 % besser als der Mittelwert beider A-Seeds
-  (A s0 aus dem Schnelltest, A s1 neu).
-- **Gleiche Rechenzeit (gegen B-1M-sparse s0):** mindestens gleichauf = konkurrenzfähig; mindestens 5 %
-  besser = klarer Vorteil.
+- **Optimizer ok:** B-1M-sparse s0 at most 2% worse than the previous B-1M s0.
+- **Stable:** both B-1M-sparse seeds at least 10% better than the mean of both A seeds (A s0 from the quick test,
+  A s1 new).
+- **Equal compute time (against B-1M-sparse s0):** at least on par = competitive; at least 5% better = clear
+  advantage.
 
-| Kriterium | Operationalisierung (Val-PPL Wikipedia am Trainingsende, gleiches Val-Set wie Schnelltest) |
+| Criterion | Operationalisation (val PPL Wikipedia at the end of training, same val set as the quick test) |
 |---|---|
-| Optimizer ok | PPL(B-1M-sparse s0) ≤ 1,02 × PPL(B-1M s0) = 1,02 × 21,801 = **22,237** |
-| Stabil | PPL(B-1M-sparse s0) **und** PPL(B-1M-sparse s1) ≤ 0,90 × ½ (PPL(A s0) + PPL(A s1)); PPL(A s0) = 25,665 |
-| Gleiche Rechenzeit | Q = PPL(B-1M-sparse s0) / PPL(A gleiche Zeit). Q ≤ 0,95 → **klarer Vorteil**; 0,95 < Q ≤ 1,00 → **konkurrenzfähig**; Q > 1,00 → **nicht konkurrenzfähig** |
+| Optimizer ok | PPL(B-1M-sparse s0) ≤ 1.02 × PPL(B-1M s0) = 1.02 × 21.801 = **22.237** |
+| Stable | PPL(B-1M-sparse s0) **and** PPL(B-1M-sparse s1) ≤ 0.90 × ½ (PPL(A s0) + PPL(A s1)); PPL(A s0) = 25.665 |
+| Equal compute time | Q = PPL(B-1M-sparse s0) / PPL(A equal time). Q ≤ 0.95 → **clear advantage**; 0.95 < Q ≤ 1.00 → **competitive**; Q > 1.00 → **not competitive** |
 
-„Besser“ heißt niedrigere PPL, „10 % besser“ wie im Schnelltest PPL ≤ 0,90 × Referenz. „Gleichauf“ werte
-ich wörtlich (Q ≤ 1,00); liegt Q innerhalb des Seed-Rauschens (aus A s0/s1 und B-1M-sparse s0/s1), wird
-das im Bericht dazugesagt, das Urteil bleibt wie festgelegt. WikiText-103-Val-PPL, Tabellengesundheit,
-Durchsatz und VRAM werden berichtet, entscheiden aber nicht.
+"Better" means lower PPL, "10% better" as in the quick test PPL ≤ 0.90 × reference. I read "on par" literally
+(Q ≤ 1.00); if Q is within the seed noise (from A s0/s1 and B-1M-sparse s0/s1), the report says so, the verdict
+stays as fixed. WikiText-103 val PPL, table health, throughput and VRAM are reported, but don't decide.
 
-**Abbruchregel:** Liegt B-1M-sparse s0 bei 100 M Tokens mehr als 5 % hinter dem bisherigen B-1M s0 beim
-selben Stand, wird angehalten und gemeldet. Umsetzung in `smlm/train.py` (`--abort_ref`): an der
-Auswertung bei 99,94 M Tokens (Schritt 3050, derselbe Punkt wie im Schnelltest) wird abgebrochen, wenn
-PPL > 1,05 × 39,293 = **41,258**. Der Lauf endet dann mit Status `aborted` (Gewichte werden gespeichert),
-und die ganze Warteschlange hält an.
+**Abort rule:** if B-1M-sparse s0 at 100 M tokens is more than 5% behind the previous B-1M s0 at the same point, the
+queue stops and reports. Implemented in `smlm/train.py` (`--abort_ref`): at the evaluation at 99.94 M tokens (step
+3050, the same point as in the quick test) the run aborts if PPL > 1.05 × 39.293 = **41.258**. The run then ends with
+status `aborted` (weights are saved), and the whole queue stops.
 
-### Zwischenstand
+### Status
 
 <!-- HAMPTER-STATUS:BEGIN -->
 
-**Zwischenstand** (automatisch erzeugt von `scripts/hampter_status.py`, Stand 2026-10-03 14:07)
+**Status** (generated automatically by `scripts/hampter_status.py`, as of 2026-10-03 14:07)
 
-| Lauf | Status | Tokens | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s Median (5 %-Quantil) | VRAM Train | max. edge / Hotspot / Speicher | max. Leistung | Takt unter Last |
+| Run | Status | Tokens | Val PPL Wikipedia | Val PPL WikiText | Train time | tok/s median (5% quantile) | VRAM train | max. edge / hotspot / memory | max. power | Clock under load |
 |---|---|---|---|---|---|---|---|---|---|---|
-| B-1M s0 (Schnelltest, dichter Optimizer, Referenz) | fertig | 500 M | 21,801 | 66,28 | 249 min | 33.383 (33.345) | 11,70 GiB | – | – | – |
-| A s0 (Schnelltest, Referenz) | fertig | 500 M | 25,665 | 78,38 | 91 min | 91.563 (91.488) | 7,89 GiB | – | – | – |
-| B-1M-sparse s0 | fertig | 500 M | 21,837 | 65,51 | 216 min | 38.517 (38.464) | 10,52 GiB | 48 / 79 / 80 °C | 238 W | 3.120 MHz |
-| A s0 bei gleicher Rechenzeit | fertig | 1.186 M | 22,508 | 66,44 | 216 min | 91.498 (91.395) | 7,89 GiB | 49 / 83 / 80 °C | 261 W | 2.993 MHz |
-| A s1 | fertig | 500 M | 25,756 | 78,48 | 91 min | 91.641 (91.467) | 7,89 GiB | 49 / 82 / 80 °C | 261 W | 2.991 MHz |
-| B-1M-sparse s1 | fertig | 500 M | 21,752 | 65,09 | 216 min | 38.577 (38.519) | 10,52 GiB | 51 / 81 / 82 °C | 240 W | 3.121 MHz |
+| B-1M s0 (quick test, dense optimizer, reference) | done | 500 M | 21.801 | 66.28 | 249 min | 33,383 (33,345) | 11.70 GiB | – | – | – |
+| A s0 (quick test, reference) | done | 500 M | 25.665 | 78.38 | 91 min | 91,563 (91,488) | 7.89 GiB | – | – | – |
+| B-1M-sparse s0 | done | 500 M | 21.837 | 65.51 | 216 min | 38,517 (38,464) | 10.52 GiB | 48 / 79 / 80 °C | 238 W | 3,120 MHz |
+| A s0 at equal compute time | done | 1,186 M | 22.508 | 66.44 | 216 min | 91,498 (91,395) | 7.89 GiB | 49 / 83 / 80 °C | 261 W | 2,993 MHz |
+| A s1 | done | 500 M | 25.756 | 78.48 | 91 min | 91,641 (91,467) | 7.89 GiB | 49 / 82 / 80 °C | 261 W | 2,991 MHz |
+| B-1M-sparse s1 | done | 500 M | 21.752 | 65.09 | 216 min | 38,577 (38,519) | 10.52 GiB | 51 / 81 / 82 °C | 240 W | 3,121 MHz |
 
-**Abbruchregel** (B-1M-sparse s0 bei 99,9 M Tokens): PPL 39,339 gegenüber 39,293 beim bisherigen B-1M s0 = +0,12 % (Grenze +5 %) → **weiter**.
+**Abort rule** (B-1M-sparse s0 at 99.9 M tokens): PPL 39.339 against 39.293 for the previous B-1M s0 = +0.12% (limit
++5%) → **continue**.
 
-**Budget A bei gleicher Rechenzeit:** 12.957 s Trainzeit von B-1M-sparse s0 × 91.569 tok/s (A s0 im Schnelltest) = 1.186,4 M Tokens (36206 Schritte).
+**Budget A at equal compute time:** 12,957 s training time of B-1M-sparse s0 × 91,569 tok/s (A s0 in the quick test)
+= 1,186.4 M tokens (36206 steps).
 
-| Kriterium (vorher festgelegt) | Bedingung | Messwert | Ergebnis |
+| Criterion (fixed beforehand) | Condition | Measured | Result |
 |---|---|---|---|
-| Optimizer ok | PPL(B-1M-sparse s0) ≤ 1,02 × 21,801 = 22,237 | 21,837 (+0,16 %) | **erfüllt** |
-| Stabil | beide B-1M-sparse-Seeds ≤ 0,90 × Mittel(A s0, A s1) = 23,140 | s0 0,849×, s1 0,846× (Mittel A 25,711) | **erfüllt** |
-| Gleiche Rechenzeit | PPL(B-1M-sparse s0) / PPL(A gleiche Zeit): ≤ 1,00 konkurrenzfähig, ≤ 0,95 klarer Vorteil | 0,970 (−3,0 %); Trainzeit B 216 min, A 216 min | **konkurrenzfähig** |
+| Optimizer ok | PPL(B-1M-sparse s0) ≤ 1.02 × 21.801 = 22.237 | 21.837 (+0.16%) | **met** |
+| Stable | both B-1M-sparse seeds ≤ 0.90 × mean(A s0, A s1) = 23.140 | s0 0.849×, s1 0.846× (mean A 25.711) | **met** |
+| Equal compute time | PPL(B-1M-sparse s0) / PPL(A equal time): ≤ 1.00 competitive, ≤ 0.95 clear advantage | 0.970 (−3.0%); train time B 216 min, A 216 min | **competitive** |
 
-**GPU-Höchstwerte über alle Hampter-Läufe** (alle 10 s gemessen, `gpu_thermal.csv` je Lauf): edge 51 °C, Hotspot 83 °C, Speicher 82 °C (Grenzen laut Treiber 110 / 110 / 108 °C), Leistung 261 W.
+**GPU maxima over all Hampter runs** (measured every 10 s, `gpu_thermal.csv` per run): edge 51 °C, hotspot 83 °C,
+memory 82 °C (limits according to the driver 110 / 110 / 108 °C), power 261 W.
 
 <!-- HAMPTER-STATUS:END -->
 
-### Ergebnis Stufe 1c (Auswertung von Hand)
+### Result stage 1c (evaluated by hand)
 
-| | Val-PPL Wikipedia | Val-PPL WikiText | Tokens | reine Trainzeit | Train tok/s | VRAM Train | Decode b=1 tok/s | Prefill tok/s |
+| | Val PPL Wikipedia | Val PPL WikiText | Tokens | pure train time | Train tok/s | VRAM train | Decode b=1 tok/s | Prefill tok/s |
 |---|---|---|---|---|---|---|---|---|
-| A s0 / s1 (Mittel) | 25,711 (25,665 / 25,756) | 78,43 | 500 M | 91 min | 91.600 | 7,89 GiB | 219 | 385.000 |
-| **A s0 bei gleicher Rechenzeit** | **22,508** | 66,44 | 1.186 M | 216 min | 91.498 | 7,89 GiB | 215 | 385.555 |
-| B-1M s0, dichter Optimizer (Schnelltest) | 21,801 | 66,28 | 500 M | 249 min | 33.383 | 11,70 GiB | 175 | 150.398 |
-| **B-1M-sparse s0** | **21,837** | 65,51 | 500 M | 216 min | 38.517 | 10,52 GiB | 182 | 150.541 |
-| B-1M-sparse s1 | 21,752 | 65,09 | 500 M | 216 min | 38.577 | 10,52 GiB | 178 | 150.039 |
+| A s0 / s1 (mean) | 25.711 (25.665 / 25.756) | 78.43 | 500 M | 91 min | 91,600 | 7.89 GiB | 219 | 385,000 |
+| **A s0 at equal compute time** | **22.508** | 66.44 | 1,186 M | 216 min | 91,498 | 7.89 GiB | 215 | 385,555 |
+| B-1M s0, dense optimizer (quick test) | 21.801 | 66.28 | 500 M | 249 min | 33,383 | 11.70 GiB | 175 | 150,398 |
+| **B-1M-sparse s0** | **21.837** | 65.51 | 500 M | 216 min | 38,517 | 10.52 GiB | 182 | 150,541 |
+| B-1M-sparse s1 | 21.752 | 65.09 | 500 M | 216 min | 38,577 | 10.52 GiB | 178 | 150,039 |
 
-![Val-PPL über die Trainingszeit, Stufe 1c](report/hampter_val_ppl_time.png)
+![Val PPL over training time, stage 1c](report/hampter_val_ppl_time.png)
 
-![Val-PPL über die Tokens, Stufe 1c](report/hampter_val_ppl_tokens.png)
+![Val PPL over tokens, stage 1c](report/hampter_val_ppl_tokens.png)
 
-**1. Optimizer ok – erfüllt.** B-1M-sparse s0 endet bei 21,837 statt 21,801 (+0,16 %, erlaubt +2 %). Der
-Abstand bleibt über das ganze Training bei +0,1 bis +0,3 % (100 / 200 / 300 / 400 / 500 M Tokens: +0,12 / +0,34 /
-+0,12 / +0,12 / +0,16 %). Das liegt innerhalb des Seed-Rauschens (B-1M-sparse s0 ↔ s1: 0,39 %). Die Tabelle ist
-gleich gesund (Nutzung 100 %, meistgelesenes 1 % bekommt 11,7 % bzw. 11,4 % der Zugriffe, KL 0,62 / 0,60; vorher
-11,8 % und 0,62). Die Softmax ist gleich flach (28,6 / 28,5 effektive Einträge von 32). Gewinn: 1,15× schneller
-(216 statt 249 min) und 1,2 GiB weniger VRAM im Training. Bei der Inferenz ändert der Optimizer nichts.
-**Aber:** Ziel war 1,5×. B-1M ist pro Token weiterhin 2,4× langsamer als A (38,5 k gegenüber 91,6 k tok/s).
+**1. Optimizer ok – met.** B-1M-sparse s0 ends at 21.837 instead of 21.801 (+0.16%, +2% allowed). The distance stays
+at +0.1 to +0.3% over the whole training (100 / 200 / 300 / 400 / 500 M tokens: +0.12 / +0.34 / +0.12 / +0.12 /
++0.16%). That's within the seed noise (B-1M-sparse s0 ↔ s1: 0.39%). The table is just as healthy (usage 100%, the
+most-read 1% get 11.7% and 11.4% of the reads, KL 0.62 / 0.60; before 11.8% and 0.62). The softmax is just as flat
+(28.6 / 28.5 effective entries of 32). Gain: 1.15× faster (216 instead of 249 min) and 1.2 GiB less VRAM in
+training. At inference the optimizer changes nothing.
+**But:** the goal was 1.5×. Per token B-1M is still 2.4× slower than A (38.5 k against 91.6 k tok/s).
 
-**2. Stabil – erfüllt.** Beide Seeds liegen klar unter der Grenze von 0,90 × 25,711 = 23,140: s0 bei 0,849×,
-s1 bei 0,846× (−15,1 % bzw. −15,4 %). Die Seeds liegen bei B-1M-sparse 0,39 % und bei A 0,35 % auseinander.
-Der Vorsprung ist also rund 40-mal so groß wie das Seed-Rauschen. Auf WikiText-Val (nie trainiert, anderes
-Format) ist der Abstand gleich groß (−16,5 % / −17,0 % gegenüber Mittel A).
+**2. Stable – met.** Both seeds are clearly below the limit of 0.90 × 25.711 = 23.140: s0 at 0.849×, s1 at 0.846×
+(−15.1% and −15.4%). The seeds are 0.39% apart for B-1M-sparse and 0.35% for A. So the lead is about 40 times the
+seed noise. On WikiText val (never trained on, different format) the distance is just as big (−16.5% / −17.0%
+against mean A).
 
-**3. Gleiche Rechenzeit – „konkurrenzfähig“, nicht „klarer Vorteil“.** Mit derselben reinen Trainzeit
-(216 min, die Zeiten weichen nur um 5 s voneinander ab) sieht A 2,37× so viele Tokens und erreicht 22,508.
-B-1M-sparse s0 liegt mit 21,837 um 3,0 % darunter (Q = 0,970; s1, nicht Teil des Kriteriums: 0,966). Damit
-ist das Kriterium „mindestens gleichauf“ erfüllt, „mindestens 5 % besser“ (Q ≤ 0,95) verfehlt.
-Der Unterschied von 0,67 PPL ist mehr als dreimal so groß wie 2 × Seed-Spanne (0,18). A bei gleicher Zeit hat
-allerdings nur einen Seed, das ist also ein deutlicher Hinweis, kein statistischer Beleg (korrigiert 2026-10-05 nach Codex-Review; vorher
-hieß es „ist echt“). Auf WikiText-Val ist der Vorsprung kleiner (−1,4 % / −2,0 %).
-Bei gleicher Tokenzahl lag B-1M 15 % vorn, bei gleicher Zeit bleibt davon etwa ein Fünftel.
+**3. Equal compute time – "competitive", not "clear advantage".** With the same pure training time (216 min, the
+times differ by only 5 s) A sees 2.37× as many tokens and reaches 22.508. B-1M-sparse s0 at 21.837 is 3.0% below
+that (Q = 0.970; s1, not part of the criterion: 0.966). So the criterion "at least on par" is met, "at least 5%
+better" (Q ≤ 0.95) is missed. The difference of 0.67 PPL is more than three times 2 × the seed spread (0.18). A at
+equal time has only one seed, though, so this is a clear hint, not a statistical proof (corrected 2026-10-05 after the
+Codex review; before, it said "is real"). On WikiText val the lead is smaller (−1.4% / −2.0%).
+At equal tokens B-1M was 15% ahead, at equal time about a fifth of that is left.
 
-**Einordnung (nichts schönreden):**
+**Discussion (no sugar-coating):**
 
-- **Der Vorteil pro Token ist robust, der Vorteil pro Rechenzeit ist klein.** Auf dieser Hardware und mit
-  dieser Implementierung kauft die Speichertabelle bei gleicher Trainingszeit 3 % Perplexity. Das ist
-  messbar und echt, aber weit entfernt von den 15 % bei gleicher Tokenzahl.
-- **Die Inferenz kostet mehr, A bei gleicher Zeit nicht.** A bei gleicher Zeit ist im Einsatz genauso
-  billig wie A: 155 MB Gewichte, 385 k tok/s Prefill, 215 tok/s Decoding. B-1M braucht 1,7 GB Gewichte
-  (fp32; mit 4-Bit-Tabelle und fp32-Rest ≈ 0,37 GB, siehe Quantisierung), hat 2,6× weniger Prefill-Durchsatz und ist beim
-  Decoding ≈ 17 % langsamer. Rechnet man Training und Inferenz zusammen, steht A bei gleicher Zeit
-  derzeit kaum schlechter da: 3 % höhere PPL, dafür deutlich billiger im Einsatz.
-- **Das Zeiturteil hängt an der Implementierung.** Die Rechenmenge pro Token ist fast gleich (+4 % MACs).
-  Die 2,4× Laufzeit kommen aus dem Speicher-Lookup (Top-k-Suche, `embedding_bag`, Adam-Schritt über
-  1 M Zeilen) auf ROCm ohne eigene Kernels. Ein schnellerer Lookup würde das Ergebnis zugunsten von B
-  verschieben; wie weit, ist nicht gemessen. Umgekehrt wurde auch A nicht weiter optimiert (z. B.
-  `torch.compile`).
-- **Ein Messpunkt.** Gleiche Zeit wurde nur bei ≈ 3,6 h verglichen. Ob der Zeitvorteil bei längerem
-  Training wächst (bei gleicher Tokenzahl wuchs der Vorsprung von −10 % bei 100 M auf −15 % bei 500 M
-  Tokens), ist offen; die Zwischenstände beider Kurven sind wegen der verschiedenen Cosine-Pläne nicht
-  direkt vergleichbar.
-- **Daten:** A bei gleicher Zeit hat Tokens jenseits der 505 M aus demselben Artikel-Pool gesehen
-  (dieselbe Aufbereitung, gleiches Val-Set). Ein Verteilungsunterschied ist damit praktisch
-  ausgeschlossen, die Daten sind aber nicht dieselben.
-- **Temperaturen** (alle 10 s, 13 h): Höchstwerte edge 51 °C, Hotspot 83 °C, Speicher 82 °C, 261 W
-  (Grenzen 110 / 110 / 108 °C). Keine Drosselung: Der Durchsatz war in allen Läufen konstant
-  (5-%-Quantil ≤ 0,3 % unter dem Median).
+- **The advantage per token is robust, the advantage per compute time is small.** On this hardware and with this
+  implementation, the memory table buys 3% perplexity at equal training time. That's measurable and real, but far
+  from the 15% at equal tokens.
+- **Inference costs more, A at equal time doesn't.** A at equal time is just as cheap to run as A: 155 MB of
+  weights, 385 k tok/s prefill, 215 tok/s decoding. B-1M needs 1.7 GB of weights (fp32; with a 4-bit table and fp32
+  rest ≈ 0.37 GB, see quantisation), has 2.6× less prefill throughput and is ≈ 17% slower at decoding. Counting
+  training and inference together, A at equal time currently looks hardly worse: 3% higher PPL, but clearly cheaper
+  to run.
+- **The time verdict depends on the implementation.** The compute per token is almost the same (+4% MACs). The 2.4×
+  run time comes from the memory lookup (top-k search, `embedding_bag`, Adam step over 1 M rows) on ROCm without
+  custom kernels. A faster lookup would shift the result in B's favour; by how much wasn't measured. Conversely, A
+  wasn't optimised further either (e.g. `torch.compile`).
+- **One data point.** Equal time was compared only at ≈ 3.6 h. Whether the time advantage grows with longer training
+  (at equal tokens the lead grew from −10% at 100 M to −15% at 500 M tokens) is open; the intermediate values of the
+  two curves can't be compared directly because of the different cosine schedules.
+- **Data:** A at equal time saw tokens beyond the 505 M from the same article pool (same preprocessing, same val
+  set). A distribution difference is practically ruled out, but the data isn't the same.
+- **Temperatures** (every 10 s, 13 h): maxima edge 51 °C, hotspot 83 °C, memory 82 °C, 261 W (limits
+  110 / 110 / 108 °C). No throttling: throughput was constant in all runs (5% quantile ≤ 0.3% below the median).
 
-## Optimierung (Triton-Kernels) und Cloud-Vorbereitung (ab 2026-10-03)
+## Optimisation (Triton kernels) and cloud preparation (from 2026-10-03)
 
-**Ziel:** B-1M so schnell wie realistisch möglich, ohne die Ergebnisse zu verändern. Danach Läufe mit
-größeren Tabellen auf einer gemieteten GPU (zuerst IONOS H200-S geplant, jetzt Runpod: 1 × H200 SXM 141 GB).
-Kernels nur in Triton (ROCm **und** CUDA). Die PyTorch-Implementierung bleibt als Referenz und Fallback
-per Konfiguration umschaltbar.
+**Goal:** B-1M as fast as realistically possible, without changing the results. After that, runs with bigger tables
+on a rented GPU (first planned at IONOS H200-S, now Runpod: 1 × H200 SXM 141 GB). Kernels only in Triton (ROCm
+**and** CUDA). The PyTorch implementation stays as reference and fallback, switchable by configuration.
 
-**Zielwerte** (gegenüber A auf derselben GPU):
+**Targets** (against A on the same GPU):
 
-| | Ziel | vorher (B-1M-sparse) |
+| | Target | before (B-1M-sparse) |
 |---|---|---|
-| Training | ≥ 0,6× so schnell wie A pro Token | 0,42× |
-| Decoding (Batch 1) | höchstens 10 % langsamer als A | 17 % |
-| Prefill (16 × 1024) | höchstens 1,5× langsamer als A, gemessen mit bf16-Tabelle; fp32, bf16 und 4 Bit getrennt berichtet | 2,6× (fp32) |
+| Training | ≥ 0.6× as fast as A per token | 0.42× |
+| Decoding (batch 1) | at most 10% slower than A | 17% |
+| Prefill (16 × 1024) | at most 1.5× slower than A, measured with a bf16 table; fp32, bf16 and 4 bit reported separately | 2.6× (fp32) |
 
-**Abbruchregel:** Bringt ein Optimierungsschritt weniger als 10 % Gewinn, wird aufgehört und berichtet,
-wo die Grenze liegt. Ausnahme: der fusionierte Lazy-Adam-Kernel wird wegen des Speicherbedarfs großer
-Tabellen trotzdem gebaut.
+**Abort rule:** if an optimisation step brings less than a 10% gain, stop and report where the limit is. Exception:
+the fused lazy-Adam kernel gets built anyway because of the memory needs of large tables.
 
-**Korrektheit:** Jeder Kernel gegen die Referenz (vorwärts und Gradienten), Tabellen mit 262k, 1M und 4M
-Zeilen. Scores exakt gleich, Indizes gleich bis auf Gleichstände an der Top-k-Grenze, Ausgaben und
-Gradienten mit festen Toleranzen. Tests auch auf der CPU (`TRITON_INTERPRET=1`, kleine Größen).
-Vergleichslauf über 20 M Tokens Kernel gegen Referenz: Loss-Kurven praktisch identisch. Alle alten Tests
-bleiben grün.
+**Correctness:** every kernel against the reference (forward and gradients), tables with 262k, 1M and 4M rows.
+Scores exactly equal, indices equal except for ties at the top-k boundary, outputs and gradients within fixed
+tolerances. Tests on the CPU too (`TRITON_INTERPRET=1`, small sizes). Comparison run over 20 M tokens kernel against
+reference: loss curves practically identical. All old tests stay green.
 
-### Ausgangsmessung (Profiler, vor jedem Kernel)
+### Baseline measurement (profiler, before any kernel)
 
-`scripts/profile_memory.py` → `report/profile_before.json`. RX 9070, trainierte Checkpoints, echte Batches.
+`scripts/profile_memory.py` → `report/profile_before.json`. RX 9070, trained checkpoints, real batches.
 
-- **Training:** B-1M-sparse braucht 848 ms je Schritt (32.768 Tokens), A 357 ms (0,42×). Die 490 ms
-  Mehrzeit verteilen sich so:
-  - Zeilen-Gradienten sammeln: **285 ms** (24 Aufrufe à 11,9 ms; davon `index_put_` mit Sortieren
-    6,2 ms, Gewichten 2,8 ms, Gathern 1,4 ms, Gewichts-Gradienten 1,2 ms)
-  - Lookup vorwärts: 134 ms (Top-k 72, `embedding_bag` 48)
-  - übrige Speicher-Rückwärtsrechnung: 40 ms
-  - Lazy Adam: 29 ms
-  - Statistik und Clipping: 10 ms
-  - abzüglich der 3 FFNs, die A stattdessen hat: −19 ms
-- **Prefill** (16 × 1024): B 109 ms, A 42 ms. Pro Speicherschicht 24,4 ms (Top-k 14, Mischen 8,2), ein
-  FFN braucht 0,8 ms.
-- **Decoding:** B 5,67 ms pro Token, A 4,67 ms. Pro Speicherschicht 0,44 ms (≈ 15 kleine Kernel-Starts),
-  ein FFN 0,10 ms.
+- **Training:** B-1M-sparse needs 848 ms per step (32,768 tokens), A 357 ms (0.42×). The extra 490 ms split up like
+  this:
+  - collecting row gradients: **285 ms** (24 calls of 11.9 ms; of that `index_put_` with sorting 6.2 ms, weighting
+    2.8 ms, gathering 1.4 ms, weight gradients 1.2 ms)
+  - lookup forward: 134 ms (top-k 72, `embedding_bag` 48)
+  - rest of the memory backward: 40 ms
+  - lazy Adam: 29 ms
+  - statistics and clipping: 10 ms
+  - minus the 3 FFNs that A has instead: −19 ms
+- **Prefill** (16 × 1024): B 109 ms, A 42 ms. Per memory layer 24.4 ms (top-k 14, mixing 8.2), an FFN takes 0.8 ms.
+- **Decoding:** B 5.67 ms per token, A 4.67 ms. Per memory layer 0.44 ms (≈ 15 small kernel launches), an FFN
+  0.10 ms.
 
-### Kriterien für die Cloud-Läufe (vor dem Bau festgelegt, 2026-10-03)
+### Criteria for the cloud runs (fixed before building, 2026-10-03)
 
-Läufe auf einer gemieteten H200 (bei der Festlegung IONOS, jetzt Runpod; die Kriterien gelten unverändert)
-mit den Daten, Einstellungen und dem Val-Set von B-1M-sparse: B-1M
-(Kontrolllauf auf derselben Hardware und mit denselben Kernels), B-4M (2048² = 4.194.304 Einträge) und
-B-16M (4096² = 16.777.216 Einträge), je Init-Seed 0, 500 M Tokens.
+Runs on a rented H200 (at the time of fixing IONOS, now Runpod; the criteria apply unchanged) with the data,
+settings and val set of B-1M-sparse: B-1M (control run on the same hardware and with the same kernels), B-4M
+(2048² = 4,194,304 entries) and B-16M (4096² = 16,777,216 entries), init seed 0 each, 500 M tokens.
 
-Vorgabe (wörtlich):
+Specification (verbatim, German original):
 
-- **lohnt sich:** B-4M mindestens 3 % besser als B-1M (Cloud) UND B-16M nochmal besser als B-4M
-- **unklar:** Verbesserung, aber unter 3 %
-- **lohnt sich nicht:** B-4M nicht besser als B-1M (Cloud)
+- **lohnt sich** (worth it): B-4M mindestens 3 % besser als B-1M (Cloud) UND B-16M nochmal besser als B-4M (B-4M at
+  least 3% better than B-1M (cloud) AND B-16M better again than B-4M)
+- **unklar** (unclear): Verbesserung, aber unter 3 % (improvement, but below 3%)
+- **lohnt sich nicht** (not worth it): B-4M nicht besser als B-1M (Cloud) (B-4M not better than B-1M (cloud))
 
-Operationalisierung: Val-PPL Wikipedia am Trainingsende, gleiches Val-Set wie Stufe 1b/1c.
+Operationalisation: val PPL Wikipedia at the end of training, same val set as stages 1b/1c.
 
-| Urteil | Bedingung |
+| Verdict | Condition |
 |---|---|
-| lohnt sich | PPL(B-4M) ≤ 0,97 × PPL(B-1M) **und** PPL(B-16M) < PPL(B-4M) |
-| unklar | PPL(B-4M) < PPL(B-1M), aber nicht „lohnt sich“ |
-| lohnt sich nicht | PPL(B-4M) ≥ PPL(B-1M) |
+| worth it | PPL(B-4M) ≤ 0.97 × PPL(B-1M) **and** PPL(B-16M) < PPL(B-4M) |
+| unclear | PPL(B-4M) < PPL(B-1M), but not "worth it" |
+| not worth it | PPL(B-4M) ≥ PPL(B-1M) |
 
-Zum Fall „unklar“: Er umfasst auch B-4M ≥ 3 % besser, aber B-16M nicht besser als B-4M. Das wird im
-Bericht ausdrücklich so benannt. Das Seed-Rauschen von B-1M-sparse lag bei 0,39 %; Unterschiede unter
-≈ 0,8 % (2 × Spanne) gelten als nicht belastbar und werden so benannt.
+On the case "unclear": it also covers B-4M ≥ 3% better, but B-16M not better than B-4M. The report would name that
+explicitly. B-1M-sparse's seed noise was 0.39%; differences below ≈ 0.8% (2 × spread) count as not solid and are
+named as such.
 
-### Schritt 1: Zeilen-Gradienten sammeln, fusioniert (Kernel 1)
+### Step 1: collecting row gradients, fused (kernel 1)
 
-`smlm/kernels.py::bag_backward_rows`, eingeschaltet mit `mem_impl="triton"` (`--mem_impl triton`).
+`smlm/kernels.py::bag_backward_rows`, switched on with `mem_impl="triton"` (`--mem_impl triton`).
 
-- **Vorher:** Für jeden der 524.288 Lookups (4096 Tokens × 128) wird w·grad materialisiert (0,8 GB) und
-  mit `index_put_` (Sortieren) addiert.
-- **Kernel:** Die Lookups werden einmal nach Tabellenzeile sortiert (`torch.sort`, 0,25 ms). Jedes
-  Programm nimmt 32 sortierte Positionen. Gleiche Zeilen summiert ein segmentierter Scan in Registern.
-  Läufe, die ganz im Programm liegen, werden normal geschrieben; nur die höchstens zwei Läufe an den
-  Programmgrenzen atomar. Der Gewichts-Gradient dot(grad, Zeile) entsteht im selben Durchlauf.
-- **Erster Versuch:** atomare Addition für jeden Lauf, 17 ms je Aufruf, also langsamer als die
-  Referenz. Atomics sind auf der RX 9070 teuer.
-- **Ein Aufruf mit Trainingsform** (echte Indizes eines trainierten Modells, 254k verschiedene Zeilen):
-  Referenz 14,3 ms, Kernel 2,74 ms + 0,25 ms Sortieren (≈ 4,8×).
-  Abweichung zur Referenz: relativ 3·10⁻⁷ (Akkumulator) bzw. 2·10⁻⁷ (Gewichts-Gradient), `touched` identisch.
-- **Tests** (`tests/test_kernels.py`): Tabellen mit 262k / 1M / 4M Zeilen (4M auf GPUs < 40 GB mit 64
-  statt 384 Spalten, sonst passt der Test nicht in 16 GB), Toleranz rtol = atol = 1e-5 relativ zur Skala.
-  Dazu das ganze Modell (3 Speicherschichten, geteilte Tabelle, 2 Micro-Batches): alle Gradienten gleich.
-  Auf der CPU über `TRITON_INTERPRET=1` mit kleinen Größen. Alle 59 Tests grün.
-  Nebenbei behoben: Auf der CPU liefert `_embedding_bag` für fp32 kein `offset2bag`; die Referenz baut es
-  jetzt selbst.
+- **Before:** for each of the 524,288 lookups (4096 tokens × 128), w·grad is materialised (0.8 GB) and added with
+  `index_put_` (sorting).
+- **Kernel:** the lookups are sorted once by table row (`torch.sort`, 0.25 ms). Each program takes 32 sorted
+  positions. A segmented scan in registers sums equal rows. Runs that lie entirely inside the program are written
+  normally; only the at most two runs at the program borders atomically. The weight gradient dot(grad, row) comes
+  out of the same pass.
+- **First attempt:** an atomic add for every run, 17 ms per call, so slower than the reference. Atomics are expensive
+  on the RX 9070.
+- **One call in training shape** (real indices of a trained model, 254k different rows): reference 14.3 ms, kernel
+  2.74 ms + 0.25 ms sorting (≈ 4.8×). Deviation from the reference: relative 3·10⁻⁷ (accumulator) and 2·10⁻⁷ (weight
+  gradient), `touched` identical.
+- **Tests** (`tests/test_kernels.py`): tables with 262k / 1M / 4M rows (4M with 64 instead of 384 columns on GPUs
+  < 40 GB, otherwise the test doesn't fit into 16 GB), tolerance rtol = atol = 1e-5 relative to the scale. Plus the
+  whole model (3 memory layers, shared table, 2 micro-batches): all gradients equal. On the CPU via
+  `TRITON_INTERPRET=1` with small sizes. All 59 tests green. Fixed along the way: on the CPU `_embedding_bag` doesn't
+  return `offset2bag` for fp32; the reference now builds it itself.
 
-| Trainingsschritt (32.768 Tokens) | vorher | Kernel 1 |
+| Training step (32,768 tokens) | before | kernel 1 |
 |---|---|---|
-| vorwärts | 261 ms | 262 ms |
-| rückwärts | 545 ms | 339 ms |
-| Lazy Adam + Rest | 42 ms | 42 ms |
-| **gesamt** | **848 ms (38,7 k tok/s)** | **643 ms (50,9 k tok/s)** |
-| gegenüber A (357 ms) | 0,42× | **0,56×** |
+| forward | 261 ms | 262 ms |
+| backward | 545 ms | 339 ms |
+| lazy Adam + rest | 42 ms | 42 ms |
+| **total** | **848 ms (38.7 k tok/s)** | **643 ms (50.9 k tok/s)** |
+| against A (357 ms) | 0.42× | **0.56×** |
 
-Gewinn 1,32× (Abbruchregel: > 10 %, weiter). Rohdaten: `report/profile_k1.json`.
+Gain 1.32× (abort rule: > 10%, continue). Raw data: `report/profile_k1.json`.
 
-### Schritt 2: Lookup fusioniert (Kernel 2)
+### Step 2: lookup fused (kernel 2)
 
-`smlm/kernels.py::pk_select` / `PKSelect` (Auswahl) und `bag_forward` (gewichtetes Mischen).
+`smlm/kernels.py::pk_select` / `PKSelect` (selection) and `bag_forward` (weighted mixing).
 
-- **Gleiche Teil-Scores:** s1, s2 kommen weiter aus demselben `einsum` wie in der Referenz und sind
-  deshalb bitgleich.
-- **Auswahl in einem Kernel**, ein Programm je (Token, Kopf):
-  - Top-32 jeder Hälfte (int32-Schlüssel aus ordnungserhaltendem bf16-Code und Index, zweistufig über
-    128er-Blöcke).
-  - Paar-Summen, auf bf16 gerundet wie `s1 + s2` in PyTorch (RTNE mit Integer-Arithmetik, damit GPU und
-    CPU-Interpreter gleich runden).
-  - Top-32 der Paare und Softmax in fp32.
-  - Von den 32 × 32 Paaren kommen nur die 130 mit (i+1)(j+1) ≤ 32 überhaupt in Frage, alle anderen werden
-    von ≥ 32 mindestens gleich großen Paaren dominiert.
-- **Rückwärts:** Softmax-Ableitung, dann der Gradient jedes gewählten Scores in seine zwei Teil-Scores,
-  in fp32 summiert und einmal auf bf16 gerundet (wie der Autograd der Referenz). Der `einsum`-Backward
-  bleibt PyTorch.
-- **Mischen:** ein Programm je (Token, 128 Spalten), 32 Lookups pro Kachel; Tabelle fp32 oder bf16.
-- **Exaktheit:**
-  - Die gewählten Scores sind **bitgleich** mit der Referenz. Jeder gewählte Index hat nachweislich genau
-    seinen Score, die Auswahl ist also ein exaktes Top-k.
-  - Indizes weichen nur bei gleichen Scores ab. Bei bf16 ist das häufig: Mit Zufallsdaten haben 59 % der
-    Zeilen irgendwo einen Gleichstand mit anderer Wahl. Auch `torch.topk` legt die Reihenfolge bei
-    Gleichstand nicht fest.
-  - Softmax-Gewichte: Abweichung ≤ 3·10⁻⁸.
-- **Tests:** Auswahl bei 512 / 1024 / 2048 Keys je Hälfte und bei N = 1. Rückwärts gegen die exakt
-  summierte Ableitung: ≤ 1 bf16-ulp. Mischen gegen `embedding_bag` bei 262k / 1M / 4M Zeilen, fp32 und
-  bf16. CPU-Interpreter grün. Gesamt 71 Tests grün.
+- **Same partial scores:** s1, s2 still come from the same `einsum` as in the reference and are therefore
+  bit-identical.
+- **Selection in one kernel**, one program per (token, head):
+  - top-32 of each half (int32 keys from an order-preserving bf16 code and the index, in two stages over blocks of
+    128).
+  - pair sums, rounded to bf16 like `s1 + s2` in PyTorch (RTNE with integer arithmetic, so that GPU and CPU
+    interpreter round the same way).
+  - top-32 of the pairs and softmax in fp32.
+  - Of the 32 × 32 pairs only the 130 with (i+1)(j+1) ≤ 32 can make it at all, all others are dominated by ≥ 32 pairs
+    that are at least as large.
+- **Backward:** softmax derivative, then the gradient of each selected score into its two partial scores, summed in
+  fp32 and rounded once to bf16 (like the reference's autograd). The `einsum` backward stays PyTorch.
+- **Mixing:** one program per (token, 128 columns), 32 lookups per tile; table fp32 or bf16.
+- **Exactness:**
+  - The selected scores are **bit-identical** to the reference. Each selected index provably has exactly its score,
+    so the selection is an exact top-k.
+  - Indices differ only for equal scores. With bf16 that's common: with random data 59% of the rows have a tie
+    somewhere with a different choice. `torch.topk` doesn't fix the order of ties either.
+  - Softmax weights: deviation ≤ 3·10⁻⁸.
+- **Tests:** selection at 512 / 1024 / 2048 keys per half and at N = 1. Backward against the exactly summed
+  derivative: ≤ 1 bf16 ulp. Mixing against `embedding_bag` at 262k / 1M / 4M rows, fp32 and bf16. CPU interpreter
+  green. 71 tests green in total.
 
-| Ein Aufruf (Trainingsform N = 4096) | Referenz | Kernel |
+| One call (training shape N = 4096) | Reference | Kernel |
 |---|---|---|
-| Top-k beider Hälften + Kreuz-Top-k + Softmax | 2,83 ms | 0,86 ms |
-| Mischen (`embedding_bag` → Kernel), fp32-Tabelle | 1,97 ms | 0,84 ms |
-| Speicherschicht vorwärts gesamt | 5,57 ms | 2,45 ms |
+| top-k of both halves + cross top-k + softmax | 2.83 ms | 0.86 ms |
+| mixing (`embedding_bag` → kernel), fp32 table | 1.97 ms | 0.84 ms |
+| memory layer forward total | 5.57 ms | 2.45 ms |
 
-| | vorher | Kernel 1 | Kernel 1 + 2 | A |
+| | before | kernel 1 | kernel 1 + 2 | A |
 |---|---|---|---|---|
-| Trainingsschritt | 848 ms | 643 ms | **584 ms** (vorwärts 187, rückwärts 355) | 358 ms |
-| Training tok/s | 38,7 k | 50,9 k | **56,1 k** | 91,5 k |
-| gegenüber A | 0,42× | 0,56× | **0,61×** ✅ (Ziel ≥ 0,6) | |
-| Prefill 16 × 1024 (fp32-Tabelle) | 109 ms (2,6×) | | 64,0 ms (1,52×) | 42,2 ms |
-| Decoding pro Token | 5,67 ms | | 5,70 ms (+21 %) | 4,69 ms |
+| Training step | 848 ms | 643 ms | **584 ms** (forward 187, backward 355) | 358 ms |
+| Training tok/s | 38.7 k | 50.9 k | **56.1 k** | 91.5 k |
+| against A | 0.42× | 0.56× | **0.61×** ✅ (target ≥ 0.6) | |
+| Prefill 16 × 1024 (fp32 table) | 109 ms (2.6×) | | 64.0 ms (1.52×) | 42.2 ms |
+| Decoding per token | 5.67 ms | | 5.70 ms (+21%) | 4.69 ms |
 
-- **Trainingsgewinn von Schritt 2:** 1,10× (643 → 584 ms), knapp über der 10-%-Grenze.
-- **Rückwärts** wurde etwas langsamer (339 → 355 ms): Die dichten Teil-Score-Gradienten entstehen mit
-  `scatter_add` in fp32 plus Rundung statt mit dem Top-k-Backward der Referenz.
-- **Decoding** ändert sich nicht. Bei einem Token pro Schritt bestimmen die ≈ 15 Kernel-Starts pro
-  Speicherschicht die Zeit, nicht die Rechenarbeit.
+- **Training gain of step 2:** 1.10× (643 → 584 ms), just above the 10% limit.
+- **Backward** got a bit slower (339 → 355 ms): the dense partial-score gradients come from `scatter_add` in fp32
+  plus rounding instead of the reference's top-k backward.
+- **Decoding** doesn't change. With one token per step, the ≈ 15 kernel launches per memory layer set the time, not
+  the compute.
 
-Rohdaten: `report/profile_k2.json`, `report/profile_k2_infer.json`. Die Stufenzeiten dort messen die
-PyTorch-Teilschritte; maßgeblich für die Kernels ist `forward_total`.
+Raw data: `report/profile_k2.json`, `report/profile_k2_infer.json`. The stage times there measure the PyTorch sub-steps;
+for the kernels, `forward_total` is what counts.
 
-### Schritt 3: Inferenz-Lookup auf bf16- und 4-Bit-Tabelle (Kernel 4) und Decoding-Graph
+### Step 3: inference lookup on bf16 and 4-bit tables (kernel 4) and decode graph
 
-- **Inferenztabelle:** `Transformer.set_memory_inference_table("fp32" | "bf16" | "q4")` legt eine
-  Inferenzkopie der geteilten Tabelle an.
-  - 4 Bit nach genau dem Verfahren des Quantisierungstests: je Zeile fp16-Skala, Codes −8…7, zwei pro
-    Byte. Der Test prüft, dass die Dequantisierung bitgleich mit `quantize_table_eval.py` ist.
-- **Kernel `bag_infer`:** mischt direkt aus fp32-, bf16- oder 4-Bit-Zeilen. Das swilu-Produkt
-  `out * bf16(silu(pre))` und der bf16-Cast vor `value_proj` sind eingebaut. Er gilt nur ohne Gradienten
-  und unter bf16-Autocast; das Training bleibt unverändert.
-- **Decoding:** Gemessen bremst dort nicht die GPU, sondern die CPU. Eine Speicherschicht braucht
-  0,39 ms nur zum Absetzen der ≈ 20 PyTorch-Ops und Triton-Starts; die GPU-Arbeit liegt bei ≈ 0,05 ms,
-  ein FFN braucht 0,07 ms.
-  - Abhilfe: `Transformer.set_memory_decode_graphs(True)` nimmt `_forward` der Speicherschicht für ein
-    Token einmal als CUDA/HIP-Graph auf und spielt ihn danach ab.
-  - Es laufen dieselben Kernels, die Logits sind bitgleich (Test über 5 Decoding-Schritte, alle drei
-    Tabellenarten). A läuft ohne Graphen. **Der Decoding-Gewinn kommt also aus den Graphen, nicht aus
-    einem Triton-Kernel**; A würde mit Graphen auch schneller.
-- **Val-PPL** auf dem ganzen Wikipedia-Val-Set, B-1M-sparse s0 (`scripts/eval_kernels.py`,
+- **Inference table:** `Transformer.set_memory_inference_table("fp32" | "bf16" | "q4")` makes an inference copy of
+  the shared table.
+  - 4 bit with exactly the method of the quantisation test: fp16 scale per row, codes −8…7, two per byte. The test
+    checks that the dequantisation is bit-identical with `quantize_table_eval.py`.
+- **Kernel `bag_infer`:** mixes directly from fp32, bf16 or 4-bit rows. The swilu product `out * bf16(silu(pre))` and
+  the bf16 cast before `value_proj` are built in. It's only used without gradients and under bf16 autocast; training
+  stays unchanged.
+- **Decoding:** measured, it's not the GPU that slows things down there, but the CPU. A memory layer needs 0.39 ms
+  just to launch the ≈ 20 PyTorch ops and Triton kernels; the GPU work is ≈ 0.05 ms, an FFN needs 0.07 ms.
+  - Remedy: `Transformer.set_memory_decode_graphs(True)` records `_forward` of the memory layer for one token once as
+    a CUDA/HIP graph and replays it afterwards.
+  - The same kernels run, the logits are bit-identical (test over 5 decoding steps, all three table types). A runs
+    without graphs. **So the decoding gain comes from the graphs, not from a Triton kernel**; A would get faster with
+    graphs too.
+- **Val PPL** on the whole Wikipedia val set, B-1M-sparse s0 (`scripts/eval_kernels.py`,
   `report/eval_kernels.json`):
 
-  | Variante | Val-PPL | Abweichung | Zeit |
+  | Variant | Val PPL | Deviation | Time |
   |---|---|---|---|
-  | Referenz | 21,8369 | – | 12,3 s |
-  | Kernel, fp32 | 21,8357 | −0,005 % | 8,5 s |
-  | Kernel, bf16 | 21,8368 | −0,000 % | 8,1 s |
-  | Kernel, 4 Bit | 21,8663 | +0,13 % (Quantisierungstest: +0,12 %) | 8,3 s |
+  | Reference | 21.8369 | – | 12.3 s |
+  | Kernel, fp32 | 21.8357 | −0.005% | 8.5 s |
+  | Kernel, bf16 | 21.8368 | −0.000% | 8.1 s |
+  | Kernel, 4 bit | 21.8663 | +0.13% (quantisation test: +0.12%) | 8.3 s |
 
-| Inferenz (RX 9070) | Prefill 16 × 1024 | gegenüber A | Decoding pro Token | gegenüber A |
+| Inference (RX 9070) | Prefill 16 × 1024 | against A | Decoding per token | against A |
 |---|---|---|---|---|
-| A | 42,4 ms | | 4,62 ms | |
-| B vorher (Referenz) | 109,3 ms | 2,6× | 5,67 ms | +21 % |
-| B Kernel, fp32-Tabelle | 62,9 ms | 1,48× | 5,75 ms | +25 % |
-| **B Kernel, bf16-Tabelle** | **60,8 ms** | **1,44×** ✅ | 5,77 ms | +25 % |
-| B Kernel, 4 Bit | 62,5 ms | 1,47× | 5,69 ms | +23 % |
-| B Kernel + Decoding-Graph, fp32 | 62,6 ms | 1,48× | **4,53 ms** | **−2 %** ✅ |
-| B Kernel + Decoding-Graph, bf16 | 61,0 ms | 1,44× | 4,57 ms | −1 % |
-| B Kernel + Decoding-Graph, 4 Bit | 62,6 ms | 1,48× | 4,55 ms | −2 % |
+| A | 42.4 ms | | 4.62 ms | |
+| B before (reference) | 109.3 ms | 2.6× | 5.67 ms | +21% |
+| B kernel, fp32 table | 62.9 ms | 1.48× | 5.75 ms | +25% |
+| **B kernel, bf16 table** | **60.8 ms** | **1.44×** ✅ | 5.77 ms | +25% |
+| B kernel, 4 bit | 62.5 ms | 1.47× | 5.69 ms | +23% |
+| B kernel + decode graph, fp32 | 62.6 ms | 1.48× | **4.53 ms** | **−2%** ✅ |
+| B kernel + decode graph, bf16 | 61.0 ms | 1.44× | 4.57 ms | −1% |
+| B kernel + decode graph, 4 bit | 62.6 ms | 1.48× | 4.55 ms | −2% |
 
-- **Prefill:** bf16 bringt nur 2 ms gegenüber fp32, 4 Bit nichts. Die Werte werden nicht mehr nur aus dem
-  Speicher gelesen; Auswahl (≈ 3,2 ms je Schicht bei 16k Tokens), Teil-Scores und Projektionen sind jetzt
-  ein ebenso großer Anteil. 4 Bit spart vor allem Speicher (Tabelle 203 statt 1.611 MB).
-- **Prefill-Tokens:** Der Benchmark nimmt Zufallstokens wie in `train.py`. Mit echtem Text liegen die
-  Zugriffe dichter und die Lookups werden eher schneller.
+- **Prefill:** bf16 brings only 2 ms over fp32, 4 bit nothing. The values are no longer just read from memory;
+  selection (≈ 3.2 ms per layer at 16k tokens), partial scores and projections are now just as big a share. 4 bit
+  mainly saves memory (table 203 instead of 1,611 MB).
+- **Prefill tokens:** the benchmark uses random tokens like `train.py`. With real text the reads are denser and the
+  lookups rather get faster.
 
-Rohdaten: `report/profile_k4_infer.json`.
+Raw data: `report/profile_k4_infer.json`.
 
-### Schritt 4: Lazy Adam fusioniert (Kernel 3, wegen des Speichers großer Tabellen)
+### Step 4: lazy Adam fused (kernel 3, for the memory of large tables)
 
-`smlm/kernels.py::lazy_adam_step`, automatisch mit `mem_impl="triton"`.
+`smlm/kernels.py::lazy_adam_step`, automatically with `mem_impl="triton"`.
 
-- **Kernel:** Gleiche Rechnung wie `LazyRowAdam` (Adam-Formel von PyTorch, globaler Schritt für die
-  Bias-Korrektur, kein Weight Decay), aber direkt in der Tabelle: gelesene Zeilen werden aktualisiert und
-  ihr Akkumulator genullt. Ungelesene Zeilen werden gar nicht geladen.
-- **Speicher:** Die Referenz sichert und restauriert die ungelesenen Zeilen (Werte und beide Momente),
-  das sind 3 × 1,5 KB temporär pro ungelesener Zeile. Bei 16M Zeilen und vielen ungelesenen wären das
-  zweistellige GB, beim Kernel 0.
-- **Gefundener Fehler:** Die erste Version löschte die `touched`-Maske im Kernel mit maskierten
-  Byte-Stores. Dabei wurden auf der RX 9070 Zeilen benachbarter Programme gelöscht, bevor diese sie
-  gelesen hatten (Folge: 60–133 gelesene Zeilen ohne Update). Der Test hat das gefunden. Die Maske wird
-  jetzt nach dem Kernel mit einem `zero_()` gelöscht.
-  *Nachtrag 2026-10-05:* Minimale Nachbauten (`docs/rocm-issues/repro_byte_store.py`, 42 Varianten, dazu eine
-  Variante nah am damaligen Kernel) zeigen auf der RX 9070 **keinen** Fehler bei maskierten Byte-Stores. Die
-  damalige Ursache war deshalb sehr wahrscheinlich ein Fehler in meinem eigenen Kernel, nicht in ROCm oder Triton;
-  die alte Fassung ist nicht erhalten. Es wurde kein Fehlerbericht eingereicht.
-- **Tests:** 3 Schritte gegen `LazyRowAdam` bei 262k / 1M / 4M Zeilen, mit Clipping-Faktor:
-  - ungelesene Zeilen bitgleich
-  - gelesene Zeilen und beide Momente innerhalb rtol = atol = 1e-5
-  - Akkumulator und Maske danach leer
+- **Kernel:** the same computation as `LazyRowAdam` (PyTorch's Adam formula, global step for the bias correction, no
+  weight decay), but directly in the table: rows that were read get updated and their accumulator zeroed. Rows that
+  weren't read aren't even loaded.
+- **Memory:** the reference saves and restores the rows that weren't read (values and both moments), that's
+  3 × 1.5 KB of temporary memory per unread row. At 16M rows with many unread ones that would be tens of GB, with the
+  kernel 0.
+- **Bug found:** the first version cleared the `touched` mask in the kernel with masked byte stores. On the RX 9070,
+  rows of neighbouring programs were cleared before those had read them (result: 60–133 rows that were read but got
+  no update). The test found it. The mask is now cleared after the kernel with a `zero_()`.
+  *Addendum 2026-10-05:* minimal reproductions (`docs/rocm-issues/repro_byte_store.py`, 42 variants, plus one
+  variant close to the kernel at the time) show **no** error with masked byte stores on the RX 9070. So the cause at
+  the time was very likely a bug in my own kernel, not in ROCm or Triton; the old version wasn't kept. No bug report
+  was filed.
+- **Tests:** 3 steps against `LazyRowAdam` at 262k / 1M / 4M rows, with a clipping factor:
+  - rows that weren't read bit-identical
+  - rows that were read and both moments within rtol = atol = 1e-5
+  - accumulator and mask empty afterwards
 
-  Auf GPUs < 40 GB mit 16 Spalten (sonst > 13 GB VRAM). 87 GPU-Tests grün, CPU-Interpreter 20 grün
-  (3 Graph-Tests nur GPU). VRAM-Spitze des ganzen Testlaufs 7,4 GiB.
-- **Tempo:** Tabellen-Optimizer 29,0 → 22,5 ms je Schritt, Trainingsschritt 584 → 575 ms
-  (57,0 k tok/s, 0,62× A). Gewinn < 10 %, wie erwartet; gebaut wegen des Speichers.
+  On GPUs < 40 GB with 16 columns (otherwise > 13 GB VRAM). 87 GPU tests green, CPU interpreter 20 green (3 graph
+  tests GPU only). Peak VRAM of the whole test run 7.4 GiB.
+- **Speed:** table optimizer 29.0 → 22.5 ms per step, training step 584 → 575 ms (57.0 k tok/s, 0.62× A). Gain
+  < 10%, as expected; built for the memory.
 
-### Schritt 5: Vergleichslauf Kernel gegen Referenz (Korrektheit)
+### Step 5: comparison run kernel against reference (correctness)
 
-Gleiches Modell (B-1M-sparse), gleiche Initialisierung, gleiche Daten, einmal mit `mem_impl="torch"`,
-einmal mit `"triton"` (alle Kernels). Abbildungen: `report/kernel_check_*.png`, Zahlen:
-`report/kernel_check_*.json`.
+Same model (B-1M-sparse), same initialisation, same data, once with `mem_impl="torch"`, once with `"triton"` (all
+kernels). Plots: `report/kernel_check_*.png`, numbers: `report/kernel_check_*.json`.
 
-| Vergleich | Trainings-Loss, Abweichung Median / max. | Val-PPL Referenz → Kernel |
+| Comparison | Training loss, deviation median / max. | Val PPL reference → kernel |
 |---|---|---|
-| **erste 22 M Tokens des echten 500-M-Plans** (Warmup 763 Schritte, wie in der Cloud), Seed 0 | **0,04 % / 0,13 %** | **184,52 → 184,56 (+0,02 %)**; Zwischenwerte −1,0 … +0,5 % |
-| 20 M Tokens mit eigenem kurzem Plan (Warmup 31 Schritte), Seed 0 | 0,37 % / 0,46 % | 181,93 → 178,01 (−2,2 %) |
-| dasselbe, Seed 1 | | 186,73 → 193,73 (+3,8 %) |
-| zum Vergleich: Referenz Seed 0 → Referenz Seed 1 (kurzer Plan) | | 181,93 → 186,73 (+2,6 %) |
+| **first 22 M tokens of the real 500 M schedule** (warmup 763 steps, as in the cloud), seed 0 | **0.04% / 0.13%** | **184.52 → 184.56 (+0.02%)**; intermediate values −1.0 … +0.5% |
+| 20 M tokens with its own short schedule (warmup 31 steps), seed 0 | 0.37% / 0.46% | 181.93 → 178.01 (−2.2%) |
+| the same, seed 1 | | 186.73 → 193.73 (+3.8%) |
+| for comparison: reference seed 0 → reference seed 1 (short schedule) | | 181.93 → 186.73 (+2.6%) |
 
-![Kernel gegen Referenz, echter Plan](report/kernel_check_500msched.png)
+![Kernel against reference, real schedule](report/kernel_check_500msched.png)
 
-- **Im Regime der echten Läufe sind die Kurven praktisch identisch.** Bei Schritt 10–90 stimmen die
-  Losses auf 5–6 Stellen überein. Danach wachsen die Abweichungen langsam, bleiben aber unter 0,13 %.
-- **Im kurzen Plan** springt die Lernrate nach 31 Schritten auf den vollen Wert, die Tabellennutzung
-  bricht kurz ein (13 % bei 2 M Tokens) und erholt sich wieder. Diese Phase ist chaotisch:
-  - Beide Läufe sind bis Schritt 20 gleich und trennen sich ab Schritt 30.
-  - Am Ende liegt der Kernel einmal 2,2 % besser, einmal 3,8 % schlechter.
-  - Das ist dieselbe Größenordnung wie zwei Seeds der Referenz (2,6 %). Ein systematischer Unterschied
-    ist nicht zu sehen.
-- **Warum die Läufe überhaupt auseinanderlaufen (neuer Befund):**
-  - Die Teil-Scores sind wie in der Referenz bf16 (Autocast). Bei 8 Bit Mantisse haben sehr viele
-    Kandidaten exakt denselben Score.
-  - Auf echten Aktivierungen des trainierten B-1M haben **65 % der (Token, Kopf)-Zeilen einen
-    Gleichstand beim 32. Score**. In **41 %** wählen Kernel und `torch.topk` andere, gleichwertige
-    Einträge, im Mittel 15 von 32.
-  - Gleiche Scores bedeuten gleiche Gewichte, die Ausgabe mischt dann aber andere Werte-Zeilen. Welche,
-    legt auch `torch.topk` nicht fest; die PyTorch-Referenz auf CUDA kann ebenso anders wählen als
-    auf ROCm (nicht gemessen; der Cloud-Kontrolllauf B-1M zeigt es).
-  - **Exakt gleiche Kurven sind deshalb nicht garantierbar**, wahrscheinlich auch nicht mit der
-    Referenz auf anderer Hardware. Erreichbar und gezeigt ist: exakt gleiche Scores, gültige exakte
-    Top-k-Auswahl, gleiche Kurven im echten Plan.
-  - Die vollständige Kontrolle ist der Cloud-Lauf B-1M (500 M Tokens) gegen B-1M-sparse s0 von zu
-    Hause; das Seed-Rauschen dort lag bei 0,39 %.
-- **Nebenbefund fürs Modell (nicht geändert):** Die Auswahl hat wegen der bf16-Scores nur eine grobe
-  Auflösung. Ob fp32-Teil-Scores (kaum teurer) die Speicherschicht verbessern, wäre ein eigener Versuch.
-  Er würde die Ergebnisse gegenüber allen bisherigen B-Läufen verändern und gehört deshalb nicht in diese
-  Optimierung.
+- **In the regime of the real runs the curves are practically identical.** At steps 10–90 the losses agree to 5–6
+  digits. After that the deviations grow slowly, but stay below 0.13%.
+- **In the short schedule** the learning rate jumps to the full value after 31 steps, table usage collapses briefly
+  (13% at 2 M tokens) and recovers. This phase is chaotic:
+  - Both runs are equal up to step 20 and separate from step 30 on.
+  - At the end the kernel is 2.2% better once and 3.8% worse once.
+  - That's the same order of magnitude as two seeds of the reference (2.6%). No systematic difference is visible.
+- **Why the runs drift apart at all (new finding):**
+  - As in the reference, the partial scores are bf16 (autocast). With an 8-bit mantissa very many candidates have
+    exactly the same score.
+  - On real activations of the trained B-1M, **65% of the (token, head) rows have a tie at the 32nd score**. In
+    **41%**, the kernel and `torch.topk` choose different, equivalent entries, on average 15 of 32.
+  - Equal scores mean equal weights, but the output then mixes different value rows. Which ones, `torch.topk` doesn't
+    fix either; the PyTorch reference on CUDA can just as well choose differently than on ROCm (not measured; the
+    cloud control run B-1M shows it).
+  - **So exactly equal curves can't be guaranteed**, probably not even with the reference on other hardware. What's
+    achievable and shown: exactly equal scores, a valid exact top-k selection, equal curves in the real schedule.
+  - The complete control is the cloud run B-1M (500 M tokens) against B-1M-sparse s0 from home; the seed noise there
+    was 0.39%.
+- **Side finding for the model (not changed):** because of the bf16 scores the selection has only a coarse
+  resolution. Whether fp32 partial scores (hardly more expensive) improve the memory layer would be a separate
+  experiment. It would change the results against all previous B runs and therefore doesn't belong in this
+  optimisation.
 
-### Ergebnis der Optimierung
+### Result of the optimisation
 
-Gemessen mit `scripts/profile_memory.py` (RX 9070, trainierte Checkpoints; `report/profile_before.json`
-→ `report/profile_after.json`).
+Measured with `scripts/profile_memory.py` (RX 9070, trained checkpoints; `report/profile_before.json` →
+`report/profile_after.json`).
 
-| | Ziel | vorher | nachher | erreicht |
+| | Target | before | after | reached |
 |---|---|---|---|---|
-| Training: Schritt (32.768 Tokens) | | 848 ms (38,7 k tok/s) | 577 ms (56,8 k tok/s) | |
-| Training gegenüber A (359 ms) | ≥ 0,6× | 0,42× | **0,62×** | ✅ |
-| Prefill 16 × 1024 gegenüber A (42,7 ms), bf16-Tabelle | ≤ 1,5× | 2,6× (fp32) | **1,43×** (61,1 ms) | ✅ |
-| Prefill, fp32-Tabelle / 4 Bit | (berichtet) | 2,6× | 1,47× / 1,49× | |
-| Decoding pro Token gegenüber A (4,60 ms) | ≤ +10 % | +21 % | **−2 %** (4,50 ms, mit Decoding-Graph) | ✅ |
-| Decoding ohne Graph | (berichtet) | +21 % | +23 % | |
-| Val-PPL B-1M-sparse s0 (fp32 / bf16 / 4 Bit) | unverändert | 21,837 | 21,836 / 21,837 / 21,866 | ✅ |
+| Training: step (32,768 tokens) | | 848 ms (38.7 k tok/s) | 577 ms (56.8 k tok/s) | |
+| Training against A (359 ms) | ≥ 0.6× | 0.42× | **0.62×** | ✅ |
+| Prefill 16 × 1024 against A (42.7 ms), bf16 table | ≤ 1.5× | 2.6× (fp32) | **1.43×** (61.1 ms) | ✅ |
+| Prefill, fp32 table / 4 bit | (reported) | 2.6× | 1.47× / 1.49× | |
+| Decoding per token against A (4.60 ms) | ≤ +10% | +21% | **−2%** (4.50 ms, with decode graph) | ✅ |
+| Decoding without graph | (reported) | +21% | +23% | |
+| Val PPL B-1M-sparse s0 (fp32 / bf16 / 4 bit) | unchanged | 21.837 | 21.836 / 21.837 / 21.866 | ✅ |
 
-**Gewinn je Schritt** (Abbruchregel: ab < 10 % aufhören, außer Kernel 3):
+**Gain per step** (abort rule: stop below 10%, except kernel 3):
 
-| Schritt | Gewinn |
+| Step | Gain |
 |---|---|
-| Kernel 1 (Zeilen-Gradienten) | Training 1,32× |
-| Kernel 2 (Lookup) | Training 1,10×, Prefill 109 → 63 ms (1,73×) |
-| Kernel 4 (bf16 / 4 Bit) | Prefill 63 → 61 ms (1,03×) |
-| Decoding-Graph | Decoding 1,26× |
-| Kernel 3 (Lazy Adam) | Training 1,02×; gebaut wegen des Speichers |
+| Kernel 1 (row gradients) | training 1.32× |
+| Kernel 2 (lookup) | training 1.10×, prefill 109 → 63 ms (1.73×) |
+| Kernel 4 (bf16 / 4 bit) | prefill 63 → 61 ms (1.03×) |
+| Decode graph | decoding 1.26× |
+| Kernel 3 (lazy Adam) | training 1.02×; built for the memory |
 
-Danach habe ich aufgehört: Alle Ziele sind erreicht, und keiner der verbleibenden Posten verspricht
-noch 10 %.
+Then I stopped: all targets are reached, and none of the remaining items promises another 10%.
 
-**Wo die Grenze liegt (ehrlich):**
+**Where the limit is (honestly):**
 
-- **Training:** Von den 577 ms je Schritt sind 359 ms der Rechenkern, den A auch hat. Die Speicherschichten
-  kosten noch ≈ 220 ms:
-  - Rückwärtsrechnung ≈ 130 ms, davon Kernel 1 ≈ 3 ms je Aufruf, der Rest sind Teil-Score-Gradienten,
-    Projektionen und BatchNorm.
-  - Vorwärts ≈ 60 ms.
-  - Lazy Adam 22 ms, Statistik und Clipping 10 ms.
+- **Training:** of the 577 ms per step, 359 ms are the compute core that A has too. The memory layers still cost
+  ≈ 220 ms:
+  - backward ≈ 130 ms, of which kernel 1 ≈ 3 ms per call, the rest are partial-score gradients, projections and
+    BatchNorm.
+  - forward ≈ 60 ms.
+  - lazy Adam 22 ms, statistics and clipping 10 ms.
 
-  Ein weiterer großer Schritt bräuchte einen fusionierten Backward für Auswahl und Teil-Scores (heute
-  `scatter_add` + `einsum`-Backward in PyTorch) oder fusionierte Projektionen. Mehr als 10 % sind davon
-  einzeln nicht zu erwarten.
-- **Prefill:** Die Werte-Lesezugriffe sind kein Engpass mehr: bf16 bringt nur 2 ms, 4 Bit nichts. Die
-  Auswahl kostet ≈ 3,2 ms je Schicht bei 16k Tokens; sie ist an eine bitonische Sortierung in Triton
-  gebunden.
-- **Decoding:** Der Gewinn kommt **aus den CUDA/HIP-Graphen, nicht aus einem Kernel.** Ohne Graph liegt B
-  bei +23 %, weil eine Speicherschicht ≈ 20 Ops absetzt (0,39 ms CPU). A läuft ohne Graphen; mit Graphen
-  würde auch A schneller, der Abstand bliebe aber klein.
-- **Hardware:** Alle Messungen stammen von der RX 9070. Auf der H200 sind die Verhältnisse anders: mehr
-  Bandbreite, und die Kernel-Konfigurationen sind nicht für NVIDIA abgestimmt.
+  Another big step would need a fused backward for selection and partial scores (today `scatter_add` + `einsum`
+  backward in PyTorch) or fused projections. None of them alone can be expected to bring more than 10%.
+- **Prefill:** reading the values is no longer a bottleneck: bf16 brings only 2 ms, 4 bit nothing. The selection
+  costs ≈ 3.2 ms per layer at 16k tokens; it's bound to a bitonic sort in Triton.
+- **Decoding:** the gain comes **from the CUDA/HIP graphs, not from a kernel.** Without a graph B is at +23%, because
+  a memory layer launches ≈ 20 ops (0.39 ms CPU). A runs without graphs; with graphs A would get faster too, but the
+  distance would stay small.
+- **Hardware:** all measurements come from the RX 9070. On the H200 the ratios are different: more bandwidth, and the
+  kernel configurations aren't tuned for NVIDIA.
 
-### Cloud-Vorbereitung (Runpod, 1 × H200)
+### Cloud preparation (Runpod, 1 × H200)
 
-**Anbieterwechsel (2026-10-03):** Zuerst war IONOS geplant (H200-S, 3,00 €/h; Stand in Commit `36eccfe`),
-jetzt **Runpod**. Kriterien, Läufe und Daten bleiben unverändert; geändert haben sich nur Setup,
-Speicherort und das Stoppen am Ende.
+**Change of provider (2026-10-03):** IONOS was planned first (H200-S, 3.00 €/h; state in commit `36eccfe`), now
+**Runpod**. Criteria, runs and data stay unchanged; only the setup, the storage location and the stopping at the end
+have changed.
 
-**Anbieter-Fakten** (Runpod-Doku und runpod.io/pricing, abgerufen 2026-10-03):
+**Provider facts** (Runpod docs and runpod.io/pricing, retrieved 2026-10-03):
 
-- **GPU und Preis:** H200 SXM 141 GB On-Demand: Secure Cloud 4,59 $/h, Community Cloud 3,59 $/h
-  (24 vCPU, 276 GB RAM). Sekundengenaue Abrechnung; maßgeblich ist der Preis in der Konsole. H100 mit
-  80/94 GB reicht für B-16M nicht.
-- **Stoppen:** Ein Stop gibt die GPU frei und beendet die Rechenkosten. `/workspace` (Volume Disk) bleibt
-  und kostet gestoppt 0,20 $/GB/Monat (150 GB ≈ 1 $/Tag); die Container Disk wird geleert.
-  **Terminate** löscht alles.
-- **Stopp aus dem Pod:** Jeder Pod bekommt `RUNPOD_POD_ID` und einen Pod-eigenen `RUNPOD_API_KEY`. Damit
-  stoppt sich der Pod selbst (`POST https://rest.runpod.io/v1/pods/$RUNPOD_POD_ID/stop`, ersatzweise
-  `runpodctl pod stop`). Du musst keinen Schlüssel erzeugen.
-- **Neustart:** Nach einem Stop kann die GPU vergeben sein; dann startet der Pod auf Wunsch mit 0 GPUs. Das
-  reicht, um die Checkpoints zu holen.
-- **Treiber und SSH:** Treiber und SSH sind im Template „Runpod PyTorch“ dabei. `scp`/`rsync` brauchen
-  eine öffentliche IP („SSH over exposed TCP“), deshalb Secure Cloud.
-- **Guthaben:** Fällt es auf 0 $, werden Pods gestoppt, und Pods ohne Netzwerk-Volume **samt Daten
-  gelöscht**. Vorher genug aufladen (≥ 40 $).
+- **GPU and price:** H200 SXM 141 GB on-demand: Secure Cloud 4.59 $/h, Community Cloud 3.59 $/h (24 vCPU, 276 GB
+  RAM). Billing by the second; the price in the console is what counts. An H100 with 80/94 GB isn't enough for B-16M.
+- **Stopping:** a stop frees the GPU and ends the compute cost. `/workspace` (volume disk) stays and costs
+  0.20 $/GB/month while stopped (150 GB ≈ 1 $/day); the container disk is wiped. **Terminate** deletes everything.
+- **Stop from inside the pod:** every pod gets `RUNPOD_POD_ID` and a pod-scoped `RUNPOD_API_KEY`. With it the pod can
+  stop itself (`POST https://rest.runpod.io/v1/pods/$RUNPOD_POD_ID/stop`, alternatively `runpodctl pod stop`). No
+  key needs to be created.
+- **Restart:** after a stop the GPU may be taken; the pod can then start with 0 GPUs on request. That's enough to
+  fetch the checkpoints.
+- **Driver and SSH:** driver and SSH come with the template "Runpod PyTorch". `scp`/`rsync` need a public IP ("SSH
+  over exposed TCP"), hence Secure Cloud.
+- **Balance:** if it drops to 0 $, pods get stopped, and pods without a network volume get **deleted along with their
+  data**. Top up enough beforehand (≥ 40 $).
 
-**Gebaut** (alles in Git, Anleitung `docs/notes/CLOUD.md`):
+**Built** (all in git, instructions `docs/notes/CLOUD.md`):
 
-- **`cloud/setup.sh`:** ein Befehl im Pod.
-  - Ablauf: Pakete, GPU-Check, Deploy-Key + Klonen nach `/workspace`, Python-Umgebung (PyTorch-CUDA-Wheels
-    mit Triton), Daten, alle Tests, Probelauf aller drei Konfigurationen, dann die Warteschlange in tmux.
-  - Alles, was einen Stop überleben muss, liegt auf `/workspace`; Pakete und SSH-Key werden nach jedem
-    Start neu eingerichtet.
-  - Fertige Schritte werden beim erneuten Start übersprungen.
-  - Bei einem Fehler: Log nach GitHub, Nachricht, Pod stoppen.
+- **`cloud/setup.sh`:** one command in the pod.
+  - Sequence: packages, GPU check, deploy key + clone to `/workspace`, Python environment (PyTorch CUDA wheels with
+    Triton), data, all tests, trial run of all three configurations, then the queue in tmux.
+  - Everything that must survive a stop lives on `/workspace`; packages and the SSH key are set up again after every
+    start.
+  - Finished steps are skipped on a restart.
+  - On an error: log to GitHub, message, stop the pod.
 - **`cloud/fetch_data.py`:**
-  - Lädt WikiText-103 und Wikipedia 20231101.en in **festgepinnten Hugging-Face-Revisionen** und prüft
-    jede Rohdatei per SHA-256. Alle 45 Rohdateien zu Hause stimmen mit den LFS-Prüfsummen dieser Revisionen
-    überein.
-  - Erzeugt die Token-Dateien neu und bricht ab, wenn eine nicht **bytegleich** mit zu Hause ist
+  - Downloads WikiText-103 and Wikipedia 20231101.en at **pinned Hugging Face revisions** and checks every raw file by
+    SHA-256. All 45 raw files at home match the LFS checksums of these revisions.
+  - Rebuilds the token files and aborts if one isn't **byte-identical** to the one at home
     (`cloud/data_sha256.txt`).
-- **`scripts/run_cloud.py`:** Warteschlange B-1M (Kontrolle) → B-4M → B-16M.
-  - Je 500 M Tokens, Einstellungen von B-1M-sparse, `--mem_impl triton`.
-  - GPU-Temperatur, Leistung und Takt alle 10 s (`smlm/gpu_monitor.py`, über `nvidia-smi`).
-  - Nach jedem Lauf: Zwischenstand in REPORT.md, `git pull --rebase` + Push, Handy-Nachricht (ntfy,
-    optional).
-  - Am Ende: Prüfsummenliste der Checkpoints, dann **Stopp über die Runpod-API** (`cloud/stop_pod.sh`).
-  - Schutz: Ein Lauf ohne Log-Änderung für 30 min wird beendet; Obergrenze 12 h für alles.
-- **GitHub:** privates Repo `re133/sparse-memory-lm`, Deploy-Key mit Schreibrecht nur für dieses Repo.
-  Das Starter-Paket `~/smlm-cloud-kit/` liegt auf dem PC (`setup.sh`, `stop_pod.sh`, `deploy_key`,
-  `cloud.env`).
-- **Nicht benutzt:** das Runpod-Plugin für Claude Code. Die Installation wurde von der Rechte-Prüfung
-  blockiert, und es ist auch nicht nötig. Den Pod legst du in der Weboberfläche an; nur der Pod-eigene
-  Schlüssel wird benutzt.
+- **`scripts/run_cloud.py`:** queue B-1M (control) → B-4M → B-16M.
+  - 500 M tokens each, settings of B-1M-sparse, `--mem_impl triton`.
+  - GPU temperature, power and clock every 10 s (`smlm/gpu_monitor.py`, via `nvidia-smi`).
+  - After every run: status in REPORT.md, `git pull --rebase` + push, phone message (ntfy, optional).
+  - At the end: checksum list of the checkpoints, then **stop via the Runpod API** (`cloud/stop_pod.sh`).
+  - Protection: a run without a log change for 30 min gets ended; a limit of 12 h for everything.
+- **GitHub:** private repo `re133/sparse-memory-lm`, deploy key with write access for this repo only. The starter
+  kit `~/smlm-cloud-kit/` lives on the PC (`setup.sh`, `stop_pod.sh`, `deploy_key`, `cloud.env`).
+- **Not used:** the Runpod plugin for Claude Code. Its installation was blocked by the permission check, and it isn't
+  needed either. The pod is created in the web console; only the pod-scoped key is used.
 
-**Speicherbedarf auf der H200** (141 GB ≈ 131 GiB):
+**Memory needs on the H200** (141 GB ≈ 131 GiB):
 
-- Die Tabelle braucht pro Zeile 4 fp32-Kopien × 384 × 4 B = 6 KiB: Werte, Akkumulator, Adam m und v.
-- „Rest“ wurde bei B-1M gemessen: 10,5 GiB Spitze minus 6,0 GiB Tabelle.
+- The table needs 4 fp32 copies × 384 × 4 B = 6 KiB per row: values, accumulator, Adam m and v.
+- "Rest" was measured with B-1M: 10.5 GiB peak minus 6.0 GiB table.
 
-| | Einträge | Tabelle + Optimizer | + Rest | Spitze (Schätzung) | Checkpoint |
+| | Entries | Table + optimizer | + rest | Peak (estimate) | Checkpoint |
 |---|---|---|---|---|---|
-| B-1M | 1.048.576 | 6,0 GiB | 4,5 GiB | ≈ 10,5 GiB (gemessen) | 1,7 GB |
-| B-4M | 4.194.304 | 24,0 GiB | ≈ 4,8 GiB | ≈ 29 GiB | ≈ 6,5 GB |
-| B-16M | 16.777.216 | 96,0 GiB | ≈ 5,5 GiB | ≈ 102 GiB | ≈ 26 GB |
+| B-1M | 1,048,576 | 6.0 GiB | 4.5 GiB | ≈ 10.5 GiB (measured) | 1.7 GB |
+| B-4M | 4,194,304 | 24.0 GiB | ≈ 4.8 GiB | ≈ 29 GiB | ≈ 6.5 GB |
+| B-16M | 16,777,216 | 96.0 GiB | ≈ 5.5 GiB | ≈ 102 GiB | ≈ 26 GB |
 
-B-16M passt nur mit dem fusionierten Lazy Adam (Kernel 3). Die Referenz bräuchte für die Kopien der
-ungelesenen Zeilen zusätzlich bis zu 3 × 1,5 KiB pro Zeile, bei 16M Zeilen und der Hälfte ungelesen
-≈ 36 GiB, und das passt nicht mehr.
+B-16M only fits with the fused lazy Adam (kernel 3). The reference would additionally need up to 3 × 1.5 KiB per row
+for the copies of the unread rows, at 16M rows with half of them unread ≈ 36 GiB, and that doesn't fit anymore.
 
-**Laufzeit und Kosten** (H200 SXM, Secure Cloud 4,59 $/h). Hochgerechnet von der RX 9070 (575 ms je
-Schritt, H200 ≈ 7,5× Bandbreite, ≈ 5× Rechenleistung; das kleine Modell lastet die H200 nicht aus),
-**bis Faktor 2 unsicher**:
+**Run time and cost** (H200 SXM, Secure Cloud 4.59 $/h). Extrapolated from the RX 9070 (575 ms per step, H200 ≈ 7.5×
+bandwidth, ≈ 5× compute; the small model doesn't saturate the H200), **uncertain up to a factor of 2**:
 
-| | Dauer | Kosten (Secure) |
+| | Duration | Cost (Secure) |
 |---|---|---|
-| Setup (Python, 11 GB Daten + Tokenisieren, Tests, Probelauf) | 40–55 min | 3,10–4,20 $ |
-| B-1M | 25–45 min | 1,90–3,40 $ |
-| B-4M | 30–55 min | 2,30–4,20 $ |
-| B-16M (Adam über 16M Zeilen, Top-k über 4096 Keys) | 40–75 min | 3,10–5,70 $ |
-| Checkpoints holen (Pod wieder gestartet, mit 0 GPUs billiger) | 20–60 min | 0–4,60 $ |
-| **Summe** | **≈ 2,5–4,5 h** | **≈ 11–22 $** (Community Cloud ≈ 9–17 $; + ≈ 1 $/Tag, solange der gestoppte Pod nicht gelöscht ist) |
+| Setup (Python, 11 GB of data + tokenising, tests, trial run) | 40–55 min | 3.10–4.20 $ |
+| B-1M | 25–45 min | 1.90–3.40 $ |
+| B-4M | 30–55 min | 2.30–4.20 $ |
+| B-16M (Adam over 16M rows, top-k over 4096 keys) | 40–75 min | 3.10–5.70 $ |
+| Fetching checkpoints (pod restarted, cheaper with 0 GPUs) | 20–60 min | 0–4.60 $ |
+| **Total** | **≈ 2.5–4.5 h** | **≈ 11–22 $** (Community Cloud ≈ 9–17 $; + ≈ 1 $/day as long as the stopped pod isn't deleted) |
 
-**Vor dem Start geprüft (hier, ohne NVIDIA-GPU):**
+**Checked before the start (here, without an NVIDIA GPU):**
 
-- **Daten:** `cloud/fetch_data.py` in einer frischen Kopie des Repos. Alle 45 Rohdateien bestehen die
-  SHA-256-Prüfung; alle 7 Token-Dateien und meta.json entstehen **bytegleich** neu (126 s).
-  Der Download über die gepinnte Hugging-Face-URL ist mit einer Datei getestet, inklusive Prüfsumme.
-- **Warteschlange:** Probelauf mit `SMLM_CLOUD_DRYRUN=1` (B-1M, 2 M Tokens, Triton): Lauf, GPU-Log alle
-  10 s, Prüfsummenliste und Ende funktionieren. Außerhalb eines Pods findet das Stopp-Skript keinen
-  Pod-Schlüssel, die Warteschlange meldet „stop FAILED“ und schickt die Warnung, von Hand zu stoppen; der
-  Fehlerpfad ist damit auch geprüft (damals mit dem IONOS-Skript, das Runpod-Skript prüft dasselbe).
-- **GitHub:** privates Repo angelegt, gepusht. Klonen mit dem Deploy-Key getestet.
-- **Tests:** 87 GPU-Tests auf ROCm grün, CPU-Interpreter grün.
-- **Nachträglich ergänzt, nur auf der CPU getestet** (die GPU war nach dem Messfenster nicht mehr
-  freigegeben):
-  - Kernel 1 setzt die `touched`-Maske nicht mehr selbst; das ist dasselbe Muster wie beim
-    Kernel-3-Fehler, jetzt ein PyTorch-Scatter.
-  - Neue Tests: Auswahl mit 4096 Keys je Hälfte (B-16M) und Offsets über 2³¹ Elemente (nur ≥ 60 GB GPU).
-  - Ein Probelauf aller drei Konfigurationen in `setup.sh`.
-  - `git pull --rebase` vor jedem Push.
+- **Data:** `cloud/fetch_data.py` in a fresh copy of the repo. All 45 raw files pass the SHA-256 check; all 7 token
+  files and meta.json come out **byte-identical** (126 s). The download through the pinned Hugging Face URL is tested
+  with one file, including the checksum.
+- **Queue:** trial run with `SMLM_CLOUD_DRYRUN=1` (B-1M, 2 M tokens, Triton): run, GPU log every 10 s, checksum list
+  and end all work. Outside a pod the stop script finds no pod key, the queue reports "stop FAILED" and sends the
+  warning to stop by hand; so the error path is checked too (at the time with the IONOS script, the Runpod script
+  checks the same thing).
+- **GitHub:** private repo created, pushed. Cloning with the deploy key tested.
+- **Tests:** 87 GPU tests green on ROCm, CPU interpreter green.
+- **Added afterwards, only tested on the CPU** (the GPU wasn't released anymore after the measurement window):
+  - Kernel 1 no longer sets the `touched` mask itself; that's the same pattern as the kernel-3 bug, now a PyTorch
+    scatter.
+  - New tests: selection with 4096 keys per half (B-16M) and offsets above 2³¹ elements (only GPUs ≥ 60 GB).
+  - A trial run of all three configurations in `setup.sh`.
+  - `git pull --rebase` before every push.
 
-  CPU-Suite 42 grün, CPU-Interpreter 21 grün. Auf GPU laufen sie zuerst in der Cloud (Setup-Schritt 6/7)
-  bzw. im nächsten Zeitfenster zu Hause.
+  CPU suite 42 green, CPU interpreter 21 green. On a GPU they run first in the cloud (setup step 6/7) or in the next
+  time window at home.
 
-**Nicht getestet** (geht ohne die Maschine nicht). Das Setup prüft jeden dieser Punkte, bevor gerechnet
-wird, und stoppt den Pod bei einem Fehler:
+**Not tested** (impossible without the machine). The setup checks each of these points before computing anything,
+and stops the pod on an error:
 
-- **Kernels auf CUDA/H200:** Die Tests laufen dort als Erstes, dazu der Probelauf aller drei
-  Konfigurationen mit je 1 M Tokens. Nur wenn beides klappt, startet die Warteschlange.
-- **Runpod-spezifisches:** Template, `/workspace`-Volume und Stopp mit dem Pod-Schlüssel.
-  `setup.sh` prüft den API-Zugang vorher (`stop_pod.sh --check`) und warnt, falls er nicht klappt. Ob
-  ein Pod-Schlüssel den eigenen Pod stoppen darf, steht so in der Runpod-Doku („Schedule a stop“), ist aber
-  nicht ausprobiert.
+- **Kernels on CUDA/H200:** the tests run there first, plus the trial run of all three configurations with 1 M tokens
+  each. Only if both work does the queue start.
+- **Runpod specifics:** template, `/workspace` volume and stopping with the pod key. `setup.sh` checks API access
+  beforehand (`stop_pod.sh --check`) and warns if it doesn't work. That a pod key may stop its own pod is what the
+  Runpod docs say ("Schedule a stop"), but it isn't tried.
 
-**Bereit für die Cloud: ja.** Ablauf in `docs/notes/CLOUD.md`: Konto aufladen, Pod anlegen, Paket hochladen,
-`setup.sh` starten.
+**Ready for the cloud: yes.** Procedure in `docs/notes/CLOUD.md`: top up the account, create a pod, upload the kit,
+start `setup.sh`.
 
-**Durchführung (2026-10-03/04, Runpod Pod `7yajarg09lrzdn`, 1 × H200 SXM, EUR-IS-4):**
+**Execution (2026-10-03/04, Runpod pod `7yajarg09lrzdn`, 1 × H200 SXM, EUR-IS-4):**
 
-- **Erster Versuch:** 88 von 89 GPU-Tests grün. Durchgefallen ist der neue Großtabellen-Test für Lazy Adam;
-  der Fehler lag im Test. Er verglich mit einem anders summierten Gradienten, und bei |g| ≈ 0 kippt bei Adam
-  das Vorzeichen. Korrigiert in `409dd49`. Der Pod hat sich dabei wie vorgesehen nach dem Fehler gestoppt.
-  Zweiter Versuch: GPU 89/89 und CPU-Interpreter 21/21 grün.
-- **Probelauf auf der H200** (VRAM-Spitze Training): B-1M 10,4 GiB, B-4M 28,5 GiB, B-16M 100,9 GiB, wie
-  geschätzt.
-- **Ein Lauf ist auf dem Pod CPU-gebunden:** ein Python-Thread bei ≈ 90 %, GPU ≈ 24 % ausgelastet,
-  ≈ 81 k tok/s.
-  - Deshalb ab 22:01 UTC eine **parallele Ausführung** (Freigabe durch den Nutzer):
-    `scripts/run_cloud_parallel.py` übernimmt den laufenden B-1M und startet B-16M sofort auf derselben
-    GPU.
-  - B-4M startet erst nach B-1M und nur, wenn B-16M fertig ist oder vorher ≥ max(15 GB, 30,5 GiB) frei
-    sind.
-  - Ein abgestürzter Lauf wird gemeldet, nicht neu gestartet; es gibt keine Zwischen-Checkpoints.
-  - Die alte Warteschlange ist eingefroren (SIGSTOP), nicht beendet: Beim Schließen ihres tmux-Fensters hätte
-    B-1M ein SIGHUP bekommen.
-- **Gleicher Trainingscode und gleiche Einstellungen.** Die **Tempo-Werte der Cloud-Läufe (tok/s, Trainzeit)
-  sind wegen der geteilten GPU nicht vergleichbar**, weder untereinander noch mit der RX 9070.
-- **Selbst-Stopp funktioniert nicht:** Der Pod-eigene `RUNPOD_API_KEY` bekommt von der Runpod-REST-API
-  HTTP 403. Gestoppt wird am Ende über das MCP (Claude Code, mit dem Konto des Nutzers).
+- **First attempt:** 88 of 89 GPU tests green. The new large-table test for lazy Adam failed; the bug was in the
+  test. It compared against a differently summed gradient, and with |g| ≈ 0 the sign flips in Adam. Fixed in
+  `409dd49`. The pod stopped itself after the error as intended. Second attempt: GPU 89/89 and CPU interpreter 21/21
+  green.
+- **Trial run on the H200** (peak VRAM in training): B-1M 10.4 GiB, B-4M 28.5 GiB, B-16M 100.9 GiB, as estimated.
+- **A single run is CPU-bound on the pod:** one Python thread at ≈ 90%, GPU ≈ 24% utilised, ≈ 81 k tok/s.
+  - So from 22:01 UTC on, **parallel execution** (approved by the user): `scripts/run_cloud_parallel.py` takes over
+    the running B-1M and starts B-16M right away on the same GPU.
+  - B-4M starts only after B-1M and only once B-16M is finished or ≥ max(15 GB, 30.5 GiB) are free before that.
+  - A crashed run is reported, not restarted; there are no intermediate checkpoints.
+  - The old queue is frozen (SIGSTOP), not ended: closing its tmux window would have sent B-1M a SIGHUP.
+- **Same training code and same settings.** The **speed values of the cloud runs (tok/s, train time) can't be
+  compared because of the shared GPU**, neither with each other nor with the RX 9070.
+- **Self-stop doesn't work:** the pod-scoped `RUNPOD_API_KEY` gets HTTP 403 from the Runpod REST API. The stop at the
+  end goes through the MCP (Claude Code, with the user's account).
 
 <!-- CLOUD-STATUS:BEGIN -->
 
-**Zwischenstand Cloud** (automatisch, `scripts/cloud_status.py`, Stand 2026-10-04 04:28)
+**Cloud status** (automatic, `scripts/cloud_status.py`, as of 2026-10-04 04:28)
 
-| Lauf | Status | GPU | Val-PPL Wikipedia | Val-PPL WikiText | Trainzeit | tok/s | VRAM Train | Nutzung | max. Temp. GPU / Speicher | max. Leistung |
+| Run | Status | GPU | Val PPL Wikipedia | Val PPL WikiText | Train time | tok/s | VRAM train | Usage | max. temp. GPU / memory | max. power |
 |---|---|---|---|---|---|---|---|---|---|---|
-| B-1M-sparse s0 zu Hause (RX 9070, PyTorch-Referenz) | fertig | AMD Radeon RX 9070 | 21,837 | 65,51 | 216 min | 38.517 | 10,5 GiB | 100,0 % | 48 / 80 °C | 238 W |
-| B-1M (Cloud, Kontrolle) | fertig | NVIDIA H200 | 21,837 | 65,87 | 138 min | 55.226 | 10,4 GiB | 100,0 % | 41 / 40 °C | 343 W |
-| B-4M (Cloud) | fertig | NVIDIA H200 | 20,799 | 63,07 | 119 min | 77.551 | 28,5 GiB | 99,7 % | 46 / 47 °C | 379 W |
-| B-16M (Cloud) | fertig | NVIDIA H200 | 19,960 | 59,97 | 155 min | 52.684 | 100,9 GiB | 91,3 % | 47 / 48 °C | 404 W |
+| B-1M-sparse s0 at home (RX 9070, PyTorch reference) | done | AMD Radeon RX 9070 | 21.837 | 65.51 | 216 min | 38,517 | 10.5 GiB | 100.0% | 48 / 80 °C | 238 W |
+| B-1M (cloud, control) | done | NVIDIA H200 | 21.837 | 65.87 | 138 min | 55,226 | 10.4 GiB | 100.0% | 41 / 40 °C | 343 W |
+| B-4M (cloud) | done | NVIDIA H200 | 20.799 | 63.07 | 119 min | 77,551 | 28.5 GiB | 99.7% | 46 / 47 °C | 379 W |
+| B-16M (cloud) | done | NVIDIA H200 | 19.960 | 59.97 | 155 min | 52,684 | 100.9 GiB | 91.3% | 47 / 48 °C | 404 W |
 
-| Kriterium (vorher festgelegt) | Messwert | Ergebnis |
+| Criterion (fixed beforehand) | Measured | Result |
 |---|---|---|
-| lohnt sich: B-4M ≥ 3 % besser als B-1M (Cloud) und B-16M besser als B-4M | B-4M / B-1M = 0,9525 (−4,75 %; Grenze 0,97); B-16M / B-4M = 0,9596 (−4,04 %) | **lohnt sich** |
+| worth it: B-4M ≥ 3% better than B-1M (cloud) and B-16M better than B-4M | B-4M / B-1M = 0.9525 (−4.75%; limit 0.97); B-16M / B-4M = 0.9596 (−4.04%) | **worth it** |
 
-Kontrolle: B-1M in der Cloud (Triton-Kernels, H200) gegenüber zu Hause (PyTorch-Referenz, RX 9070): 21,837 gegenüber 21,837 (−0,00 %; Seed-Spanne zu Hause 0,39 %).
+Control: B-1M in the cloud (Triton kernels, H200) against at home (PyTorch reference, RX 9070): 21.837 against
+21.837 (−0.00%; seed spread at home 0.39%).
 
 <!-- CLOUD-STATUS:END -->
 
-### Ergebnis der Cloud-Läufe (Auswertung von Hand, 2026-10-04)
+### Result of the cloud runs (evaluated by hand, 2026-10-04)
 
-**Urteil nach den vorher festgelegten Kriterien: „lohnt sich“.** B-4M ist 4,75 % besser als B-1M (Cloud),
-gefordert waren ≥ 3 %, und B-16M ist nochmal 4,0 % besser als B-4M.
+**Verdict by the pre-registered criteria: "worth it".** B-4M is 4.75% better than B-1M (cloud), ≥ 3% was required,
+and B-16M is another 4.0% better than B-4M.
 
-| | Einträge | Val-PPL Wikipedia | gegenüber B-1M | Val-PPL WikiText | Nutzung (Val) | Top-1 %-Anteil | KL | VRAM Train |
+| | Entries | Val PPL Wikipedia | against B-1M | Val PPL WikiText | Usage (val) | Top-1% share | KL | VRAM train |
 |---|---|---|---|---|---|---|---|---|
-| B-1M-sparse s0 zu Hause (RX 9070, PyTorch) | 1,05 M | 21,837 | | 65,51 | 100 % | 11,7 % | 0,62 | 10,5 GiB |
-| **B-1M** (H200, Triton, Kontrolle) | 1,05 M | **21,837** | – | 65,87 | 100 % | 11,8 % | 0,62 | 10,4 GiB |
-| **B-4M** | 4,19 M | **20,799** | **−4,75 %** | 63,07 (−4,3 %) | 99,7 % | 18,9 % | 0,99 | 28,5 GiB |
-| **B-16M** | 16,8 M | **19,960** | **−8,6 %** (gegenüber B-4M −4,0 %) | 59,97 (−9,0 %) | 91,3 % | 23,4 % | 1,35 | 100,9 GiB |
+| B-1M-sparse s0 at home (RX 9070, PyTorch) | 1.05 M | 21.837 | | 65.51 | 100% | 11.7% | 0.62 | 10.5 GiB |
+| **B-1M** (H200, Triton, control) | 1.05 M | **21.837** | – | 65.87 | 100% | 11.8% | 0.62 | 10.4 GiB |
+| **B-4M** | 4.19 M | **20.799** | **−4.75%** | 63.07 (−4.3%) | 99.7% | 18.9% | 0.99 | 28.5 GiB |
+| **B-16M** | 16.8 M | **19.960** | **−8.6%** (against B-4M −4.0%) | 59.97 (−9.0%) | 91.3% | 23.4% | 1.35 | 100.9 GiB |
 
-Verlauf, Val-PPL bei gleicher Tokenzahl:
+Course, val PPL at equal tokens:
 
 | Tokens | B-1M | B-4M | B-16M | B-4M / B-1M | B-16M / B-4M |
 |---|---|---|---|---|---|
-| 100 M | 39,18 | 38,12 | 37,36 | 0,973 | 0,980 |
-| 200 M | 29,62 | 28,64 | 27,78 | 0,967 | 0,970 |
-| 300 M | 25,46 | 24,43 | 23,65 | 0,959 | 0,968 |
-| 400 M | 22,93 | 21,90 | 21,09 | 0,955 | 0,963 |
-| 500 M | 21,84 | 20,80 | 19,96 | 0,953 | 0,960 |
+| 100 M | 39.18 | 38.12 | 37.36 | 0.973 | 0.980 |
+| 200 M | 29.62 | 28.64 | 27.78 | 0.967 | 0.970 |
+| 300 M | 25.46 | 24.43 | 23.65 | 0.959 | 0.968 |
+| 400 M | 22.93 | 21.90 | 21.09 | 0.955 | 0.963 |
+| 500 M | 21.84 | 20.80 | 19.96 | 0.953 | 0.960 |
 
-**Einordnung (nichts schönreden):**
+**Discussion (no sugar-coating):**
 
-- **Kontrolle bestanden:** B-1M in der Cloud (H200, Triton-Kernels) und zu Hause (RX 9070, PyTorch-Referenz)
-  liegen 0,00 % auseinander (21,8365 gegenüber 21,8369). Kernels und Hardware verändern das Ergebnis nicht,
-  auch nicht über die Gleichstände bei der bf16-Auswahl.
-- **Deutlich größer als das Seed-Rauschen:** Die Abstände (4,75 % und 4,0 %) sind rund sechsmal so groß wie zwei
-  Seed-Spannen von B-1M-sparse (2 × 0,39 %). Die Seed-Spanne stammt aber von B-1M und ist auf die großen Tabellen
-  nur übertragen (korrigiert 2026-10-05 nach Codex-Review; vorher „Belastbar trotz eines Seeds“). Auf dem nie trainierten WikiText-Val-Set sind sie gleich groß.
-  Trotzdem bleibt es ein Seed je Größe.
-- **Der Vorsprung wächst noch:** Bei 100 M Tokens bringt die 4-fache Tabelle 2,7 %, bei 500 M 4,7 %; für
-  B-16M gegenüber B-4M wachsen die Werte von 2,0 % auf 4,0 %. Mit mehr Daten dürfte der Abstand weiter
-  steigen; gemessen ist das nicht.
-- **Die großen Tabellen werden ungleichmäßiger genutzt:** Bei B-16M wurden 8,7 % der 16,8 M Einträge auf dem
-  Val-Set nie gelesen, das meistgelesene 1 % bekommt 23 % der Zugriffe (B-1M: 12 %). Pro Eintrag gesehen
-  sind 500 M Tokens für 16,8 M Einträge wenig (B-16M: ≈ 11 k Lesezugriffe pro Eintrag, B-1M: ≈ 180 k).
-- **Gleiche Tokens, nicht gleiche Kosten:**
-  - B-16M hat 6,5 Mrd. Parameter, davon 6,44 Mrd. Tabelle.
-  - Pro Token rechnet B-16M 20 % mehr als B-1M, B-4M 7 % mehr (Teil-Scores über 4096 bzw. 2048 statt
-    1024 Keys je Hälfte: 56,5 / 50,2 / 47,1 M MACs).
-  - Die Tabelle braucht aber 26 GB in fp32, mit 4 Bit ≈ 3,3 GB, und im Training ≈ 100 GiB GPU-Speicher
-    (Werte, Akkumulator, Adam).
-  - Ein Vergleich bei gleicher Rechenzeit gegen A wurde für die großen Tabellen nicht gemacht.
-- **Tempo-Werte nicht vergleichbar:** B-1M und B-16M teilten sich zeitweise die GPU, später B-16M und B-4M.
-  Trainzeit, tok/s und die Inferenz-Benchmarks in den `run-info.json` der Cloud-Läufe sind deshalb nicht
-  vergleichbar.
-- **Kosten:** **25,51 $** für alles laut Runpod-Abrechnung (`list-billing`, abgefragt am 04.10. nach dem
-  Löschen des Pods: GPU 24,98 $, Platte 0,52 $), einschließlich des ersten Versuchs mit dem Testfehler und
-  der Plattenkosten bis zum Löschen am 04.10. gegen 13:30 Uhr.
-  *Korrektur:* Hier stand zuerst 21,01 $ (GPU 20,89 $, Platte 0,12 $). Dieser Wert war zu niedrig. Er stammte
-  aus einer Abfrage kurz nach Ende der Läufe, als die Abrechnung offenbar noch nicht vollständig war. Die
-  Pod-Laufzeit von ≈ 5,4 h × 4,59 $/h passt zu den 24,98 $ GPU-Kosten.
-- **Ablauf:**
-  - Alle Checkpoints wurden per `rsync` geholt und mit `runs/cloud/checkpoints.sha256` geprüft: 12 von 12 OK.
-  - Der Pod hat sich am Ende **doch selbst gestoppt**: Ein POST-Stop mit dem Pod-Schlüssel ging, obwohl das
-    Lesen 403 lieferte. Danach wurde er noch einmal kurz gestartet, um den Rest des B-4M-Downloads zu holen,
-    und dann über das MCP gestoppt.
-  - GPU-Höchstwerte: 48 °C, 404 W.
+- **Control passed:** B-1M in the cloud (H200, Triton kernels) and at home (RX 9070, PyTorch reference) are 0.00%
+  apart (21.8365 against 21.8369). Kernels and hardware don't change the result, not even through the ties in the
+  bf16 selection.
+- **Clearly bigger than the seed noise:** the distances (4.75% and 4.0%) are about six times two seed spreads of
+  B-1M-sparse (2 × 0.39%). But the seed spread comes from B-1M and is only carried over to the big tables (corrected
+  2026-10-05 after the Codex review; before, it said "solid despite one seed"). On the never-trained WikiText val set
+  they're just as big. It's still one seed per size.
+- **The lead is still growing:** at 100 M tokens the 4× table brings 2.7%, at 500 M 4.7%; for B-16M against B-4M the
+  values grow from 2.0% to 4.0%. With more data the distance would probably keep rising; that isn't measured.
+- **The big tables are used more unevenly:** with B-16M, 8.7% of the 16.8 M entries were never read on the val set,
+  and the most-read 1% get 23% of the reads (B-1M: 12%). Per entry, 500 M tokens are little for 16.8 M entries
+  (B-16M: ≈ 11 k reads per entry, B-1M: ≈ 180 k).
+- **Equal tokens, not equal cost:**
+  - B-16M has 6.5 B parameters, 6.44 B of them in the table.
+  - Per token B-16M computes 20% more than B-1M, B-4M 7% more (partial scores over 4096 and 2048 instead of 1024 keys
+    per half: 56.5 / 50.2 / 47.1 M MACs).
+  - But the table needs 26 GB in fp32, ≈ 3.3 GB with 4 bits, and ≈ 100 GiB of GPU memory in training (values,
+    accumulator, Adam).
+  - A comparison at equal compute time against A wasn't done for the big tables.
+- **Speed values not comparable:** B-1M and B-16M shared the GPU for a while, later B-16M and B-4M. Train time, tok/s
+  and the inference benchmarks in the `run-info.json` of the cloud runs therefore can't be compared.
+- **Cost:** **25.51 $** for everything according to Runpod's billing (`list-billing`, queried on 04.10. after
+  deleting the pod: GPU 24.98 $, disk 0.52 $), including the first attempt with the test bug and the disk cost until
+  the deletion on 04.10. around 13:30.
+  *Correction:* this first said 21.01 $ (GPU 20.89 $, disk 0.12 $). That value was too low. It came from a query
+  shortly after the end of the runs, when the billing apparently wasn't complete yet. The pod run time of
+  ≈ 5.4 h × 4.59 $/h fits the 24.98 $ of GPU cost.
+- **Procedure:**
+  - All checkpoints were fetched with `rsync` and checked against `runs/cloud/checkpoints.sha256`: 12 of 12 OK.
+  - In the end the pod **did stop itself**: a POST stop with the pod key worked, even though reading returned 403.
+    It was then started briefly once more to fetch the rest of the B-4M download, and then stopped via the MCP.
+  - GPU maxima: 48 °C, 404 W.
 
-## Schritt 1: Gegenwert der Tabelle – dichte Vergleichsmodelle (Plan vor dem Lauf festgelegt, 2026-10-04)
+## Step 1: what the table is worth – dense comparison models (plan fixed before the run, 2026-10-04)
 
-**Frage:** Wie groß müsste ein normales dichtes Modell ohne Tabelle sein, um bei denselben 500 M Tokens so gut
-zu sein wie B-1M (21,84), B-4M (20,80) und B-16M (19,96)? Das ist eine **Messung ohne Bestanden-Kriterium**.
+**Question:** How big would a normal dense model without a table have to be to be as good as B-1M (21.84), B-4M
+(20.80) and B-16M (19.96) at the same 500 M tokens? This is a **measurement without a pass criterion**.
 
-**Modelle:** Llama-Stil wie A, ohne Speicherschicht. Breite und Tiefe wachsen gemeinsam. `head_dim = 64`; die
-FFN-Breite ist ≈ 8/3 · d, gerundet auf ein Vielfaches von 64 (wie A: 384 → 1024). Presets in `smlm/train.py`.
+**Models:** Llama style like A, without a memory layer. Width and depth grow together. `head_dim = 64`; the FFN width
+is ≈ 8/3 · d, rounded to a multiple of 64 (as in A: 384 → 1024). Presets in `smlm/train.py`.
 
-| Modell | d | Layer | Köpfe | FFN | Parameter ohne Emb. | Emb. | MACs/Token vorwärts | Mikro-Batch |
+| Model | d | Layers | Heads | FFN | Params without emb. | Emb. | MACs/token forward | Micro-batch |
 |---|---|---|---|---|---|---|---|---|
-| A (vorhanden, RX 9070) | 384 | 12 | 6 | 1024 | 21,24 M | 19,32 M | 45,3 M | 8 |
-| D-50M | 640 | 10 | 10 | 1728 | 49,58 M | 32,19 M | 88,3 M | 8 |
-| D-100M | 768 | 14 | 12 | 2048 | 99,11 M | 38,63 M | 148,7 M | 8 |
-| D-200M | 1024 | 16 | 16 | 2752 | 202,41 M | 51,51 M | 270,7 M | 8 |
-| D-400M | 1280 | 20 | 20 | 3456 | 396,55 M | 64,39 M | 487,1 M | 4 |
-| *zum Vergleich:* B-1M / B-4M / B-16M | 384 | 12 | 6 | 1024 | aktiv 23,1 / 26,2 / 32,5 M | 19,32 M | 47,1 / 50,2 / 56,5 M | 4 |
+| A (existing, RX 9070) | 384 | 12 | 6 | 1024 | 21.24 M | 19.32 M | 45.3 M | 8 |
+| D-50M | 640 | 10 | 10 | 1728 | 49.58 M | 32.19 M | 88.3 M | 8 |
+| D-100M | 768 | 14 | 12 | 2048 | 99.11 M | 38.63 M | 148.7 M | 8 |
+| D-200M | 1024 | 16 | 16 | 2752 | 202.41 M | 51.51 M | 270.7 M | 8 |
+| D-400M | 1280 | 20 | 20 | 3456 | 396.55 M | 64.39 M | 487.1 M | 4 |
+| *for comparison:* B-1M / B-4M / B-16M | 384 | 12 | 6 | 1024 | active 23.1 / 26.2 / 32.5 M | 19.32 M | 47.1 / 50.2 / 56.5 M | 4 |
 
-**Training:** wie A und B, ohne Abweichung.
-- Daten:
-  - 500 M Wikipedia-Tokens, jede Sequenz genau einmal
-  - Daten-Seed 1234, Init-Seed 0
-  - Validierung: Wikipedia-Val-Set (1,48 M Tokens); WikiText-103-Val nur als Nebenwert
-- Optimierung:
-  - AdamW (0,9 / 0,95), LR 6e-4, Warmup 5 %, Cosine auf 10 %
-  - Weight Decay 0,1, Clip 1,0
-  - 32.768 Tokens/Schritt, bf16-Autocast
-- Der Mikro-Batch wird nur an den Speicher angepasst, die Gradient-Akkumulation füllt auf 32.768 Tokens auf.
-  `tests/test_dense.py` prüft, dass das die Gradienten nicht ändert.
-- **A** geht als kleinster Punkt mit seinem vorhandenen Lauf ein: Seed 0, PPL 25,665, gleiche Daten, gleiches
-  Val-Set, zu Hause gerechnet. Dass zu Hause und in der Cloud dasselbe herauskommt, zeigt B-1M: 21,8369
-  gegenüber 21,8365.
+**Training:** like A and B, without deviation.
+- Data:
+  - 500 M Wikipedia tokens, every sequence exactly once
+  - data seed 1234, init seed 0
+  - validation: Wikipedia val set (1.48 M tokens); WikiText-103 val only as a side value
+- Optimisation:
+  - AdamW (0.9 / 0.95), LR 6e-4, warmup 5%, cosine to 10%
+  - weight decay 0.1, clip 1.0
+  - 32,768 tokens/step, bf16 autocast
+- The micro-batch is only adapted to the memory; gradient accumulation fills up to 32,768 tokens.
+  `tests/test_dense.py` checks that this doesn't change the gradients.
+- **A** enters as the smallest point with its existing run: seed 0, PPL 25.665, same data, same val set, computed at
+  home. That home and cloud give the same result is shown by B-1M: 21.8369 against 21.8365.
 
-**Auswertung (festgelegt):**
-1. **Kurve:** Val-PPL (Wikipedia) gegen Parameter ohne Embeddings, log–log. Punkte: A, D-50M, D-100M, D-200M,
-   D-400M, soweit gelaufen.
-2. **Gleichwertige Größe N_eq** für B-1M, B-4M und B-16M:
-   - Hauptwert: stückweise lineare Interpolation von log PPL über log N zwischen den beiden benachbarten
-     dichten Punkten.
-   - Vergleichswert: Fit PPL = E + a · N^(−α) über alle dichten Punkte. Gitter über α und E, a je Gitterpunkt
-     per kleinster Quadrate in PPL, gewählt wird der Punkt mit dem kleinsten Fehler in log PPL (korrigiert 2026-10-05 nach Codex-Review;
-     vorher „kleinste Quadrate in log PPL“; ein exakter Log-Fit verschiebt die Fit-Werte um höchstens 0,3 M).
-3. **Unsicherheit** (ein Sensitivitätsbereich, kein Konfidenzintervall):
-   - Die PPL von B und die der beiden Nachbarpunkte werden um ±0,4 % verschoben. Das ist die Seed-Spanne aus
-     Stufe 1c: A s0/s1 0,35 %, B-1M s0/s1 0,39 %.
-   - Die Extremfälle ergeben einen Bereich für N_eq.
-   - Weicht der Fit-Wert stärker ab, wird der Bereich bis zu ihm erweitert.
-4. **Einklammerung:**
-   - Ist B besser als das größte gelaufene dichte Modell, wird nur „> N_max“ berichtet. Eine
-     Fit-Extrapolation erscheint höchstens als gekennzeichneter Hinweis.
-   - Ist B schlechter als A, lautet das Ergebnis „< 21 M“.
-5. **Rechenaufwand pro Token:**
-   - Vorwärts-MACs (`macs_per_token`, Kontext 1024) für alle Modelle; Training ≈ 3×.
-   - Für B zusätzlich die gelesenen Tabellenwerte pro Token: 3 Schichten × 4 Köpfe × 32 Zeilen × 384 Werte
-     = 147.456 Werte, also 295 KB in bf16 bzw. 74 KB in 4 Bit.
-   - Dazu die Größe der Tabelle.
+**Evaluation (fixed):**
+1. **Curve:** val PPL (Wikipedia) against parameters without embeddings, log–log. Points: A, D-50M, D-100M, D-200M,
+   D-400M, as far as they ran.
+2. **Equivalent size N_eq** for B-1M, B-4M and B-16M:
+   - Main value: piecewise linear interpolation of log PPL over log N between the two neighbouring dense points.
+   - Comparison value: fit PPL = E + a · N^(−α) over all dense points. Grid over α and E, a per grid point by least
+     squares in PPL, the point with the smallest error in log PPL is chosen (corrected 2026-10-05 after the Codex
+     review; before, it said "least squares in log PPL"; an exact log fit moves the fitted values by at most 0.3 M).
+3. **Uncertainty** (a sensitivity range, not a confidence interval):
+   - The PPL of B and that of the two neighbouring points are shifted by ±0.4%. That's the seed spread from stage 1c:
+     A s0/s1 0.35%, B-1M s0/s1 0.39%.
+   - The extreme cases give a range for N_eq.
+   - If the fit value deviates more, the range is extended up to it.
+4. **Bracketing:**
+   - If B is better than the largest dense model that ran, only "> N_max" is reported. A fit extrapolation appears at
+     most as a marked hint.
+   - If B is worse than A, the result is "< 21 M".
+5. **Compute per token:**
+   - Forward MACs (`macs_per_token`, context 1024) for all models; training ≈ 3×.
+   - For B also the table values read per token: 3 layers × 4 heads × 32 rows × 384 values = 147,456 values, so
+     295 KB in bf16 or 74 KB in 4 bits.
+   - Plus the size of the table.
 
-**Durchführung (Runpod, 1 × H100 SXM 80 GB, Secure Cloud, 3,49 $/h; `cloud/setup_dense.sh`,
-`scripts/run_dense.py`):**
-- **Daten:** Die Token-Dateien kommen von der Hetzner Storage Box. Sie werden per sha256 gegen
-  `cloud/data_sha256.txt` geprüft, sind also bytegleich mit zu Hause.
-- **Tests:** `tests/test_dense.py` und `tests/test_stage1b.py`, auf der GPU.
-- **Probelauf:** Jede Größe läuft allein 3 M Tokens. Gemessen werden tok/s, VRAM-Spitze, Auswertung, Speichern
-  und Inferenz.
-- **Budget-Wächter (Deckel 18 $ für den ganzen Pod):**
-  - Hochrechnung = Pod-Laufzeit + 0,1 h + 1,15 × Σ (500 M Tokens + Auswertungs-Tokens / 3) / (tok/s allein)
-    + 0,4 h.
-  - Zugelassen wird in der Reihenfolge 50M, 100M, 200M, 400M, solange die Hochrechnung ≤ 18 $ / 3,49 $/h
-    = 5,16 h bleibt.
-  - Was wegfällt, wird gemeldet. Ein größeres Modell wird dann nicht mehr zugelassen.
-- **Parallelbetrieb:** Die zugelassenen Läufe laufen gleichzeitig, das größte startet zuerst.
-- **Abbruch:**
-  - Ab 5,16 h − 0,3 h Laufzeit wird beendet, was noch läuft, und gesichert.
-  - Ein unabhängiger Watchdog stoppt den Pod bei 5,16 h − 6 min.
-  - Abgebrochene oder abgestürzte Läufe werden berichtet, nicht neu gestartet (keine Zwischen-Checkpoints).
-- **Nach jedem Lauf:**
-  - kleine Dateien auf GitHub
-  - Laufordner samt Checkpoint per rsync auf die Storage Box, dort per sha256 geprüft
-  - ntfy-Nachricht
-- **Ende:**
-  - Prüfsummenliste gepusht, alles noch einmal gesichert und geprüft.
-  - Danach stoppt und löscht Claude den Pod.
-  - Schlägt das Sichern fehl, wird der Pod nur gestoppt, und es geht eine Nachricht raus.
-- **Messwerte:** GPU-Temperatur, Leistung und Takt alle 10 s je Lauf (`gpu_thermal.csv`). Weil sich die Läufe
-  die Karte teilen, zeigen diese Dateien die ganze GPU; tok/s und Trainzeit sind **nicht** mit Einzelläufen
-  vergleichbar.
+**Execution (Runpod, 1 × H100 SXM 80 GB, Secure Cloud, 3.49 $/h; `cloud/setup_dense.sh`, `scripts/run_dense.py`):**
+- **Data:** the token files come from the Hetzner storage box. They're checked by sha256 against
+  `cloud/data_sha256.txt`, so byte-identical to the ones at home.
+- **Tests:** `tests/test_dense.py` and `tests/test_stage1b.py`, on the GPU.
+- **Trial run:** each size runs alone for 3 M tokens. Measured are tok/s, peak VRAM, evaluation, saving and inference.
+- **Budget guard (cap 18 $ for the whole pod):**
+  - Projection = pod run time + 0.1 h + 1.15 × Σ (500 M tokens + evaluation tokens / 3) / (tok/s alone) + 0.4 h.
+  - Admitted in the order 50M, 100M, 200M, 400M, as long as the projection stays ≤ 18 $ / 3.49 $/h = 5.16 h.
+  - Whatever drops out is reported. A bigger model is then not admitted anymore.
+- **Parallel operation:** the admitted runs run at the same time, the biggest starts first.
+- **Abort:**
+  - From 5.16 h − 0.3 h of run time on, whatever is still running gets ended and saved.
+  - An independent watchdog stops the pod at 5.16 h − 6 min.
+  - Aborted or crashed runs are reported, not restarted (no intermediate checkpoints).
+- **After every run:**
+  - small files to GitHub
+  - run folder including checkpoint via rsync to the storage box, checked there by sha256
+  - ntfy message
+- **End:**
+  - checksum list pushed, everything saved and checked once more.
+  - Then Claude stops and deletes the pod.
+  - If saving fails, the pod is only stopped and a message goes out.
+- **Measurements:** GPU temperature, power and clock every 10 s per run (`gpu_thermal.csv`). Because the runs share
+  the card, these files show the whole GPU; tok/s and train time are **not** comparable with single runs.
 
-**Grenzen (vorab bekannt):**
-- **Token-Budget:** 500 M Tokens sind für 200–400 M Parameter wenig (Chinchilla-optimal wären ≈ 20 Tokens
-  pro Parameter). N_eq gilt **nur für dieses Token-Budget**.
-- **Lernrate:** Der LR-Plan ist für A gewählt und nicht je Größe abgestimmt. Größere dichte Modelle wären mit
-  angepasster LR vermutlich etwas besser; das lässt die Tabelle eher **zu gut** aussehen.
-- **Seeds:** ein Seed je dichter Größe.
-- **Instabilität:** Wird ein großes Modell mit LR 6e-4 instabil (NaN bricht ab; eine Loss-Explosion ohne NaN
-  ist in den Kurven sichtbar), wird das berichtet, nicht wiederholt.
+**Limitations (known beforehand):**
+- **Token budget:** 500 M tokens is little for 200–400 M parameters (Chinchilla-optimal would be ≈ 20 tokens per
+  parameter). N_eq applies **only to this token budget**.
+- **Learning rate:** the LR schedule was chosen for A and isn't tuned per size. Bigger dense models would probably be
+  a bit better with an adapted LR; that rather makes the table look **too good**.
+- **Seeds:** one seed per dense size.
+- **Instability:** if a big model gets unstable at LR 6e-4 (NaN aborts; a loss explosion without NaN is visible in
+  the curves), that's reported, not repeated.
 
-## Schritt 2: B-16M zu Hause – die Tabelle muss nicht im Grafikspeicher liegen (gemessen 2026-10-04)
+## Step 2: B-16M at home – the table doesn't have to be in VRAM (measured 2026-10-04)
 
-**Frage:** Lässt sich B-16M (Tabelle 16,8 M Zeilen × 384) auf einem normalen PC betreiben, wenn die Tabelle nicht im
-teuren Grafikspeicher liegt? Messung ohne Bestanden-Kriterium.
+**Question:** Can B-16M (table 16.8 M rows × 384) be run on a normal PC when the table isn't in the expensive VRAM?
+Measurement without a pass criterion.
 
-**Rechner:**
+**Machine:**
 - GPU: RX 9070 (16 GB)
 - CPU: Ryzen 9 5900XT
 - RAM: 125 GB
 - NVMe: Samsung 990 PRO (`/home`)
-- Der Desktop lief mit ≈ 0,6–1 GB VRAM. Sonst lief nichts.
+- The desktop was running with ≈ 0.6–1 GB of VRAM. Nothing else was running.
 
-**Vorbereitung:**
-- `scripts/convert_table.py` zerlegt den Cloud-Checkpoint in den kleinen Rest (`rest.pt`, 71 M Parameter) und die
-  Tabelle als flache Dateien: bf16 12,9 GB, 4 Bit 3,2 GB plus 32 MB Skalen.
-- Die 4-Bit-Quantisierung auf der CPU ist bitgleich mit `quantize_q4` auf der GPU (geprüft an 1 M Zeilen).
+**Preparation:**
+- `scripts/convert_table.py` splits the cloud checkpoint into the small rest (`rest.pt`, 71 M parameters) and the
+  table as flat files: bf16 12.9 GB, 4 bit 3.2 GB plus 32 MB of scales.
+- The 4-bit quantisation on the CPU is bit-identical with `quantize_q4` on the GPU (checked on 1 M rows).
 
-**Varianten** (`smlm/offload.py`, `scripts/bench_offload.py`, ein Prozess je Variante):
-- **a) Tabelle im Grafikspeicher:** bf16 oder 4 Bit. Der Kernel liest direkt; Decode-Graphen sind möglich.
-- **b) Tabelle im RAM:** bf16, fp32 oder 4 Bit.
-  - Pro Speicherschicht und Aufruf gehen die gelesenen Zeilen-Indizes zur CPU.
-  - Die CPU sammelt die Zeilen in einen gepinnten Puffer, von dort gehen sie zur GPU.
-  - Dort läuft derselbe Kernel wie in a) auf der kompakten Tabelle.
-  - Das sind drei Hin- und Rückwege pro Token. Decode-Graphen sind dadurch nicht möglich.
-- **c) 4-Bit-Datei auf der NVMe:**
-  - Zugriff per mmap; Readahead ist aus (`MADV_RANDOM`).
-  - Fehlende Zeilen werden je Aufruf gesammelt mit `MADV_WILLNEED` angefordert.
-  - RAM-Cache: fest die im Training meistgelesenen x % der Zeilen, optional zusätzlich ein FIFO-Teil für zuletzt
-    verfehlte Zeilen.
-  - **Kalt:** Die Datei wird vorher ohne root mit `posix_fadvise(DONTNEED)` aus dem Seiten-Cache geworfen;
-    `fincore` bestätigt 0 Byte.
-  - **„Begrenzt“:** Der Prozess läuft in einer systemd-Scope mit `MemoryMax=4G`. Damit kann Linux die 3,2-GB-Datei
-    nicht ganz im Seiten-Cache halten. Gemessen hält die Scope 1,4–2,0 GB der Datei, `memory.current` bleibt bei
-    4,0 GB.
+**Variants** (`smlm/offload.py`, `scripts/bench_offload.py`, one process per variant):
+- **a) Table in VRAM:** bf16 or 4 bit. The kernel reads directly; decode graphs are possible.
+- **b) Table in RAM:** bf16, fp32 or 4 bit.
+  - Per memory layer and call, the indices of the rows read go to the CPU.
+  - The CPU gathers the rows into a pinned buffer, from there they go to the GPU.
+  - There the same kernel as in a) runs on the compact table.
+  - That's three round trips per token. Decode graphs aren't possible because of that.
+- **c) 4-bit file on the NVMe:**
+  - Access via mmap; readahead is off (`MADV_RANDOM`).
+  - Missing rows are requested together per call with `MADV_WILLNEED`.
+  - RAM cache: a fixed set of the x% rows read most in training, optionally plus a FIFO part for rows missed
+    recently.
+  - **Cold:** the file is dropped from the page cache beforehand without root, with `posix_fadvise(DONTNEED)`;
+    `fincore` confirms 0 bytes.
+  - **"Limited":** the process runs in a systemd scope with `MemoryMax=4G`. So Linux can't keep the 3.2 GB file
+    completely in the page cache. Measured, the scope holds 1.4–2.0 GB of the file, `memory.current` stays at 4.0 GB.
 
-**Messungen:**
-- **Schreiben (Batch 1):** greedy, 128-Token-Prompt + 256 neue Tokens, drei verschiedene Prompts; der erste ist
-  bei c) kalt.
-- **Einlesen:** 4 × 1024 Tokens Val-Text, Median über 3 Batches nach einem Aufwärm-Batch.
-- **Val-PPL:** auf dem ganzen Wikipedia-Val-Set (wie am Trainingsende, Batch 1) und auf den ersten 64 Fenstern
-  (für den Bitvergleich).
+**Measurements:**
+- **Writing (batch 1):** greedy, 128-token prompt + 256 new tokens, three different prompts; the first one is cold
+  for c).
+- **Reading a prompt:** 4 × 1024 tokens of val text, median over 3 batches after a warm-up batch.
+- **Val PPL:** on the whole Wikipedia val set (as at the end of training, batch 1) and on the first 64 windows (for
+  the bit comparison).
 
-**Ergebnisse** (`report/offload/*.json`, `report/offload_summary.json`, Grafik `report/offload_cache.png`):
+**Results** (`report/offload/*.json`, `report/offload_summary.json`, plot `report/offload_cache.png`):
 
-| Variante | Schreiben tok/s (ms/Token, 1. Prompt) | Einlesen tok/s | Cache-Treffer Schreiben / Einlesen | NVMe beim Einlesen | VRAM belegt (gesamt, mit Desktop; GiB) | RAM-Spitze (RSS; GiB) | Val-PPL ganz |
+| Variant | Writing tok/s (ms/token, 1st prompt) | Reading tok/s | Cache hits writing / reading | NVMe while reading | VRAM used (total, with desktop; GiB) | RAM peak (RSS; GiB) | Val PPL whole |
 |---|---|---|---|---|---|---|---|
-| a) bf16 im VRAM, mit Graphen | 216 (4,6) | 108.000 | – | – | 13,1 | 12,9¹ | 19,9615 |
-| a) bf16, ohne Graphen | 171 (5,8) | 108.000 | – | – | | | |
-| a) 4 Bit im VRAM, mit Graphen | 212 (4,7) | 107.500 | – | – | 3,6 | 4,0 | 19,9795 |
-| a) 4 Bit, ohne Graphen | 173 (5,8) | 107.400 | – | – | | | |
-| b) bf16 im RAM | 139 (7,2) | 31.200 | – | – | 0,53 | 14,7 | 19,9615 |
-| b) fp32 im RAM | 143 (7,0) | 18.900 | – | – | 0,53 | 48,8¹ | **19,9601** |
-| b) 4 Bit im RAM | 154 (6,5) | 61.700 | – | – | 0,53 | 5,0 | = a) 4 Bit² |
-| c) NVMe, ohne Cache | 114 (8,7) | 4.900 | 0 / 0 % | 57 k Lesezugriffe/s, 235 MiB/s | 0,53 | 5,1³ | = a) 4 Bit² |
-| c) NVMe, Cache 5 % (155 MB) | 120 (8,3) | 4.500 | 38 / 28 % | 75 k/s | 0,53 | 5,3³ | = a) 4 Bit² |
-| c) NVMe, Cache 10 % (310 MB) | 127 (7,8) | 4.400 | 53 / 41 % | 86 k/s | 0,53 | 5,5³ | = a) 4 Bit² |
-| c) Cache 10 % + FIFO 20 % | 127 (7,8) | 4.500 | 73 / 52 % | 89 k/s | 0,53 | 6,1³ | = a) 4 Bit² |
-| c) NVMe, Cache 30 % (930 MB) | 137 (7,3) | 4.800 | 80 / 72 % | 110 k/s, 469 MiB/s | 0,53 | 6,1³ | 19,9795 |
-| c) NVMe, Cache 50 % (1,55 GB) | 138 (7,2) | 6.500 | 92 / 87 % | 111 k/s | 0,53 | 6,5³ | = a) 4 Bit² |
-| c) Cache 10 %, **RAM begrenzt 4 GiB** | 124 (8,0) | **1.500** | 53 / 41 % | 65 k/s | 0,53 | ≤ 4 (Scope)⁴ | = a) 4 Bit² |
-| c) Cache 30 %, **RAM begrenzt 4 GiB** | 133 (7,5) | **2.600** | 80 / 72 % | 84 k/s | 0,53 | ≤ 4 (Scope)⁴ | = a) 4 Bit² |
+| a) bf16 in VRAM, with graphs | 216 (4.6) | 108,000 | – | – | 13.1 | 12.9¹ | 19.9615 |
+| a) bf16, without graphs | 171 (5.8) | 108,000 | – | – | | | |
+| a) 4 bit in VRAM, with graphs | 212 (4.7) | 107,500 | – | – | 3.6 | 4.0 | 19.9795 |
+| a) 4 bit, without graphs | 173 (5.8) | 107,400 | – | – | | | |
+| b) bf16 in RAM | 139 (7.2) | 31,200 | – | – | 0.53 | 14.7 | 19.9615 |
+| b) fp32 in RAM | 143 (7.0) | 18,900 | – | – | 0.53 | 48.8¹ | **19.9601** |
+| b) 4 bit in RAM | 154 (6.5) | 61,700 | – | – | 0.53 | 5.0 | = a) 4 bit² |
+| c) NVMe, no cache | 114 (8.7) | 4,900 | 0 / 0% | 57 k reads/s, 235 MiB/s | 0.53 | 5.1³ | = a) 4 bit² |
+| c) NVMe, cache 5% (155 MB) | 120 (8.3) | 4,500 | 38 / 28% | 75 k/s | 0.53 | 5.3³ | = a) 4 bit² |
+| c) NVMe, cache 10% (310 MB) | 127 (7.8) | 4,400 | 53 / 41% | 86 k/s | 0.53 | 5.5³ | = a) 4 bit² |
+| c) cache 10% + FIFO 20% | 127 (7.8) | 4,500 | 73 / 52% | 89 k/s | 0.53 | 6.1³ | = a) 4 bit² |
+| c) NVMe, cache 30% (930 MB) | 137 (7.3) | 4,800 | 80 / 72% | 110 k/s, 469 MiB/s | 0.53 | 6.1³ | 19.9795 |
+| c) NVMe, cache 50% (1.55 GB) | 138 (7.2) | 6,500 | 92 / 87% | 111 k/s | 0.53 | 6.5³ | = a) 4 bit² |
+| c) cache 10%, **RAM limited to 4 GiB** | 124 (8.0) | **1,500** | 53 / 41% | 65 k/s | 0.53 | ≤ 4 (scope)⁴ | = a) 4 bit² |
+| c) cache 30%, **RAM limited to 4 GiB** | 133 (7.5) | **2,600** | 80 / 72% | 84 k/s | 0.53 | ≤ 4 (scope)⁴ | = a) 4 bit² |
 
-¹ Beim Laden: Datei bzw. Checkpoint wird einmal komplett gelesen. Bei b) fp32 zählen die gemappten
-Checkpoint-Seiten mit; die Tabelle selbst belegt 25,8 GB.
-² Auf den 64 Vergleichsfenstern **bitgleich** zu a) 4 Bit: gleiche NLL-Summe 205849,488. Das ganze Val-Set wurde
-nur für c) mit 30 % gerechnet und ergibt ebenfalls genau 19,9795.
-³ RSS enthält die gemappten Seiten der 4-Bit-Datei. Ohne RAM-Grenze lag die Datei am Ende zu 2–3 GB im
-Seiten-Cache von Linux.
-⁴ Grenze der systemd-Scope (cgroup `MemoryMax=4G`), gezählt wird, was der Kernel dieser Gruppe anrechnet. Das ist
-nicht dasselbe wie „läuft auf einem Rechner mit 4 GB RAM“: Treiber, Desktop und der übrige Seiten-Cache liegen
-außerhalb. Die RSS des Prozesses lag dabei höher (bis ≈ 5,9 GiB), weil sie gemappte Dateiseiten mitzählt
-(korrigiert 2026-10-05 nach Codex-Review; die Einheiten in dieser Tabelle sind GiB, vorher stand „GB“).
+¹ While loading: the file or checkpoint is read completely once. For b) fp32 the mapped checkpoint pages are counted
+too; the table itself takes 25.8 GB.
+² On the 64 comparison windows **bit-identical** to a) 4 bit: same NLL sum 205849.488. The whole val set was only
+computed for c) with 30% and also gives exactly 19.9795.
+³ RSS includes the mapped pages of the 4-bit file. Without a RAM limit, 2–3 GB of the file were in Linux's page cache
+at the end.
+⁴ Limit of the systemd scope (cgroup `MemoryMax=4G`); what counts is what the kernel charges to this group. That's
+not the same as "runs on a machine with 4 GB of RAM": drivers, the desktop and the rest of the page cache are
+outside. The process RSS was higher (up to ≈ 5.9 GiB), because it counts mapped file pages (corrected 2026-10-05
+after the Codex review; the units in this table are GiB, before it said "GB").
 
-**Was das zeigt:**
-- **Qualität: gleich.**
-  - b) und c) rechnen bitgleich zu a) mit derselben Genauigkeit: bf16 19,9615 in a) und b); 4 Bit 19,9795 in
-    a), b) und c).
-  - Gegenüber fp32 aus der Cloud (19,9600) kostet bf16 +0,007 % und 4 Bit +0,10 %.
-  - fp32 aus dem RAM trifft den Cloud-Wert auf 0,001 % (19,9601). Der Rest ist die andere GPU.
-- **Wort für Wort schreiben geht ohne Tabelle im Grafikspeicher:**
-  - Aus dem RAM: 139–154 tok/s. Aus der NVMe: 114–138 tok/s, kalt und mit nur 4 GB RAM 124–133 tok/s.
-  - Mit der Tabelle im VRAM: 171–173 tok/s ohne Graphen, 212–216 mit Graphen.
-  - Der Abstand kommt vor allem von den drei CPU-Hin- und Rückwegen pro Token, nicht von der NVMe: Selbst ohne
-    jeden Cache verliert c) nur 18 % gegenüber RAM (114 gegenüber 139 tok/s).
-  - Der Grafikspeicher sinkt dabei von 13,1 bzw. 3,6 GB auf 0,53 GB.
-- **Lange Texte einlesen geht nur aus dem Grafikspeicher schnell:**
+**What this shows:**
+- **Quality: the same.**
+  - b) and c) compute bit-identically to a) at the same precision: bf16 19.9615 in a) and b); 4 bit 19.9795 in a), b)
+    and c).
+  - Against fp32 from the cloud (19.9600), bf16 costs +0.007% and 4 bit +0.10%.
+  - fp32 from RAM matches the cloud value to 0.001% (19.9601). The rest is the different GPU.
+- **Writing word by word works without the table in VRAM:**
+  - From RAM: 139–154 tok/s. From the NVMe: 114–138 tok/s, cold and with only 4 GB of RAM 124–133 tok/s.
+  - With the table in VRAM: 171–173 tok/s without graphs, 212–216 with graphs.
+  - The distance comes mostly from the three CPU round trips per token, not from the NVMe: even without any cache,
+    c) loses only 18% against RAM (114 against 139 tok/s).
+  - VRAM drops from 13.1 or 3.6 GB to 0.53 GB.
+- **Reading long texts is only fast from VRAM:**
 
-  | Ort der Tabelle | Einlesen tok/s |
+  | Where the table is | Reading tok/s |
   |---|---|
-  | VRAM | 108.000 |
-  | RAM | 19.000–62.000 (je nach Bytes pro Zeile) |
-  | NVMe | 4.400–6.500 |
-  | NVMe, RAM auf 4 GB begrenzt | 1.500–2.600 |
+  | VRAM | 108,000 |
+  | RAM | 19,000–62,000 (depending on bytes per row) |
+  | NVMe | 4,400–6,500 |
+  | NVMe, RAM limited to 4 GB | 1,500–2,600 |
 
-  Beim Einlesen braucht jedes Token ≈ 270 verschiedene Zeilen. Jede verfehlte Zeile kostet eine 4-KB-Seite, also
-  21-mal mehr Daten als nötig. Die NVMe liefert dabei 57.000–111.000 Lesezugriffe/s, und das reicht nicht.
-- **Cache:** Die Trefferquoten sind so, wie aus den Trainingszugriffen vorhergesagt (30 % Cache → 80 % Treffer
-  beim Schreiben, vorhergesagt 79 %). Ein FIFO-Teil erhöht die Treffer, aber nicht das Tempo.
+  While reading, every token needs ≈ 270 different rows. Every missed row costs a 4 KB page, so 21 times more data
+  than needed. The NVMe delivers 57,000–111,000 reads/s, and that isn't enough.
+- **Cache:** the hit rates are as predicted from the training reads (30% cache → 80% hits when writing, predicted
+  79%). A FIFO part raises the hits, but not the speed.
 
-**Grenzen:**
-- **Umfang:** Jede Variante wurde einmal gemessen, mit drei Prompts zu 256 Tokens und drei Einlese-Batches.
-- **Implementierung:** Die Lesewege sind in Python/NumPy geschrieben. Ein C-/io_uring-Pfad oder eine
-  Zeilenanordnung, die zusammen gelesene Zeilen auf dieselbe Seite legt, könnte das Einlesen von der NVMe
-  deutlich beschleunigen; das ist nicht gemessen.
-- **Was „kalt“ heißt:** Kalt bezieht sich nur auf den Seiten-Cache. Den festen RAM-Cache füllt das Programm beim
-  Start; das dauerte 0,7–8 s.
-- **Speicherbedarf beim Laden:** Die RAM-Spitzen von a) bf16 und b) fp32 enthalten das einmalige Einlesen.
+**Limitations:**
+- **Scope:** each variant was measured once, with three prompts of 256 tokens and three reading batches.
+- **Implementation:** the read paths are written in Python/NumPy. A C/io_uring path, or a row layout that puts rows
+  read together onto the same page, could speed up reading from the NVMe a lot; that isn't measured.
+- **What "cold" means:** cold only refers to the page cache. The program fills the fixed RAM cache at start; that
+  took 0.7–8 s.
+- **Memory needs while loading:** the RAM peaks of a) bf16 and b) fp32 include the one-time read.
 
-## Schritt 3: Tabelle als Zusatzgedächtnis für Qwen3.5-0.8B (vorbereitet; Kriterien zur Freigabe, 2026-10-04)
+## Step 3: a table as add-on memory for Qwen3.5-0.8B (prepared; criteria for approval, 2026-10-04)
 
-**Nichts davon ist trainiert.** Hier stehen Aufbau, Daten, Basis-Messungen, der Kriterien-Vorschlag und die
-Abschätzung. Trainiert wird erst nach Freigabe der Kriterien.
+**None of this is trained.** This lists setup, data, baseline measurements, the proposed criteria and the estimate.
+Training starts only after the criteria are approved.
 
-**Basis:**
-- **Modell:** `Qwen/Qwen3.5-0.8B`, Revision `2fc06364715b967f1860aea9cf38778875588b17`, veröffentlicht am
-  02.03.2026.
-- **Lizenz:** **Apache 2.0** laut Modellkarte und `LICENSE` im Repo (sha256 `bbedc3fd…e57a`, Standardtext Apache 2.0).
-- **Variante:** die nachtrainierte, multimodale Fassung; genutzt wird nur der Textteil (`Qwen3_5ForCausalLM`).
-  Es gibt auch `Qwen3.5-0.8B-Base`.
-- **Textteil:** 752,4 M Parameter; davon 254 M Embedding, an den Ausgang gekoppelt.
-  - 24 Blöcke: 18 × Gated DeltaNet (lineare Attention), 6 × Gated Attention
+**Base:**
+- **Model:** `Qwen/Qwen3.5-0.8B`, revision `2fc06364715b967f1860aea9cf38778875588b17`, released on 02.03.2026.
+- **License:** **Apache 2.0** according to the model card and the `LICENSE` in the repo (sha256 `bbedc3fd…e57a`,
+  standard Apache 2.0 text).
+- **Variant:** the post-trained, multimodal version; only the text part is used (`Qwen3_5ForCausalLM`). There is
+  also `Qwen3.5-0.8B-Base`.
+- **Text part:** 752.4 M parameters; of them 254 M embedding, tied to the output.
+  - 24 blocks: 18 × Gated DeltaNet (linear attention), 6 × gated attention
   - d = 1024, FFN 3584
-  - Vokabular 248.320
-- **Umgebung:** eigene Python-Umgebung `.venv-qwen` mit transformers 5.18.0, lm-eval 0.4.13 und accelerate. Die
-  bestehende `.venv` bleibt unverändert.
+  - vocabulary 248,320
+- **Environment:** its own Python environment `.venv-qwen` with transformers 5.18.0, lm-eval 0.4.13 and accelerate.
+  The existing `.venv` stays unchanged.
 
-**Einbau** (`smlm/qwen_memory.py`, `tests/test_qwen_memory.py`):
-- **Position:** hinter Block 6, 12 und 18 je ein **zusätzlicher** Block, per Forward-Hook; Qwens Modulbaum bleibt
-  unverändert.
-- **Formel:** h ← h + g · M(RMSNorm(h)). g ist ein Skalar je Block und startet bei 0; RMSNorm hat keine
-  Parameter.
-- **M (Q+T):** Speicherschicht wie in B.
-  - Eine gemeinsame Tabelle mit 1024² = 1.048.576 Zeilen × 1024 (1,07 Mrd. Werte).
-  - Je Block: 4 Köpfe, Top-32, Query-Projektion 1024 → 4 × 256 mit BatchNorm, Sub-Keys 4 × 2 × 1024 × 128.
-  - Die swilu-Projektionen (Memory+) 1024 × 1024, zweimal je Block, gehören zur Speicherschicht wie in B.
-    **Bitte bestätigen**, dass sie als Teil der Speicherschicht mittrainiert werden dürfen. Alternative: ohne
-    swilu, dann trainieren wirklich nur Tabelle, Suche und Regler.
-  - Tabelle mit zeilenweisen Gradienten und Lazy Adam wie bei B (Triton-Kernel).
-  - Trainierbar: ≈ 1,09 Mrd. Parameter, davon 1,07 Mrd. Tabelle.
-- **Kontrolle Q+D:** ein SwiGLU-Block mit Breite 1408 an denselben Stellen.
-  - Gleiche MACs pro Token wie ein Speicherblock (4,33 M), gleicher Regler, gleiche Daten und Schritte.
-  - Trainierbar 13 M Parameter.
-- **Tests** (CPU, kleine Zufalls-Qwen-Konfiguration; alle grün):
-  - Bei g = 0 sind die Logits **bitgleich** zu Qwen allein, im Train- und im Eval-Modus.
-  - Im ersten Schritt bewegt sich nur g, ab dem zweiten auch die Blöcke.
-  - Eingefrorene Gewichte bleiben unverändert.
-  - Die MACs der Kontrolle stimmen.
+**Integration** (`smlm/qwen_memory.py`, `tests/test_qwen_memory.py`):
+- **Position:** behind blocks 6, 12 and 18 one **additional** block each, via forward hooks; Qwen's module tree stays
+  unchanged.
+- **Formula:** h ← h + g · M(RMSNorm(h)). g is a scalar per block and starts at 0; the RMSNorm has no parameters.
+- **M (Q+T):** memory layer as in B.
+  - One shared table with 1024² = 1,048,576 rows × 1024 (1.07 B values).
+  - Per block: 4 heads, top-32, query projection 1024 → 4 × 256 with BatchNorm, sub-keys 4 × 2 × 1024 × 128.
+  - The swilu projections (Memory+) 1024 × 1024, twice per block, belong to the memory layer as in B. **Please
+    confirm** that they may be trained as part of the memory layer. Alternative: without swilu, then really only the
+    table, the search and the gates train.
+  - Table with row-wise gradients and lazy Adam as in B (Triton kernel).
+  - Trainable: ≈ 1.09 B parameters, of them 1.07 B table.
+- **Control Q+D:** a SwiGLU block with width 1408 at the same positions.
+  - Same MACs per token as a memory block (4.33 M), same gate, same data and steps.
+  - Trainable 13 M parameters.
+- **Tests** (CPU, small random Qwen configuration; all green):
+  - At g = 0 the logits are **bit-identical** to Qwen alone, in train and in eval mode.
+  - In the first step only g moves, from the second on the blocks too.
+  - Frozen weights stay unchanged.
+  - The MACs of the control match.
 
-**Daten** (`scripts/prepare_qwen_data.py`, Qwen-Tokenizer, uint32; auf der Storage Box per sha256 geprüft):
-- **Neue Artikel:** aus dem enwiki-Dump vom 01.09.2026, nur die letzten Teildateien (Seiten-IDs ≥ 77,5 M).
-  Hauptnamensraum, keine Weiterleitungen und Begriffsklärungen, ≥ 300 Zeichen Klartext (mwparserfromhell).
-  - Anlege-Monat über Seiten-ID-Schwellen aus dem Anlege-Log der Wikipedia-API, gespeichert in
+**Data** (`scripts/prepare_qwen_data.py`, Qwen tokenizer, uint32; checked by sha256 on the storage box):
+- **New articles:** from the enwiki dump of 01.09.2026, only the last part files (page ids ≥ 77.5 M). Main namespace,
+  no redirects and disambiguations, ≥ 300 characters of plain text (mwparserfromhell).
+  - Creation month via page-id thresholds from the creation log of the Wikipedia API, stored in
     `page_id_months.json`.
-  - 286.766 Artikel, angelegt ab 01/2025.
+  - 286,766 articles, created from 01/2025 on.
 
-| Teil | Artikel | Tokens | Zweck |
+| Part | Articles | Tokens | Purpose |
 |---|---|---|---|
-| `train_new` | 79.864 | 55,3 M | Training: angelegt 03–08/2026, nach Qwens Veröffentlichung |
-| `val_new` | 1.500 | 1,02 M | **entscheidend:** zurückgehaltene neue Artikel |
-| `mem_probe` | 1.000 | 0,66 M | Teil des Trainings: wie viel die Tabelle speichert |
-| `val_known` | 1.917 | 1,54 M | Val-Set von Stufe 1b (Wikipedia 2023, HF-Aufbereitung) |
-| `val_known_same` | 1.500 | 1,62 M | alte Artikel (Seiten-IDs 4,0–5,4 M, ≈ 2006) aus demselben 2026-Dump, gleich aufbereitet wie die neuen |
-| `curve_YYYY-MM` | je 150 | je 0,08–0,19 M | Stichtags-Kurve 01/2025–08/2026 (nie trainiert) |
+| `train_new` | 79,864 | 55.3 M | training: created 03–08/2026, after Qwen's release |
+| `val_new` | 1,500 | 1.02 M | **decisive:** held-out new articles |
+| `mem_probe` | 1,000 | 0.66 M | part of the training: how much the table stores |
+| `val_known` | 1,917 | 1.54 M | val set of stage 1b (Wikipedia 2023, HF preprocessing) |
+| `val_known_same` | 1,500 | 1.62 M | old articles (page ids 4.0–5.4 M, ≈ 2006) from the same 2026 dump, prepared like the new ones |
+| `curve_YYYY-MM` | 150 each | 0.08–0.19 M each | cut-off curve 01/2025–08/2026 (never trained) |
 
-**Basis-Messung: Qwen allein, zu Hause** (`runs/qwen/Q-base`, `report/qwen/cutoff_curve.json` und `.png`):
-- **Token-PPL, Fenster 2048:**
+**Baseline measurement: Qwen alone, at home** (`runs/qwen/Q-base`, `report/qwen/cutoff_curve.json` and `.png`):
+- **Token PPL, window 2048:**
 
   | Set | PPL |
   |---|---|
-  | `val_new` | 12,98 |
-  | `mem_probe` | 13,36 |
-  | `val_known` | 13,94 |
+  | `val_new` | 12.98 |
+  | `mem_probe` | 13.36 |
+  | `val_known` | 13.94 |
 
-- **Median-PPL je Artikel** (erste 1024 Tokens, 90-%-Bootstrap-Intervall):
+- **Median PPL per article** (first 1024 tokens, 90% bootstrap interval):
 
-  | Set | Median-PPL | Intervall |
+  | Set | Median PPL | Interval |
   |---|---|---|
-  | Neue Artikel je Monat, 2025–2026 | 10,9–12,8 | |
-  | `val_new` | 11,47 | [10,63; 12,07] |
-  | `val_known` | 13,07 | |
-  | `val_known_same` | 13,72 | [13,24; 14,53] |
+  | New articles per month, 2025–2026 | 10.9–12.8 | |
+  | `val_new` | 11.47 | [10.63; 12.07] |
+  | `val_known` | 13.07 | |
+  | `val_known_same` | 13.72 | [13.24; 14.53] |
 
-- **Ehrliche Folgerung:**
-  - **Ein Wissens-Stichtag ist nicht zu sehen.** Artikel aus der Zeit nach Qwens Veröffentlichung sind für Qwen
-    nicht schwerer als solche aus 2025, und sie sind *leichter* als alte, gleich aufbereitete Artikel.
-  - Bei einem 0,8B-Modell misst die Wikipedia-PPL also vor allem Sprache und Stil (neue Artikel sind kürzer und
-    gleichförmiger), kaum Faktenwissen.
-  - Ein Gewinn auf `val_new` ist deshalb nicht automatisch „neues Wissen“. Er kann auch Anpassung an den
-    Wikipedia-Stil sein, und genau die misst der Kontrolllauf Q+D mit.
-  - Zusätzlich wird die PPL nur über „Wissens-Tokens“ berichtet: Ziffern und großgeschriebene Wörter, die nicht
-    am Satzanfang stehen; das sind ≈ 29 % der Tokens.
-- **Standard-Tests zu Hause:** nicht möglich. Qwen3.5 stürzt unter ROCm auf der RX 9070 reproduzierbar ab
-  („illegal instruction“ in lm-eval, „memory access fault“ mit Gradient-Checkpointing). Die Standard-Tests laufen
-  deshalb für Q, Q+T und Q+D auf derselben Cloud-GPU.
+- **Honest conclusion:**
+  - **A knowledge cut-off isn't visible.** Articles from after Qwen's release aren't harder for Qwen than those from
+    2025, and they're *easier* than old articles prepared the same way.
+  - For a 0.8B model the Wikipedia PPL mostly measures language and style (new articles are shorter and more
+    uniform), hardly factual knowledge.
+  - So a gain on `val_new` isn't automatically "new knowledge". It can also be adaptation to Wikipedia style, and
+    that's exactly what the control run Q+D measures too.
+  - In addition, the PPL is reported over "knowledge tokens" only: digits and capitalised words that aren't at the
+    start of a sentence; that's ≈ 29% of the tokens.
+- **Standard benchmarks at home:** not possible. Qwen3.5 crashes reproducibly under ROCm on the RX 9070 ("illegal
+  instruction" in lm-eval, "memory access fault" with gradient checkpointing). So the standard benchmarks run for Q,
+  Q+T and Q+D on the same cloud GPU.
 
-**Training (Vorschlag):**
-- **Umfang:** 2 Durchgänge über `train_new` (110,5 M Tokens), Sequenzlänge 2048, 16 Sequenzen pro Schritt
-  (32.768 Tokens, 3.373 Schritte).
-- **Optimierung:** wie B: LR 6e-4, Tabelle 2,4e-3, Warmup 5 %, Cosine auf 10 %, Weight Decay 0,1, Clip 1,0,
-  bf16. Qwen bleibt in bf16 eingefroren.
-- **Loss:** stückweise über das 248k-Vokabular, mit Neuberechnung im Rückwärtsschritt.
-- **Läufe:** je 1 Seed für Q+T und Q+D (`scripts/train_qwen_memory.py`).
+**Training (proposal):**
+- **Scope:** 2 passes over `train_new` (110.5 M tokens), sequence length 2048, 16 sequences per step (32,768 tokens,
+  3,373 steps).
+- **Optimisation:** as B: LR 6e-4, table 2.4e-3, warmup 5%, cosine to 10%, weight decay 0.1, clip 1.0, bf16. Qwen
+  stays frozen in bf16.
+- **Loss:** chunked over the 248k vocabulary, recomputed in the backward step.
+- **Runs:** 1 seed each for Q+T and Q+D (`scripts/train_qwen_memory.py`).
 
-**Kriterien (Vorschlag zur Freigabe; Q = Qwen allein, Messung auf derselben GPU):**
+**Criteria (proposal for approval; Q = Qwen alone, measured on the same GPU):**
 
-*Hilft es?* Entscheidend ist die Token-PPL auf `val_new`:
+*Does it help?* The token PPL on `val_new` decides:
 
-| Urteil | Bedingung |
+| Verdict | Condition |
 |---|---|
-| **hilft deutlich** | PPL(Q+T) ≤ 0,95 × PPL(Q) **und** PPL(Q+T) ≤ 0,98 × PPL(Q+D) |
-| **hilft etwas** | PPL(Q+T) ≤ 0,98 × PPL(Q), aber nicht „deutlich“ |
-| **hilft nicht** | sonst |
+| **helps clearly** | PPL(Q+T) ≤ 0.95 × PPL(Q) **and** PPL(Q+T) ≤ 0.98 × PPL(Q+D) |
+| **helps a bit** | PPL(Q+T) ≤ 0.98 × PPL(Q), but not "clearly" |
+| **doesn't help** | otherwise |
 
-Nur berichtet:
-- Wissens-Token-PPL auf `val_new`
-- `mem_probe` (gespeichertes Wissen)
+Only reported:
+- knowledge-token PPL on `val_new`
+- `mem_probe` (stored knowledge)
 - `val_known_same`
-- die Monatskurve
+- the month curve
 
-*Schadet es?* „Schadet nicht“ verlangt alle drei Punkte, je für Q+T (und Q+D) gegenüber Q:
-1. **Standard-Test** (lm-eval 0.4.13, zero-shot, je Aufgabe die ersten 500 Beispiele, MMLU je Fach; Aufgaben
-   MMLU, ARC-Easy, ARC-Challenge, HellaSwag, PIQA, WinoGrande):
-   - Der Mittelwert der sechs Genauigkeiten fällt um höchstens 1,0 Prozentpunkte.
-   - Keine Aufgabe fällt um mehr als max(2 Pp., 2 × Standardfehler).
-2. **Bekannte Texte:** PPL auf `val_known` und `val_known_same` höchstens +1 %.
-3. **Chat:** 12 feste Fragen (`scripts/eval_qwen_general.py`, 6 deutsch, 6 englisch), Chat-Vorlage ohne
-   Denkmodus, gierig, 200 Tokens.
-   - Je Frage zwei Antworten verblindet in zufälliger Reihenfolge; du urteilst besser / gleich / schlechter.
-   - „Schadet“, wenn Q+T bei mehr als 3 von 12 Fragen schlechter ist.
+*Does it harm?* "Doesn't harm" requires all three points, each for Q+T (and Q+D) against Q:
+1. **Standard benchmark** (lm-eval 0.4.13, zero-shot, the first 500 examples per task, MMLU per subject; tasks MMLU,
+   ARC-Easy, ARC-Challenge, HellaSwag, PIQA, WinoGrande):
+   - The mean of the six accuracies drops by at most 1.0 percentage points.
+   - No task drops by more than max(2 pp, 2 × standard error).
+2. **Known texts:** PPL on `val_known` and `val_known_same` at most +1%.
+3. **Chat:** 12 fixed questions (`scripts/eval_qwen_general.py`, 6 German, 6 English), chat template without
+   thinking mode, greedy, 200 tokens.
+   - Per question two answers, blinded in random order; you judge better / same / worse.
+   - "Harms" if Q+T is worse on more than 3 of 12 questions.
 
-**Abschätzung:**
-- **Zu Hause** (Probe mit 30 Schritten, verworfen; Sequenz 2048, Mikro-Batch 1):
+**Estimate:**
+- **At home** (probe with 30 steps, discarded; sequence 2048, micro-batch 1):
 
-  | Variante | Tempo | Speicher |
+  | Variant | Speed | Memory |
   |---|---|---|
-  | Qwen + Speicher (65 k Zeilen) | 2.990 tok/s | 10,7 GiB |
-  | Qwen + dichter Block | 3.060 tok/s | 9,6 GiB |
+  | Qwen + memory (65 k rows) | 2,990 tok/s | 10.7 GiB |
+  | Qwen + dense block | 3,060 tok/s | 9.6 GiB |
 
-  - Die geplante Tabelle braucht mit Adam-Zuständen ≈ 17 GB und passt nicht neben Qwen in 16 GB.
-  - Zwei Läufe mit kleiner Tabelle würden zu Hause ≈ 20 h dauern, bei instabilem ROCm.
-  - **Nicht empfohlen.**
-- **H100 SXM (3,49 $/h):**
-  - Speicher ≈ 45 GB: Tabelle mit Optimierer 17 GB, Qwen, Aktivierungen bei Mikro-Batch 4.
-  - Tempo unsicher: 25.000–60.000 tok/s, je nachdem, ob die schnellen DeltaNet-Kernel
-    (flash-linear-attention) laufen. Das ergibt 0,5–1,2 h je Lauf.
-  - Mit Setup, Q-Messungen, zwei Läufen und allen Auswertungen 1,7–3,2 h ≈ 6–11 $ (5,30–9,90 €).
-  - Nach Schritt 1 (≈ 17–18 $) bleiben ≈ 16 $; das reicht.
-- **Noch zu bauen nach der Freigabe:** Cloud-Ablauf für Schritt 3 (Setup wie Schritt 1, Daten von der Box,
-  Ergebnisse und Tabelle zurück auf die Box) und das kleine Verblindungs-Skript für die Chat-Antworten.
+  - The planned table needs ≈ 17 GB with Adam states and doesn't fit next to Qwen into 16 GB.
+  - Two runs with a small table would take ≈ 20 h at home, with an unstable ROCm.
+  - **Not recommended.**
+- **H100 SXM (3.49 $/h):**
+  - Memory ≈ 45 GB: table with optimizer 17 GB, Qwen, activations at micro-batch 4.
+  - Speed uncertain: 25,000–60,000 tok/s, depending on whether the fast DeltaNet kernels (flash-linear-attention)
+    run. That gives 0.5–1.2 h per run.
+  - With setup, Q measurements, two runs and all evaluations 1.7–3.2 h ≈ 6–11 $ (5.30–9.90 €).
+  - After step 1 (≈ 17–18 $) ≈ 16 $ remain; that's enough.
+- **Still to build after the approval:** the cloud procedure for step 3 (setup as in step 1, data from the box,
+  results and table back to the box) and the small blinding script for the chat answers.
 
-### Schritt 3: Freigabe und Faktentest (2026-10-04, vor jedem Training)
+### Step 3: approval and fact test (2026-10-04, before any training)
 
-**Freigabe:**
-- Die Kriterien oben sind grundsätzlich freigegeben, die PPL- und „Schadet es?“-Kriterien gelten unverändert.
-- Die swilu-Projektionen werden mittrainiert.
-- Trainiert wird in der Cloud auf einer H100.
-- **Ergänzung (Vorgabe, sinngemäß):**
-  - Die zurückgehaltenen Artikel prüfen nur, ob die Tabelle allgemein hilft.
-  - Ob sie Wissen einpflanzt, zeigt nur ein Faktentest auf den *Trainingsartikeln*.
-  - Dazu dieselbe Art Lückentexte aus den zurückgehaltenen Artikeln als Gegenprobe.
-  - Verglichen werden Q, Q+T und Q+D.
+**Approval:**
+- The criteria above are approved in principle; the PPL and "does it harm?" criteria apply unchanged.
+- The swilu projections are trained too.
+- Training happens in the cloud on an H100.
+- **Addition (specification, paraphrased):**
+  - The held-out articles only test whether the table helps in general.
+  - Whether it plants knowledge is only shown by a fact test on the *training articles*.
+  - Plus the same kind of fill-in-the-blank items from the held-out articles as a counter-check.
+  - Q, Q+T and Q+D are compared.
 
-**Faktentest** (`scripts/make_fact_cloze.py` → `data/qwen_fact_cloze.jsonl`; Bewertung `scripts/eval_fact_cloze.py`):
-- **Umfang:** 500 Lücken aus Trainingsartikeln (`train_new`) und 500 aus zurückgehaltenen Artikeln (`val_new`),
-  je eine Lücke pro Artikel, Artikel per festem Hash zufällig gewählt.
-- **Mischung:** 40 % Namen (2–4 großgeschriebene Wörter), 30 % Daten/Jahre, 30 % andere Zahlen (≥ 2 Ziffern;
-  nur Tagesangaben nach einem Monatsnamen oder gezählte Mengen vor einem kleingeschriebenen Wort).
-- **Lücke:** Titel + Leerzeile + der Satz mit dem Fakt, abgeschnitten direkt vor dem Fakt.
+**Fact test** (`scripts/make_fact_cloze.py` → `data/qwen_fact_cloze.jsonl`; scoring `scripts/eval_fact_cloze.py`):
+- **Scope:** 500 blanks from training articles (`train_new`) and 500 from held-out articles (`val_new`), one blank per
+  article, articles chosen at random by a fixed hash.
+- **Mix:** 40% names (2–4 capitalised words), 30% dates/years, 30% other numbers (≥ 2 digits; only day numbers after a
+  month name or counted amounts before a lower-case word).
+- **Blank:** title + empty line + the sentence with the fact, cut off right before the fact.
 - **Filter:**
-  - Die Antwort steht nicht im Prompt und nicht im Titel.
-  - Satzanfang vor der Lücke ≥ 5 Wörter; der Fakt steht nicht am Satzanfang.
-  - Die Jahre 2025 und 2026 sind ausgeschlossen, weil sie in neuen Artikeln fast immer erratbar sind.
-- **Bewertung:** gierige Fortsetzung (bis 16 Tokens, ohne Chat-Vorlage). Richtig ist ein exakter Treffer am Anfang
-  der Fortsetzung, danach kein Buchstabe und keine Ziffer.
-- **Auswertung:** Genauigkeit je Teil und Art mit 95-%-Wilson-Intervall; der Vergleich zweier Modelle läuft
-  paarweise über dieselben Lücken.
+  - The answer isn't in the prompt and not in the title.
+  - The sentence start before the blank is ≥ 5 words; the fact isn't at the start of the sentence.
+  - The years 2025 and 2026 are excluded, because they can almost always be guessed in new articles.
+- **Scoring:** greedy continuation (up to 16 tokens, without chat template). Correct is an exact hit at the start of
+  the continuation, followed by no letter and no digit.
+- **Evaluation:** accuracy per part and type with a 95% Wilson interval; two models are compared pairwise over the
+  same blanks.
 
-**Hauptkriterium „Wissen eingepflanzt“:**
-- Genauigkeit(Q+T) − Genauigkeit(Q+D) auf den Trainings-Lücken ≥ **10 Prozentpunkte**,
-- **und** bei der Gegenprobe ist Q+T nicht schlechter als Q+D.
-- Operationalisiert heißt „nicht schlechter“: höchstens 2 Prozentpunkte weniger. Das liegt im Bereich des
-  Zufallsrauschens eines paarweisen Vergleichs mit 500 Lücken. **(Bitte bestätigen.)**
-- Q allein wird mitberichtet.
+**Main criterion "knowledge planted":**
+- accuracy(Q+T) − accuracy(Q+D) on the training blanks ≥ **10 percentage points**,
+- **and** on the counter-check Q+T isn't worse than Q+D.
+- Operationalised, "not worse" means: at most 2 percentage points less. That's within the random noise of a pairwise
+  comparison with 500 blanks. **(Please confirm.)**
+- Q alone is reported too.
 
-**Freigabe zum Start (2026-10-04, ≈ 23:30):**
-- Die Toleranz „nicht schlechter = höchstens 2 Prozentpunkte unter Q+D“ ist bestätigt.
-- Der Start ist freigegeben.
-- **Ablauf:**
-  - Ein eigener H100-Pod, erst nachdem der Pod von Schritt 1 gesichert und gelöscht ist; zwei gleichzeitige
-    Kostendeckel könnten zusammen das Guthaben übersteigen.
-  - Kostendeckel 13 $: Guthaben nach Schritt 1 ≈ 16 $ minus Puffer.
-  - Ausgangswert Q, zu Hause gemessen (`report/qwen/facts_Q_home.json`): Trainings-Lücken 5,0 % [3,4; 7,3],
-    Gegenprobe 3,8 % [2,4; 5,9]. Für die Entscheidung zählt die Messung auf derselben Cloud-GPU.
+**Go for the start (2026-10-04, ≈ 23:30):**
+- The tolerance "not worse = at most 2 percentage points below Q+D" is confirmed.
+- The start is approved.
+- **Procedure:**
+  - A separate H100 pod, only after the step-1 pod is backed up and deleted; two cost caps at the same time could
+    together exceed the balance.
+  - Cost cap 13 $: balance after step 1 ≈ 16 $ minus a buffer.
+  - Baseline Q, measured at home (`report/qwen/facts_Q_home.json`): training blanks 5.0% [3.4; 7.3], counter-check
+    3.8% [2.4; 5.9]. What counts for the decision is the measurement on the same cloud GPU.
 
-### Ergebnis Schritt 1 (2026-10-05, Runpod H100, Pod 4,92 h ≈ 17,20 $)
+### Result step 1 (2026-10-05, Runpod H100, pod 4.92 h ≈ 17.20 $)
 
-**Ablauf:**
-- **Budget-Wächter:** Er hat D-400M zuerst wie festgelegt weggelassen (Hochrechnung 5,44 h > 5,16 h bei 18 $).
-  Auf deine Freigabe hin wurde der Deckel auf 22 $ erhöht; D-400M lief ab Pod-Stunde 0,7 mit.
-- **Laufzeit:** ≈ 4,9 h insgesamt, genauso lange wie die vorsichtige Hochrechnung. Vier Läufe gleichzeitig auf
-  einer GPU waren nicht schneller als nacheinander; der Wirkungsgrad lag bei ≈ 0,9.
-- **Setup:** Wegen eines harmlosen rsync-Rechtefehlers fiel das Setup zunächst auf den Daten-Neubau aus Hugging
-  Face zurück. Ich habe ihn nach Prüfung der Box-Daten (7/7 sha256 OK) beendet; das kostete ≈ 10 min. Der Fehler
-  ist für künftige Läufe behoben (`rsync -rt`).
-- **Sicherung:** Alle vier Checkpoints liegen auf der Storage Box und zu Hause, per sha256 geprüft (4/4). Der Pod
-  ist gelöscht.
+**Procedure:**
+- **Budget guard:** it first left out D-400M as specified (projection 5.44 h > 5.16 h at 18 $). After the user's
+  approval the cap was raised to 22 $; D-400M joined from pod hour 0.7 on.
+- **Run time:** ≈ 4.9 h in total, exactly as long as the cautious projection. Four runs at once on one GPU weren't
+  faster than one after another; the efficiency was ≈ 0.9.
+- **Setup:** because of a harmless rsync permission error the setup first fell back to rebuilding the data from
+  Hugging Face. I ended that after checking the box data (7/7 sha256 OK); that cost ≈ 10 min. The bug is fixed for
+  future runs (`rsync -rt`).
+- **Backup:** all four checkpoints are on the storage box and at home, checked by sha256 (4/4). The pod is deleted.
 
-| Modell | Parameter ohne Emb. | Val-PPL Wikipedia (entscheidend) | Val-PPL WikiText-103 (Nebenwert) | MACs/Token vorwärts |
+| Model | Params without emb. | Val PPL Wikipedia (decisive) | Val PPL WikiText-103 (side value) | MACs/token forward |
 |---|---|---|---|---|
-| A | 21,2 M | 25,665 | 78,38 | 45,3 M |
-| D-50M | 49,6 M | 22,452 | 65,37 | 88,3 M |
-| D-100M | 99,1 M | 20,270 | 59,66 | 148,7 M |
-| D-200M | 202,4 M | 18,758 | 51,63 | 270,7 M |
-| D-400M | 396,5 M | 17,598 | 47,16 | 487,1 M |
+| A | 21.2 M | 25.665 | 78.38 | 45.3 M |
+| D-50M | 49.6 M | 22.452 | 65.37 | 88.3 M |
+| D-100M | 99.1 M | 20.270 | 59.66 | 148.7 M |
+| D-200M | 202.4 M | 18.758 | 51.63 | 270.7 M |
+| D-400M | 396.5 M | 17.598 | 47.16 | 487.1 M |
 
-**Fit:** PPL = 13,60 + 7.361 · N^(−0,380), RMSE in log PPL 0,0024. Die fünf dichten Punkte liegen sehr glatt auf
-einer Kurve.
+**Fit:** PPL = 13.60 + 7,361 · N^(−0.380), RMSE in log PPL 0.0024. The five dense points lie very smoothly on a
+curve.
 
-**Gleichwertige dichte Größe** (Regeln wie oben festgelegt; `scripts/dense_equiv.py`, `report/dense_equiv.json`):
+**Equivalent dense size** (rules as fixed above; `scripts/dense_equiv.py`, `report/dense_equiv.json`):
 
-| | Val-PPL | **gleichwertige dichte Größe** | Sensitivitätsbereich (±0,4 %, inkl. Fit) | Fit allein | MACs/Token | Parameter aktiv pro Token / Tabelle |
+| | Val PPL | **equivalent dense size** | Sensitivity range (±0.4%, incl. fit) | Fit alone | MACs/token | Params active per token / table |
 |---|---|---|---|---|---|---|
-| B-1M | 21,837 | **60 M** | 57–63 M | 58 M | 47,1 M | 23,1 M / 0,40 Mrd. |
-| B-4M | 20,799 | **83 M** | 79–88 M | 83 M | 50,2 M | 26,2 M / 1,61 Mrd. |
-| B-16M | 19,960 | **114 M** | 106–123 M | 116 M | 56,5 M | 32,5 M / 6,44 Mrd. |
+| B-1M | 21.837 | **60 M** | 57–63 M | 58 M | 47.1 M | 23.1 M / 0.40 B |
+| B-4M | 20.799 | **83 M** | 79–88 M | 83 M | 50.2 M | 26.2 M / 1.61 B |
+| B-16M | 19.960 | **114 M** | 106–123 M | 116 M | 56.5 M | 32.5 M / 6.44 B |
 
-Alle drei liegen innerhalb des gemessenen Bereichs; eine Extrapolation war nicht nötig.
+All three lie inside the measured range; no extrapolation was needed.
 
-![Gegenwert der Tabelle](report/dense_equiv.png)
+![What the table is worth](report/dense_equiv.png)
 
-**Was das heißt:**
-- **B-16M** ist so gut wie ein dichtes Modell mit ≈ 114 M Parametern, also gut fünfmal so viele wie sein
-  Rechenkern (21 M). Pro Token rechnet es aber nur 56,5 M MACs; das gleichwertige dichte Modell bräuchte ≈ 165 M,
-  also ≈ 2,9× so viel.
-- **Jede Vervierfachung der Tabelle** bringt ≈ 1,4× gleichwertige Größe (60 → 83 → 114 M). Der Gewinn je
-  Verdopplung bleibt in diesem Bereich etwa gleich und flacht noch nicht ab.
-- **Der Preis dafür ist Speicher:** Die Tabelle von B-16M hat 6,44 Mrd. Parameter, 56-mal so viele wie das
-  gleichwertige dichte Modell (114 M; korrigiert 2026-10-05 nach Codex-Review, vorher „dreißigmal“). Im Training brauchte B-16M ≈ 101 GB GPU-Speicher, D-200M 16 GB. Zum Schreiben muss
-  die Tabelle aber nicht im Grafikspeicher liegen (Schritt 2).
+**What that means:**
+- **B-16M** is as good as a dense model with ≈ 114 M parameters, so a good five times its compute core (21 M). But
+  per token it computes only 56.5 M MACs; the equivalent dense model would need ≈ 165 M, so ≈ 2.9× as much.
+- **Every quadrupling of the table** brings ≈ 1.4× equivalent size (60 → 83 → 114 M). The gain per doubling stays
+  about the same in this range and isn't flattening yet.
+- **The price for it is memory:** B-16M's table has 6.44 B parameters, 56 times as many as the equivalent dense model
+  (114 M; corrected 2026-10-05 after the Codex review, before it said "thirty times"). In training B-16M needed
+  ≈ 101 GB of GPU memory, D-200M 16 GB. For writing, though, the table doesn't have to be in VRAM (step 2).
 
-**Nebenwert WikiText-103, nicht vorab als Kriterium festgelegt:**
-- Auf diesem anders formatierten Set ist der Vorteil kleiner. Log-log interpoliert entspricht B-1M ≈ 48 M, B-4M
-  ≈ 65 M und B-16M ≈ 95 M.
-- Die Tabelle hilft also auf Text wie dem Trainingsmaterial (Wikipedia-Artikel) stärker als auf anderer
-  Aufbereitung derselben Quelle.
+**Side value WikiText-103, not fixed beforehand as a criterion:**
+- On this differently formatted set the advantage is smaller. Interpolated log-log, B-1M corresponds to ≈ 48 M, B-4M
+  to ≈ 65 M and B-16M to ≈ 95 M.
+- So the table helps more on text like the training material (Wikipedia articles) than on a different preparation of
+  the same source.
 
-**Grenzen** (wie vorab genannt):
-- Ein Seed je dichter Größe.
-- 500 M Tokens sind für 200–400 M Parameter wenig; N_eq gilt nur für dieses Token-Budget.
-- Die LR ist nicht je Größe abgestimmt. Das lässt die Tabelle eher zu gut aussehen.
-- Tempo-Werte nicht vergleichbar: Die Läufe teilten sich die GPU.
+**Limitations** (as named beforehand):
+- One seed per dense size.
+- 500 M tokens is little for 200–400 M parameters; N_eq applies only to this token budget.
+- The LR isn't tuned per size. That rather makes the table look too good.
+- Speed values not comparable: the runs shared the GPU.
 
-### Ergebnis Schritt 3 (2026-10-05, Runpod H100; Auswertung `scripts/qwen_step3_eval.py` → `report/qwen/step3_summary.json`)
+### Result step 3 (2026-10-05, Runpod H100; evaluation `scripts/qwen_step3_eval.py` → `report/qwen/step3_summary.json`)
 
-**Ablauf, ehrlich:**
-- **Zwei gescheiterte Setups** (≈ 1,40 $):
-  - Die CPU-Tests riefen die GPU-only-Kernel von flash-linear-attention auf.
-  - Danach verweigerte fla 0.5.2 mit Triton 3.6 den Rückwärtsschritt auf Hopper-GPUs (bekannter Fehler). Behoben
-    mit Triton 3.7.1; geprüft mit den Unit-Tests und dem Test am echten Modell mit Regler 0: bitgleich, Training
-    läuft.
-- **Eigener Fehler, ≈ 7,40 $:** Ein Tippfehler aus einer ungetesteten Änderung an `run_dense.py` ließ die
-  Warteschlange beim Start abstürzen. Der Pod lief ≈ 2,1 h leer, weil mein Wächter nur Log-Zeilen beobachtete.
-  - Behoben: Vor dem Start werden alle Skripte kompiliert; 90 s nach dem Start wird geprüft, ob die Warteschlange
-    lebt; der Wächter meldet eine tote Warteschlange.
-- **Grenze erhöht:** Mit Freigabe von 13 $ auf 16,50 $ für den eigentlichen Lauf, nachdem die Tempo-Proben 13,50–15,70 $
-  hochrechneten.
-- **Standard-Tests von Q+T zunächst fehlgeschlagen:** lm-eval schaltet Autocast um den Modellaufruf ab, die
-  fp32-Zusatzblöcke passten dann nicht zu Qwen. Behoben; Q wurde mit derselben Einstellung wiederholt und ergab
-  exakt dieselben Werte.
-- **Laufender Pod:** 3,92 h ≈ 13,70 $.
-- **Schritt 3 insgesamt:** ≈ 22,50 $ (davon ≈ 7,40 $ Leerlauf durch meinen Fehler).
-- **Sicherung:** alles auf der Storage Box und zu Hause, sha256 geprüft. Der Pod ist gelöscht.
+**Procedure, honestly:**
+- **Two failed setups** (≈ 1.40 $):
+  - The CPU tests called the GPU-only kernels of flash-linear-attention.
+  - After that, fla 0.5.2 with Triton 3.6 refused the backward step on Hopper GPUs (known bug). Fixed with Triton
+    3.7.1; checked with the unit tests and the test on the real model with gate 0: bit-identical, training runs.
+- **My own mistake, ≈ 7.40 $:** a typo from an untested change to `run_dense.py` made the queue crash at the start.
+  The pod idled for ≈ 2.1 h, because my watcher only looked at log lines.
+  - Fixed: before the start all scripts are compiled; 90 s after the start it's checked whether the queue is alive;
+    the watcher reports a dead queue.
+- **Cap raised:** with approval from 13 $ to 16.50 $ for the actual run, after the speed probes projected
+  13.50–15.70 $.
+- **Q+T's standard benchmark failed at first:** lm-eval switches autocast off around the model call, and the fp32
+  add-on blocks then didn't match Qwen. Fixed; Q was repeated with the same setting and gave exactly the same values.
+- **Pod running:** 3.92 h ≈ 13.70 $.
+- **Step 3 in total:** ≈ 22.50 $ (of which ≈ 7.40 $ idle time through my mistake).
+- **Backup:** everything on the storage box and at home, checked by sha256. The pod is deleted.
 
-**Tempo und Speicher (H100):**
+**Speed and memory (H100):**
 
-| Lauf | Training | Speicher | Dauer (110,5 M Tokens) |
+| Run | Training | Memory | Duration (110.5 M tokens) |
 |---|---|---|---|
-| Q+T | 32.600 tok/s | 33 GB | 66 min |
-| Q+D | 35.800 tok/s | 17 GB | 64 min |
+| Q+T | 32,600 tok/s | 33 GB | 66 min |
+| Q+D | 35,800 tok/s | 17 GB | 64 min |
 
-Q ist auf der H100 (mit fla-Kerneln) und zu Hause (PyTorch-Weg) bei der PPL identisch (12,977).
+Q's PPL is identical on the H100 (with fla kernels) and at home (PyTorch path) (12.977).
 
-**PPL** (Token-PPL, Fenster 2048):
+**PPL** (token PPL, window 2048):
 
-| Set | Q (Qwen allein) | Q+T (Tabelle) | Q+D (dichte Kontrolle) |
+| Set | Q (Qwen alone) | Q+T (table) | Q+D (dense control) |
 |---|---|---|---|
-| `val_new`: zurückgehaltene neue Artikel (entscheidend) | 12,977 | 10,093 (−22,2 %) | **10,014 (−22,8 %)** |
-| `val_new`, nur Wissens-Tokens | 16,32 | 12,57 | 12,73 |
-| `val_known`: Val-Set 2023, HF-Aufbereitung | 13,935 | **14,904 (+7,0 %)** | 13,730 (−1,5 %) |
-| `val_known_same`: alte Artikel, gleiche Aufbereitung | 14,282 | 14,029 (−1,8 %) | 12,930 (−9,5 %) |
-| `mem_probe`: trainierte Artikel | 13,362 | **5,638 (−58 %)** | 9,382 (−30 %) |
+| `val_new`: held-out new articles (decisive) | 12.977 | 10.093 (−22.2%) | **10.014 (−22.8%)** |
+| `val_new`, knowledge tokens only | 16.32 | 12.57 | 12.73 |
+| `val_known`: val set 2023, HF preprocessing | 13.935 | **14.904 (+7.0%)** | 13.730 (−1.5%) |
+| `val_known_same`: old articles, same preprocessing | 14.282 | 14.029 (−1.8%) | 12.930 (−9.5%) |
+| `mem_probe`: trained articles | 13.362 | **5.638 (−58%)** | 9.382 (−30%) |
 
-**Standard-Test** (zero-shot, Genauigkeit in %, ± Standardfehler von lm-eval):
+**Standard benchmark** (zero-shot, accuracy in %, ± standard error from lm-eval):
 
-| Aufgabe | Q | Q+T | Q+D |
+| Task | Q | Q+T | Q+D |
 |---|---|---|---|
-| MMLU | 49,7 ± 0,4 | **47,0 (−2,7; Grenze −2,0)** | 49,6 (−0,1) |
-| ARC-Easy | 63,2 ± 2,2 | 65,8 (+2,6) | 65,0 (+1,8) |
-| ARC-Challenge | 31,0 ± 2,1 | 38,0 (+7,0) | 37,0 (+6,0) |
-| HellaSwag | 42,4 ± 2,2 | 41,6 (−0,8) | 42,0 (−0,4) |
-| PIQA | 70,2 ± 2,0 | 71,2 (+1,0) | 69,2 (−1,0) |
-| WinoGrande | 56,2 ± 2,2 | 58,8 (+2,6) | 57,0 (+0,8) |
-| Mittel | 52,1 | 53,7 (+1,6) | 53,3 (+1,2) |
+| MMLU | 49.7 ± 0.4 | **47.0 (−2.7; limit −2.0)** | 49.6 (−0.1) |
+| ARC-Easy | 63.2 ± 2.2 | 65.8 (+2.6) | 65.0 (+1.8) |
+| ARC-Challenge | 31.0 ± 2.1 | 38.0 (+7.0) | 37.0 (+6.0) |
+| HellaSwag | 42.4 ± 2.2 | 41.6 (−0.8) | 42.0 (−0.4) |
+| PIQA | 70.2 ± 2.0 | 71.2 (+1.0) | 69.2 (−1.0) |
+| WinoGrande | 56.2 ± 2.2 | 58.8 (+2.6) | 57.0 (+0.8) |
+| Mean | 52.1 | 53.7 (+1.6) | 53.3 (+1.2) |
 
-Die Grenze je Aufgabe ist max(2 Pp., 2 × Standardfehler der Differenz). Der Standardfehler der Differenz ist
-√(se_Q² + se_X²); so habe ich „2 × Standardfehler“ umgesetzt.
+The limit per task is max(2 pp, 2 × standard error of the difference). The standard error of the difference is
+√(se_Q² + se_X²); that's how I implemented "2 × standard error".
 
-**Faktentest** (exakter Treffer im ersten Versuch; 500 Lücken je Teil):
+**Fact test** (exact hit on the first try; 500 blanks per part):
 
-| | Q | Q+T | Q+D | Q+T − Q+D (95-%-Bootstrap, paarweise) |
+| | Q | Q+T | Q+D | Q+T − Q+D (95% bootstrap, paired) |
 |---|---|---|---|---|
-| Trainings-Lücken | 4,8 % | 10,2 % | 7,8 % | **+2,4 Pp. [0,4; 4,6]** |
-| Gegenprobe (nie gesehen) | 4,0 % | 10,2 % | 8,0 % | +2,2 Pp. [0,2; 4,2] |
+| Training blanks | 4.8% | 10.2% | 7.8% | **+2.4 pp [0.4; 4.6]** |
+| Counter-check (never seen) | 4.0% | 10.2% | 8.0% | +2.2 pp [0.2; 4.2] |
 
-**Urteile nach den vorab festgelegten Kriterien:**
+**Verdicts by the pre-registered criteria:**
 
-| Kriterium | Ergebnis |
+| Criterion | Result |
 |---|---|
-| **Hilft es?** (PPL `val_new`) | **„hilft etwas“.** Q+T ist 22 % besser als Q, aber **nicht besser als die dichte Kontrolle** (Q+T/Q+D = 1,008). Für „hilft deutlich“ hätte es ≤ 0,98 sein müssen. |
-| **Schadet es? Q+T** | **„schadet“**, ohne dass der Chat-Teil das noch ändern kann. MMLU fällt um 2,7 Pp. (Grenze 2,0), und die PPL auf `val_known` steigt um 7,0 % (Grenze 1 %). Der Mittelwert der sechs Aufgaben steigt dagegen (+1,6 Pp.). |
-| **Schadet es? Q+D** | „schadet nicht“ nach Standard-Test und bekannten Texten; der verblindete Chat-Vergleich steht noch aus. |
-| **Wissen eingepflanzt?** | **Nicht erreicht.** Q+T trifft nur 2,4 Pp. mehr Trainings-Fakten als Q+D (gefordert ≥ 10). Bei der Gegenprobe ist der Vorsprung genauso groß (+2,2 Pp.); die Tabelle wird also beim Ergänzen allgemein etwas besser, nicht gezielt bei den gesehenen Fakten. |
+| **Does it help?** (PPL `val_new`) | **"helps a bit".** Q+T is 22% better than Q, but **not better than the dense control** (Q+T/Q+D = 1.008). For "helps clearly" it would have had to be ≤ 0.98. |
+| **Does it harm? Q+T** | **"harms"**, and the chat part can't change that anymore. MMLU drops by 2.7 pp (limit 2.0), and the PPL on `val_known` rises by 7.0% (limit 1%). The mean of the six tasks rises, though (+1.6 pp). |
+| **Does it harm? Q+D** | "doesn't harm" by the standard benchmark and known texts; the blinded chat comparison is still pending. |
+| **Knowledge planted?** | **Not reached.** Q+T gets only 2.4 pp more training facts right than Q+D (≥ 10 required). On the counter-check the lead is just as big (+2.2 pp); so the table makes completion a bit better in general, not specifically for the facts it saw. |
 
-**Was das bedeutet:**
-- **Kein Vorteil gegenüber einem gleich teuren Zusatzblock:** Als Zusatz zu einem fertigen, eingefrorenen Qwen
-  bringt die Tabelle in diesem Aufbau keinen Vorteil gegenüber einem kleinen dichten Block mit gleichem
-  Rechenaufwand. Beide passen Qwen gleich gut an neue Wikipedia-Texte an.
-- **Kein Hinweis auf eingepflanzte Fakten:** Das Add-on mit Tabelle passt sich den Trainingsartikeln als Text sehr
-  stark an (PPL auf trainierten Artikeln −58 %, dichte Kontrolle −30 %). Im Faktentest wird es aber bei Trainings-
-  und Gegenprobe-Artikeln gleich viel besser. Ein gezielter Abruf trainierter Fakten ist damit nicht nachgewiesen.
-  Ob das Gelernte in der Tabelle oder in Keys, Projektionen und Gates steckt, habe ich nicht getestet (korrigiert 2026-10-05 nach Codex-Review;
-  vorher „Gespeichert, aber nicht abrufbar“).
-- **Nebenwirkungen bei der Tabelle:**
-  - MMLU (Wissensfragen) sinkt.
-  - Auf dem anders aufbereiteten 2023er Val-Set wird Qwen schlechter.
-  - Beides tritt vor allem im 2. Durchgang auf; die Zwischenwerte bei 40 M Tokens waren besser
+**What that means:**
+- **No advantage over an equally expensive add-on block:** as an add-on to a finished, frozen Qwen, the table in this
+  setup brings no advantage over a small dense block with the same compute. Both adapt Qwen to new Wikipedia texts
+  equally well.
+- **No sign of planted facts:** the add-on with table adapts very strongly to the training articles as text (PPL on
+  trained articles −58%, dense control −30%). But in the fact test it gets equally better on training and
+  counter-check articles. So targeted retrieval of trained facts isn't shown. Whether what was learned sits in the
+  table or in keys, projections and gates I haven't tested (corrected 2026-10-05 after the Codex review; before it
+  said "stored, but not retrievable"; tested since then, see the addendum to step 3 at the end).
+- **Side effects of the table:**
+  - MMLU (knowledge questions) drops.
+  - On the differently prepared 2023 val set Qwen gets worse.
+  - Both happen mainly in the 2nd pass; the intermediate values at 40 M tokens were better
     (`runs/qwen_cloud/QT-s0/metrics.csv`).
-  - Die dichte Kontrolle zeigt diese Nebenwirkungen nicht.
+  - The dense control doesn't show these side effects.
 
-**Grenzen:**
-- **Umfang:** ein Seed je Variante, eine Tabellengröße (1 M Zeilen), eine Position (hinter Block 6, 12, 18), ein
-  LR-Plan (wie B, nicht für Qwen abgestimmt) und 2 Durchgänge.
-- **Chat-Teil:** steht noch aus.
-- **Faktentest:**
-  - Exakter Treffer im ersten Versuch ist streng.
-  - Viele Lücken lassen auch für einen Menschen mehrere richtige Fortsetzungen zu.
-  - Ein kleiner Effekt kann darunter verschwinden; ein Vorsprung von 10 Pp. hätte aber sichtbar sein müssen.
-- **Wissens-Stichtag:** In der PPL war keiner sichtbar (siehe oben). „Neues Wissen“ ist bei 0,8B-Qwen schwer von
-  Stil zu trennen.
+**Limitations:**
+- **Scope:** one seed per variant, one table size (1 M rows), one position (behind blocks 6, 12, 18), one LR schedule
+  (as B, not tuned for Qwen) and 2 passes.
+- **Chat part:** still pending.
+- **Fact test:**
+  - An exact hit on the first try is strict.
+  - Many blanks allow several correct continuations, even for a human.
+  - A small effect can disappear under that; a lead of 10 pp would have had to be visible, though.
+- **Knowledge cut-off:** none was visible in the PPL (see above). With the 0.8B Qwen, "new knowledge" is hard to
+  separate from style.
 
-## AMD Instinct MI350X: Tests und Tempo auf AMDs Rechenzentrums-GPU (2026-10-05)
+## AMD Instinct MI350X: tests and speed on AMD's data-centre GPU (2026-10-05)
 
-**Frage:** Laufen Code und Triton-Kernel unverändert und korrekt auf einer AMD-Rechenzentrums-GPU? Wie schnell?
+**Question:** Do the code and the Triton kernels run unchanged and correctly on an AMD data-centre GPU? How fast?
 
-**Aufbau:**
-- **GPU:** Runpod, 1× AMD Instinct **MI350X** (gfx950, 288 GB), Secure Cloud, 5,49 $/h. Geplant war eine MI300X
-  (2,39 $/h); die war nicht verfügbar, die MI350X wurde mit Freigabe genommen.
-- **Laufzeit und Kosten:** 0,6 h ≈ 3,30 $.
+**Setup:**
+- **GPU:** Runpod, 1× AMD Instinct **MI350X** (gfx950, 288 GB), Secure Cloud, 5.49 $/h. An MI300X (2.39 $/h) was
+  planned; it wasn't available, the MI350X was taken with approval.
+- **Run time and cost:** 0.6 h ≈ 3.30 $.
 - **Software:** PyTorch 2.13.0+rocm7.1, HIP 7.1, Triton 3.7.1, Python 3.12.
-- **Ablauf:** `cloud/setup_amd.sh`, `scripts/run_amd.py`, Auswertung `scripts/amd_summary.py`.
-- **Code:** Er wurde unverändert hochkopiert, ohne GitHub (die Historie wurde parallel bereinigt).
-- **Ergebnisse:** in `runs/amd_mi350x/`, auf der Storage Box gesichert und zu Hause per sha256 geprüft (62/62
-  Dateien gleich).
+- **Procedure:** `cloud/setup_amd.sh`, `scripts/run_amd.py`, evaluation `scripts/amd_summary.py`.
+- **Code:** it was copied up unchanged, without GitHub (the history was being cleaned up in parallel).
+- **Results:** in `runs/amd_mi350x/`, backed up on the storage box and checked by sha256 at home (62/62 files equal).
 
-**Tests:** **107 von 107 bestanden** (10,6 min), darunter:
-- alle Kernel-Tests mit Tabellen von 262k / 1M / 4M Zeilen
-- Auswahl mit 4096 Keys je Hälfte
-- Tabellen mit mehr als 2³¹ Elementen
-- Decode-Graphen und Lazy Adam
-- Tabelle außerhalb der GPU
+**Tests:** **107 of 107 passed** (10.6 min), including:
+- all kernel tests with tables of 262k / 1M / 4M rows
+- selection with 4096 keys per half
+- tables with more than 2³¹ elements
+- decode graphs and lazy Adam
+- the table outside the GPU
 
-**Tempo:**
-- **Messaufbau:** jedes Modell allein, 3 M Tokens, gleiche Argumente wie der H100-Probelauf von Schritt 1.
-- **H100-Vergleichswerte:** aus `runs/cloud_dense_preflight`.
-- **RX 9070:** aus der Optimierung (Abschnitt „Ergebnis der Optimierung“); andere Messart, nur zur Einordnung.
+**Speed:**
+- **Measurement setup:** each model alone, 3 M tokens, same arguments as the H100 trial run of step 1.
+- **H100 reference values:** from `runs/cloud_dense_preflight`.
+- **RX 9070:** from the optimisation (section "Result of the optimisation"); a different kind of measurement, only for
+  orientation.
 
-| Modell | Training tok/s | H100 | Speicher-Spitze | Schreiben (Batch 1) tok/s | H100 | Einlesen tok/s | H100 |
+| Model | Training tok/s | H100 | Memory peak | Writing (batch 1) tok/s | H100 | Reading tok/s | H100 |
 |---|---|---|---|---|---|---|---|
-| A | 164.900 | – | 7,9 GiB | 266 | – | 2.390.000 | – |
-| D-100M | 155.900 | 208.300 | 11,8 GiB | 231 | 192 | 1.171.000 | 844.000 |
-| D-400M | 71.800 | 83.000 | 15,3 GiB | 155 | 126 | 497.500 | 332.900 |
-| B-1M, PyTorch-Referenz | 77.100 | – | 11,6 GiB | 185 | – | 737.700 | – |
-| **B-1M, Triton-Kernel** | **125.900** | – | 10,5 GiB | 210 | – | 1.387.000 | – |
-| B-4M, Triton-Kernel | 119.400 | – | 28,6 GiB | 216 | – | 1.094.000 | – |
-| **B-16M, Triton-Kernel** | **112.800** | – | **101,0 GiB** | 230 | – | 764.100 | – |
+| A | 164,900 | – | 7.9 GiB | 266 | – | 2,390,000 | – |
+| D-100M | 155,900 | 208,300 | 11.8 GiB | 231 | 192 | 1,171,000 | 844,000 |
+| D-400M | 71,800 | 83,000 | 15.3 GiB | 155 | 126 | 497,500 | 332,900 |
+| B-1M, PyTorch reference | 77,100 | – | 11.6 GiB | 185 | – | 737,700 | – |
+| **B-1M, Triton kernels** | **125,900** | – | 10.5 GiB | 210 | – | 1,387,000 | – |
+| B-4M, Triton kernels | 119,400 | – | 28.6 GiB | 216 | – | 1,094,000 | – |
+| **B-16M, Triton kernels** | **112,800** | – | **101.0 GiB** | 230 | – | 764,100 | – |
 
-- **Die Kernel helfen auf der MI350X noch mehr als zu Hause:**
-  - Training 1,63×, Einlesen 1,88×, Schreiben 1,14× gegenüber der PyTorch-Referenz.
-  - Gleiches Ergebnis: Val-PPL nach 3 M Tokens 1168,46 gegenüber 1168,63.
-  - B-1M erreicht 76 % des Trainingstempos des Modells ohne Tabelle; auf der RX 9070 waren es 62 %.
-- **B-16M passt komplett auf eine Karte:** 101 GiB, 113.000 tok/s. Ein 500-M-Token-Lauf wie in der Cloud dauerte
-  allein auf einer MI350X ≈ 75 min, ≈ 7 $.
-- **Gegenüber der H100**, gleicher einfacher PyTorch-Code, nicht auf eine der Karten abgestimmt:
-  - Das Training dichter Modelle ist auf der MI350X langsamer (0,75× bzw. 0,87×).
-  - Schreiben (1,2×) und Einlesen (1,4–1,5×) sind schneller.
+- **The kernels help even more on the MI350X than at home:**
+  - training 1.63×, reading 1.88×, writing 1.14× against the PyTorch reference.
+  - Same result: val PPL after 3 M tokens 1168.46 against 1168.63.
+  - B-1M reaches 76% of the training speed of the model without a table; on the RX 9070 it was 62%.
+- **B-16M fits completely on one card:** 101 GiB, 113,000 tok/s. A 500 M-token run as in the cloud would take ≈ 75 min
+  alone on one MI350X, ≈ 7 $.
+- **Against the H100**, same plain PyTorch code, not tuned for either card:
+  - Training dense models is slower on the MI350X (0.75× and 0.87×).
+  - Writing (1.2×) and reading (1.4–1.5×) are faster.
 
-**Gleiche Ergebnisse auf drei GPUs:**
-- **Vergleichslauf:** B-1M mit Triton-Kerneln, die ersten 20 M Tokens des 500-M-Plans, Seed 0, auf der MI350X.
-  Derselbe Lauf existiert von der RX 9070 (`runs/kernel_check/triton_500msched`) und der H200 (`runs/cloud/B-1M-s0`).
-- **Ergebnis:** Val-PPL bei 20 M Tokens: MI350X 210,11, RX 9070 208,72, H200 210,75. Bei 22 M: 184,81 gegenüber
-  184,56 (RX 9070).
-- **Einordnung:** Unterschiede bis ≈ 1 % in dieser frühen Phase sind das bekannte Rauschen durch Gleichstände an der
-  Top-k-Grenze und nicht-deterministische Summen (vgl. Optimierung: über 500 M Tokens 0,002 %).
-- **Dichte Modelle:** D-100M und D-400M treffen nach 3 M Tokens auf MI350X und H100 dieselbe PPL auf 0,06 %.
+**Same results on three GPUs:**
+- **Comparison run:** B-1M with Triton kernels, the first 20 M tokens of the 500 M schedule, seed 0, on the MI350X.
+  The same run exists from the RX 9070 (`runs/kernel_check/triton_500msched`) and the H200 (`runs/cloud/B-1M-s0`).
+- **Result:** val PPL at 20 M tokens: MI350X 210.11, RX 9070 208.72, H200 210.75. At 22 M: 184.81 against 184.56
+  (RX 9070).
+- **Context:** differences of up to ≈ 1% in this early phase are the known noise from ties at the top-k boundary and
+  non-deterministic sums (cf. optimisation: over 500 M tokens 0.002%).
+- **Dense models:** D-100M and D-400M reach the same PPL on MI350X and H100 after 3 M tokens, to 0.06%.
 
-![B-1M auf drei GPUs](report/amd_crosscheck.png)
+![B-1M on three GPUs](report/amd_crosscheck.png)
 
-**Grenzen:**
-- Je ein kurzer Lauf. Die Tempo-Werte sind Richtwerte und wurden nicht wiederholt.
-- PyTorch meldet die Karte als „AMD Radeon Graphics“ (gfx950).
-- Das GPU-Log hat auf der MI350X Temperatur (≈ 62 °C Junction) und Takt erfasst, aber keine Leistung. Der
-  Speicherwert im Log ist unplausibel und nicht verwendet.
+**Limitations:**
+- One short run each. The speed values are indicative and weren't repeated.
+- PyTorch reports the card as "AMD Radeon Graphics" (gfx950).
+- On the MI350X the GPU log recorded temperature (≈ 62 °C junction) and clock, but no power. The memory value in the
+  log is implausible and not used.
 
-### Einordnung der Kernel (2026-10-05)
+### Assessment of the kernels (2026-10-05)
 
-**Was stark ist:**
-- **Portabel:** Derselbe Triton-Code rechnet auf drei grundverschiedenen GPU-Architekturen gleich: Radeon RX 9070
-  (RDNA4, Consumer), Instinct MI350X (CDNA4, Rechenzentrum) und H100/H200 (Hopper).
-- **Tests:** Auf der MI350X bestehen alle 107 Tests ohne Änderung.
-- **Tempo** gegenüber der eigenen PyTorch-Referenz:
+**What's strong:**
+- **Portable:** the same Triton code computes the same on three fundamentally different GPU architectures: Radeon
+  RX 9070 (RDNA4, consumer), Instinct MI350X (CDNA4, data centre) and H100/H200 (Hopper).
+- **Tests:** on the MI350X all 107 tests pass without changes.
+- **Speed** against my own PyTorch reference:
 
   | | RX 9070 | MI350X |
   |---|---|---|
-  | Training | 1,47× | 1,63× |
-  | Einlesen | 1,79× | 1,88× |
+  | Training | 1.47× | 1.63× |
+  | Reading | 1.79× | 1.88× |
 
-- **Speicher:** Der Lazy-Adam-Kernel arbeitet in place. Erst damit passt B-16M in 101 GB.
+- **Memory:** the lazy-Adam kernel works in place. Only with it does B-16M fit into 101 GB.
 
-**Was die Kernel nicht sind:**
-- **Kein Vergleich mit anderen optimierten Implementierungen**, etwa Metas Code zu „Memory Layers at Scale“.
-- **Die Tabelle kostet weiter Zeit:** Mit Tabelle trainiert das Modell mit 62 % (RX 9070) bzw. 76 % (MI350X) des
-  Tempos ohne Tabelle.
-- **Nicht je GPU abgestimmt**, und nur an kleinen Modellen gemessen.
+**What the kernels aren't:**
+- **No comparison with other optimised implementations**, e.g. Meta's code for "Memory Layers at Scale".
+- **The table still costs time:** with a table the model trains at 62% (RX 9070) or 76% (MI350X) of the speed without
+  one.
+- **Not tuned per GPU**, and only measured on small models.
 
-Ausführlich auf Englisch: `docs/kernels.md`.
+More detail: `docs/kernels.md`.
 
-## Zum Ausprobieren: Benchmark-Skript, Demo und Hugging Face (2026-10-05)
+## To try it: benchmark script, demo and Hugging Face (2026-10-05)
 
-**Neu:**
-- `scripts/kernel_speedup.py`: Kernel gegen PyTorch-Referenz auf zufälligen Tokens, ohne Daten, ~35 s.
-- `scripts/demo_generate.py`: B-16M schreibt Text, Tabelle (4 Bit) auf der NVMe, im RAM oder im VRAM.
-- README-Abschnitt „Try it“. Die Gewichte (4-Bit-Tabelle + Rest, 3,7 GB) sollen auf Hugging Face.
+**New:**
+- `scripts/kernel_speedup.py`: kernels against the PyTorch reference on random tokens, no data needed, ~35 s.
+- `scripts/demo_generate.py`: B-16M writes text, table (4 bit) on the NVMe, in RAM or in VRAM.
+- README section "Try it". The weights (4-bit table + rest, 3.7 GB) are meant to go to Hugging Face.
 
-**Geprüft aus einem frischen Clone auf der RX 9070:**
+**Checked from a fresh clone on the RX 9070:**
 
-| PyTorch | Tests | Benchmark (Training / Einlesen / Schreiben) |
+| PyTorch | Tests | Benchmark (training / reading / writing) |
 |---|---|---|
-| CachyOS-Paket (2.14.0, HIP 7.2, Triton 3.5.1) | 106 ok, 2 übersprungen, 41 s | 1,47× / 1,70× / 1,26× |
-| offizielles Wheel `rocm7.2` (2.14.1, Triton 3.8.0) | 106 ok, 2 übersprungen, zweimal | 1,53× / 1,75× / 1,27× |
-| offizielles Wheel `rocm7.1` (2.13.0, Triton 3.7.1) | **Abbruch** in `test_decode_graph_bit_identical[fp32]` | 1,50× / 1,77× / 1,25× |
+| CachyOS package (2.14.0, HIP 7.2, Triton 3.5.1) | 106 ok, 2 skipped, 41 s | 1.47× / 1.70× / 1.26× |
+| official wheel `rocm7.2` (2.14.1, Triton 3.8.0) | 106 ok, 2 skipped, twice | 1.53× / 1.75× / 1.27× |
+| official wheel `rocm7.1` (2.13.0, Triton 3.7.1) | **abort** in `test_decode_graph_bit_identical[fp32]` | 1.50× / 1.77× / 1.25× |
 
-Übersprungen werden der Qwen-Test (ohne transformers) und ein Test, der > 60 GB GPU-Speicher braucht.
+Skipped are the Qwen test (no transformers) and one test that needs > 60 GB of GPU memory.
 
-- **Benchmark-Zahlen:** Die Faktoren liegen nahe an `docs/kernels.md`. Dort wurde aber anders gemessen
-  (trainiertes Modell, bf16-Tabelle beim Einlesen), also keine 1:1-Wiederholung.
-- **Abbruch mit `rocm7.1`:**
-  - Meldung: `HSA_STATUS_ERROR_INVALID_PACKET_FORMAT` („The AQL packet is malformed“).
-  - Tritt nur auf, wenn der Test nach den anderen läuft. Allein oder nur mit `tests/test_kernels.py` besteht er.
-  - Ein `torch.cuda.synchronize()` vor dem Freigeben der Graphen hat nichts geändert, also wieder entfernt.
-  - Ursache nicht eingegrenzt. Auf der MI350X lief dasselbe Wheel ohne Fehler.
-  - README empfiehlt deshalb für Radeon `rocm7.2`.
-- **`expandable_segments:True`:** Mit `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` stürzte das Einlesen
-  nach dem Training im reinen PyTorch-Pfad ab (`HSA_STATUS_ERROR_EXCEPTION`). Das Skript ignoriert die Variable
-  jetzt. Ursache ebenfalls nicht eingegrenzt.
+- **Benchmark numbers:** the factors are close to `docs/kernels.md`. But that was measured differently (trained
+  model, bf16 table for reading), so this isn't a 1:1 repetition.
+- **Abort with `rocm7.1`:**
+  - Message: `HSA_STATUS_ERROR_INVALID_PACKET_FORMAT` ("The AQL packet is malformed").
+  - Only happens when the test runs after the others. Alone, or only with `tests/test_kernels.py`, it passes.
+  - A `torch.cuda.synchronize()` before freeing the graphs changed nothing, so it was removed again.
+  - Cause not narrowed down. On the MI350X the same wheel ran without errors.
+  - So the README recommends `rocm7.2` for Radeon.
+- **`expandable_segments:True`:** with `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` reading a prompt after
+  training crashed in the pure PyTorch path (`HSA_STATUS_ERROR_EXCEPTION`). The script now ignores the variable.
+  Cause not narrowed down either.
 
-**Demo (CachyOS-PyTorch):**
+**Demo (CachyOS PyTorch):**
 
-| Tabelle | Tempo | GPU-Speicher (Spitze) |
+| Table | Speed | GPU memory (peak) |
 |---|---|---|
-| NVMe | 144 tok/s | 0,42 GB |
-| VRAM | 207 tok/s | 3,75 GB |
+| NVMe | 144 tok/s | 0.42 GB |
+| VRAM | 207 tok/s | 3.75 GB |
 
-- 200 Tokens, Page Cache warm. Gleicher Text in allen drei Modi.
-- Der Text ist flüssiges Wikipedia-Englisch, die Fakten sind erfunden („Sir Isaac Newton was born on
-  14 November 1803 …“). Das steht so auch im README.
+- 200 tokens, page cache warm. Same text in all three modes.
+- The text is fluent Wikipedia English, the facts are made up ("Sir Isaac Newton was born on 14 November 1803 …").
+  The README says so too.
 
-**Hugging-Face-Ordner:**
-- Dateien: `rest.pt`, `values_q4.bin`, `scales_q4.bin`, `hot_rows.npy` (Hardlinks auf die Tabellen-Dateien, sha256
-  geprüft), dazu eine neue `meta.json` ohne lokale Pfade und eine Model Card.
-- Für den Upload vorbereitet (Stand 2026-10-05).
+**Hugging Face folder:**
+- Files: `rest.pt`, `values_q4.bin`, `scales_q4.bin`, `hot_rows.npy` (hard links to the table files, sha256 checked),
+  plus a new `meta.json` without local paths and a model card.
+- Prepared for the upload (as of 2026-10-05).
 
-## Codex-Review (2026-10-05)
+## Codex review (2026-10-05)
 
-Ein zweites Modell (OpenAI Codex) hat den alten Stand `AngryAnt` (`8cf0226`) gelesen und 22 Befunde gemeldet.
-Ich habe jede genannte Codestelle nachgeprüft.
+A second model (OpenAI Codex) read the old state `AngryAnt` (`8cf0226`) and reported 22 findings. I checked every
+code location it named.
 
-**Was sich an den Ergebnissen ändert: nichts.**
-- Nach jeder Codeänderung waren bitgleich zu vorher: B-16M-Decode-Logits (Tabelle im VRAM und auf der NVMe),
-  B-1M-Trainings-Logits, Loss und Gradienten sowie die Eval-Logits mit fp32-, bf16- und 4-Bit-Tabelle.
-- `report/qwen/step3_summary.json` kommt unverändert heraus.
-- Die strengere Faktbewertung ändert keine der 4 × 1.000 gespeicherten Antworten.
+**What changes in the results: nothing.**
+- After every code change these were bit-identical to before: B-16M decode logits (table in VRAM and on the NVMe),
+  B-1M training logits, loss and gradients, and the eval logits with fp32, bf16 and 4-bit tables.
+- `report/qwen/step3_summary.json` comes out unchanged.
+- The stricter fact scoring changes none of the 4 × 1,000 stored answers.
 
-| Nr. | Befund | Stimmt? | Erledigt |
+| No. | Finding | Right? | Done |
 |---|---|---|---|
-| 1 | Qwen-Queue meldet „fertig“ trotz gescheiterter Auswertung | ja | „fertig“ und `COMPLETE` nur, wenn alle 11 Schritte gelaufen sind, sonst „UNVOLLSTÄNDIG“ mit Liste; `run_dense` genauso |
-| 2 | `bag_infer` liest über das Ende, wenn Heads × knn kein Vielfaches von 64 ist | ja, 4 × 32 = 128 nicht betroffen | letzter Block maskiert (auch `bag_forward`); Tests mit 96, 48, 40 Lookups und 3 Heads, die alte Version stürzt dabei ab |
-| 3 | mehrere neue Tokens nach gefülltem KV-Cache ohne Kausalmaske | ja, nur Chunk-Prefill | Maske mit Versatz, Test gegen vollen Forward |
-| 4 | Neustart nimmt leere oder halbe Dateien als fertig | ja | Prüfung (nicht leer, gültiges JSON, Status), atomares Schreiben (`smlm/atomic.py`); Dense- und Cloud-Queue: „done“ ohne `model.pt` wird gemeldet statt übersprungen oder neu trainiert. Eine Laufidentität aus Konfigurations- und Datenhash fehlt weiterhin |
-| 5 | Budget-Hochrechnung nach Neustart mit 0 h Auswertung | ja | Schrittzeiten in `step_minutes.json` |
-| 6 | Auswertung liest fest `Q/general_ac.json` | ja | ohne diese Datei `Q/general.json` |
-| 7 | Schritt-Push ohne die Ergebnisdateien | ja | Ergebnisdatei wird mitgepusht |
-| 8 | eingefrorene Tabelle wird trotzdem trainiert, Tabelle allein nicht trainierbar | ja | beides behoben, Tests |
-| 9 | Optimizer-Zustand wird beim Laden falsch übernommen | ja | `load_state_dict` bricht jetzt mit Fehler ab (Training wird nie fortgesetzt) |
-| 10 | BatchNorm im Training nicht präfixkausal | ja | als Grenze im README; alle berichteten PPL im Eval-Modus mit laufender Statistik |
-| 11 | statistische Sicherheit überbehauptet | ja | „echt“ und „belastbar“ umformuliert, Bereiche als Sensitivitätsbereich benannt |
-| 12 | „Gespeichert, aber nicht abrufbar“ erklärt mehr als gemessen | ja | umformuliert: gezielter Abruf nicht nachgewiesen, Ort des Gelernten nicht getestet |
-| 13 | Parität in Kurzfassungen überzogen | ja | README präzisiert (Decoding: Tabellenmodell mit, Modell A ohne Graphen; Kernel „bis auf Rundung“); `final.md` ist privat |
-| 14 | MI350X-Nachtrag nicht belegbar | nein | im Rewrite liegen `runs/amd_mi350x` und der Abschnitt oben; Codex hat den alten Ordner geprüft |
-| 15 | „12“ zählt als richtig für „12.5“ | ja | Regel verschärft, Regressionstest |
-| 16 | nicht unterstützte Größen scheitern erst im Kernel | ja | `mem_impl="triton"` prüft im Konstruktor und meldet klar |
-| 17 | Batch-Teilbarkeit im Qwen-Training, `zero_grad` ohne Wirkung | ja | wird geprüft bzw. ist dokumentiert |
-| 18 | Offload-Bitgleichheit nur über die NLL-Summe belegt | ja | Logits direkt verglichen (`scripts/check_offload_identical.py`): bitgleich mit Triton 3.5; mit Triton 3.8 weichen sie in den letzten Bits ab, gleiche Tokens |
-| 19 | „dreißigmal“ statt 56-mal, GB statt GiB, 4-GB-Scope | ja | korrigiert, Fußnote zur Scope |
-| 20 | v2-Status, Bildlink, „widerlegt“ | ja | korrigiert |
-| 21 | Qwen-Läufe ohne Commit und Versionen | ja | `run-info.json` enthält beides jetzt; Datierung über Seiten-IDs im README genannt |
-| 22 | Fit ist kein exakter Log-Fit | ja | Beschreibung korrigiert; ein exakter Log-Fit verschiebt die Fit-Werte um höchstens 0,3 M (58,5 / 83,4 / 115,7 M) |
+| 1 | Qwen queue reports "done" despite a failed evaluation | yes | "done" and `COMPLETE` only when all 11 steps ran, otherwise "INCOMPLETE" with a list; `run_dense` the same |
+| 2 | `bag_infer` reads past the end when heads × knn isn't a multiple of 64 | yes, 4 × 32 = 128 not affected | last block masked (also `bag_forward`); tests with 96, 48, 40 lookups and 3 heads, the old version crashes on them |
+| 3 | several new tokens after a filled KV cache without a causal mask | yes, only chunked prefill | mask with offset, test against the full forward |
+| 4 | a restart takes empty or half files as done | yes | check (not empty, valid JSON, status), atomic writing (`smlm/atomic.py`); dense and cloud queue: "done" without `model.pt` is reported instead of skipped or retrained. A run identity from configuration and data hash is still missing |
+| 5 | budget projection after a restart with 0 h of evaluation | yes | step times in `step_minutes.json` |
+| 6 | evaluation reads a hard-coded `Q/general_ac.json` | yes | without this file `Q/general.json` |
+| 7 | step push without the result files | yes | the result file is pushed too |
+| 8 | a frozen table still gets trained, the table alone can't be trained | yes | both fixed, tests |
+| 9 | optimizer state is taken over wrongly when loading | yes | `load_state_dict` now aborts with an error (training is never resumed) |
+| 10 | BatchNorm in training isn't prefix-causal | yes | as a limitation in the README; all reported PPL in eval mode with running statistics |
+| 11 | statistical certainty overclaimed | yes | "real" and "solid" reworded, ranges named as sensitivity ranges |
+| 12 | "stored, but not retrievable" explains more than was measured | yes | reworded: targeted retrieval not shown, location of what was learned not tested |
+| 13 | parity overstated in summaries | yes | README made more precise (decoding: table model with, model A without graphs; kernels "up to rounding"); `final.md` is private |
+| 14 | MI350X addendum can't be backed up | no | the rewrite has `runs/amd_mi350x` and the section above; Codex checked the old folder |
+| 15 | "12" counts as correct for "12.5" | yes | rule made stricter, regression test |
+| 16 | unsupported sizes only fail inside the kernel | yes | `mem_impl="triton"` checks in the constructor and reports clearly |
+| 17 | batch divisibility in Qwen training, `zero_grad` without effect | yes | checked, or documented |
+| 18 | offload bit-identity only shown through the NLL sum | yes | logits compared directly (`scripts/check_offload_identical.py`): bit-identical with Triton 3.5; with Triton 3.8 they differ in the last bits, same tokens |
+| 19 | "thirty times" instead of 56 times, GB instead of GiB, 4 GB scope | yes | corrected, footnote on the scope |
+| 20 | v2 status, image link, "refuted" | yes | corrected |
+| 21 | Qwen runs without commit and versions | yes | `run-info.json` now contains both; dating by page ids named in the README |
+| 22 | the fit isn't an exact log fit | yes | description corrected; an exact log fit moves the fitted values by at most 0.3 M (58.5 / 83.4 / 115.7 M) |
 
-**Neu beim Nachprüfen von 18:** Mit dem offiziellen `rocm7.2`-Wheel (Triton 3.8) rechnet `bag_infer` auf der
-kleinen Staging-Tabelle (RAM/NVMe) in anderer Reihenfolge als auf der vollen Tabelle (VRAM).
-- Gegen eine exakte fp64-Summe liegen beide gleich nah, mit einer Abweichung von ≈ 1e-8.
-- Die Logits weichen dadurch um bis zu 0,44 ab (wenige bf16-Stufen). Die gierig erzeugten Tokens waren in allen
-  Prüfungen gleich (`report/offload/identical_check_triton38.json`).
-- Mit Triton 3.5 ist alles bitgleich.
+**New while checking 18:** with the official `rocm7.2` wheel (Triton 3.8), `bag_infer` sums in a different order on
+the small staging table (RAM/NVMe) than on the full table (VRAM).
+- Both are equally close to an exact fp64 sum, with a deviation of ≈ 1e-8.
+- The logits differ by up to 0.44 because of that (a few bf16 steps). The greedily generated tokens were the same in
+  all checks (`report/offload/identical_check_triton38.json`).
+- With Triton 3.5 everything is bit-identical.
 
-**Nicht gemacht, das wären neue Experimente:** weitere Seeds, Tabellen-Ablation am Qwen-Add-on, Modell A mit
-Graphen, kausale Normierung statt BatchNorm.
+**Not done, those would be new experiments:** more seeds, table ablation on the Qwen add-on (done since, see the
+addendum to step 3), model A with graphs, causal normalisation instead of BatchNorm.
 
-**Geprüft:**
-- 127 Tests auf der RX 9070, aus einem frischen Clone mit dem `rocm7.2`-Wheel.
-- Die Qwen-Tests (8) in `.venv-qwen`.
-- Die Kernel-Tests zu den betroffenen Kerneln zusätzlich im CPU-Interpreter.
-- Die Queue-Logik ohne Pod: `tests/test_cloud_queue.py` und der Fake-Modus von `run_dense.py`.
+**Checked:**
+- 127 tests on the RX 9070, from a fresh clone with the `rocm7.2` wheel.
+- The Qwen tests (8) in `.venv-qwen`.
+- The kernel tests for the affected kernels also in the CPU interpreter.
+- The queue logic without a pod: `tests/test_cloud_queue.py` and the fake mode of `run_dense.py`.
 
-## Schritt 4: n-Gramm-Tabelle (Engram) gegen Product Keys (Kriterien vor dem Lauf festgelegt, 2026-10-07)
+## Step 4: n-gram table (Engram) against product keys (criteria fixed before the run, 2026-10-07)
 
-**Frage:** Seit Ende August hat Qwen3.8-Flash-Next eine große n-Gramm-Tabelle, die auf der SSD liegen kann (Prinzip
-Engram, Cheng et al. 2026). Die Zeilen werden dort über die letzten 2–3 Tokens ausgesucht, bei uns über den Hidden
-State (Product Keys). Welche Art der Zeilenauswahl bringt bei gleich großer Tabelle mehr?
+**Question:** Since the end of August, Qwen3.8-Flash-Next has a large n-gram table that can live on the SSD (the
+Engram principle, Cheng et al. 2026). There the rows are picked by the last 2–3 tokens, here by the hidden state
+(product keys). Which way of picking rows brings more for a table of the same size?
 
-**Aufbau, festgelegt und nicht anhand kurzer Probeläufe abgestimmt:**
-- **Modell E-1M** (`smlm/engram.py`, Preset `E-1M`):
-  - Modell A plus zwei Engram-Module, vor der Attention auf den Residual-Strom addiert, die FFN bleibt.
-  - Lage: Layer 2 und 6 (0-basiert 1 und 5), früh und mittig wie im Paper (Layer 2 und 15 von ~30). Gewählt nach
-    dieser Analogie, nicht abgestimmt.
-  - Pro Modul n-Gramme der Ordnung 2 und 3 mit je 8 Hash-Köpfen. Jeder Kopf hat eine eigene Tabelle mit 524.287
-    Zeilen (Primzahl) zu 24 Werten, das ergibt 16 Zeilen pro Token und Modul, aneinandergehängt 384 Werte.
-  - Token-Kompression NFKC + Kleinschreibung auf den GPT-2-Tokens: 39.393 statt 50.304 Ids (−22 %).
-  - Context-aware Gate auf dem Hidden State, kausale Depthwise-Faltung (Kern 4, Dilation 3, mit null initialisiert).
-  - Tabellen zusammen **402.652.416 Parameter**, B-1M hat 402.653.184. Dichter Teil 21,84 M (A: 21,24 M).
-- **Training:** exakt die Argumente von B-1M-sparse (`runs/hampter`): Wikipedia, 500 M Tokens, Daten-Seed 1234,
-  Batch 32 × 1024, LR 6e-4, Eval alle 10 M Tokens, WikiText-103 als Nebenwert. Geändert sind nur `--model` und die
-  Tabellen-LR **3e-3** (Paper: 5 × LR).
-- **Optimizer der Tabellen:** zeilen-sparsam mit Lazy Adam, wie die Product-Key-Tabelle. **Abweichung vom Paper**
-  (dort normales Adam): Hier wird pro Schritt nur ein kleiner Teil der Zeilen gelesen, Lazy oder normales Adam kann
-  also mehr ausmachen als bei Product Keys. Deshalb gibt es einen Kontrolllauf mit normalem Adam.
-- **Läufe** (zu Hause, RX 9070, `scripts/run_engram.py`, Ausgabe `runs/engram/`):
-  - E-1M Seed 0 und Seed 1: Hauptvergleich.
-  - E-1M-dense Seed 0: Kontrolle, normales Adam auf allen Zeilen, ein Seed.
-- **Nicht in diesem Schritt:** beide Tabellen zusammen (Preset BE-1M) passt mit ~12 GiB nur für Tabellen- und
-  Optimizer-Zustand nicht auf die 16-GB-Karte. Kommt später auf einer größeren GPU.
+**Setup, fixed and not tuned on short trial runs:**
+- **Model E-1M** (`smlm/engram.py`, preset `E-1M`):
+  - Model A plus two Engram modules, added to the residual stream before attention, the FFN stays.
+  - Position: layers 2 and 6 (0-based 1 and 5), early and middle as in the paper (layers 2 and 15 of ~30). Chosen by
+    that analogy, not tuned.
+  - Per module n-grams of order 2 and 3 with 8 hash heads each. Every head has its own table with 524,287 rows (a
+    prime) of 24 values, giving 16 rows per token and module, 384 values when concatenated.
+  - Token compression NFKC + lower-casing on the GPT-2 tokens: 39,393 instead of 50,304 ids (−22%).
+  - Context-aware gate on the hidden state, causal depthwise convolution (kernel 4, dilation 3, initialised to
+    zero).
+  - Tables together **402,652,416 parameters**, B-1M has 402,653,184. Dense part 21.84 M (A: 21.24 M).
+- **Training:** exactly the arguments of B-1M-sparse (`runs/hampter`): Wikipedia, 500 M tokens, data seed 1234,
+  batch 32 × 1024, LR 6e-4, eval every 10 M tokens, WikiText-103 as a side value. Only `--model` and the table LR
+  **3e-3** (paper: 5 × LR) are changed.
+- **Optimizer of the tables:** row-sparse with lazy Adam, like the product-key table. **Deviation from the paper**
+  (plain Adam there): here only a small share of the rows is read per step, so lazy or plain Adam can matter more
+  than with product keys. That's why there's a control run with plain Adam.
+- **Runs** (at home, RX 9070, `scripts/run_engram.py`, output `runs/engram/`):
+  - E-1M seed 0 and seed 1: main comparison.
+  - E-1M-dense seed 0: control, plain Adam on all rows, one seed.
+- **Not in this step:** both tables together (preset BE-1M) don't fit on the 16 GB card, with ~12 GiB for the table
+  and optimizer state alone. Comes later on a bigger GPU.
 
-**Kriterien:**
-- **Haupturteil:** Val-PPL Wikipedia nach 500 M Tokens, Mittel aus 2 Seeds, E-1M gegen B-1M-sparse (21,837 / 21,752,
-  Mittel 21,794). Die gemessene Seed-Spanne liegt bei ~0,4 %.
-  - **„E besser“:** E ≤ 0,99 × B.
-  - **„gleichauf“:** E innerhalb ±1 % von B.
-  - **„B besser“:** E ≥ 1,01 × B.
-- **Gegen A** (25,665 / 25,756, Mittel 25,711): Verbesserung in % und gleichwertige dichte Größe mit derselben
-  Interpolation wie bei B (B-1M: 60 M).
-- **Kontrolle Optimizer:** Ist E-1M-dense-s0 ≤ 0,99 × E-1M-s0, benachteiligt Lazy Adam die n-Gramm-Tabelle. Dann
-  wird das Haupturteil zusätzlich mit dem Dense-Wert angegeben, als Hinweis mit nur einem Seed.
-- **Berichtet, aber ohne Urteil:**
-  - WikiText-103-Val-PPL (B-1M-sparse: 65,51 / 65,09).
-  - Trainingstempo auf der RX 9070 (B-1M mit Kerneln: ≈ 59.700 tok/s) und Spitze des GPU-Speichers.
-  - Gelesene Tabellenwerte pro Token: E 2 × 16 × 24 = 768, B 3 × 128 × 384 = 147.456 (192-mal mehr). Das ist für
-    das Auslagern auf RAM oder SSD wichtig, wird hier aber nicht gemessen.
-  - Anteil der Tabellenzeilen, die im Val-Set gelesen werden.
+**Criteria:**
+- **Main verdict:** val PPL Wikipedia after 500 M tokens, mean of 2 seeds, E-1M against B-1M-sparse (21.837 /
+  21.752, mean 21.794). The measured seed spread is ~0.4%.
+  - **"E better":** E ≤ 0.99 × B.
+  - **"on par":** E within ±1% of B.
+  - **"B better":** E ≥ 1.01 × B.
+- **Against A** (25.665 / 25.756, mean 25.711): improvement in % and equivalent dense size with the same
+  interpolation as for B (B-1M: 60 M).
+- **Optimizer control:** if E-1M-dense-s0 ≤ 0.99 × E-1M-s0, lazy Adam puts the n-gram table at a disadvantage. Then
+  the main verdict is also given with the dense value, as a hint with only one seed.
+- **Reported, but without a verdict:**
+  - WikiText-103 val PPL (B-1M-sparse: 65.51 / 65.09).
+  - Training speed on the RX 9070 (B-1M with kernels: ≈ 59,700 tok/s) and peak GPU memory.
+  - Table values read per token: E 2 × 16 × 24 = 768, B 3 × 128 × 384 = 147,456 (192 times more). That matters for
+    offloading to RAM or SSD, but isn't measured here.
+  - Share of the table rows that are read on the val set.
 
-**Vorbehalt, vorab festgehalten:** Engram ist für viel größere Modelle und Tabellen gebaut (Paper: 5,7 Mrd.
-Tabellenparameter). Bei 0,4 Mrd. in 16 × 524.287 kleinen Zeilen teilen sich viele n-Gramme eine Zeile. Verliert E
-hier, sagt das etwas über diesen Maßstab und diese Konfiguration, nicht über Engram allgemein. Ebenso nicht übernommen:
-die Hyper-Connections (mHC) des Papers.
+**Caveat, written down beforehand:** Engram is built for much bigger models and tables (paper: 5.7 B table
+parameters). At 0.4 B in 16 × 524,287 small rows, many n-grams share a row. If E loses here, that says something
+about this scale and this configuration, not about Engram in general. Also not taken over: the paper's
+hyper-connections (mHC).
 
-**Probeläufe vor der Freigabe (nur Technik, keine Abstimmung):**
-- Kompletter Durchlauf über 4 M Tokens inkl. Auswertung, Checkpoint und Inferenz-Benchmark für E-1M und E-1M-dense.
-- Ganze Warteschlange mit Mini-Läufen (`--smoke`).
-- Tempo: E-1M ≈ 79.000 tok/s (≈ 1,9 h pro Lauf), E-1M-dense ≈ 64.000 tok/s (≈ 2,3 h). Speicher je ≈ 10,5 GiB.
+**Trial runs before the approval (technique only, no tuning):**
+- A complete run over 4 M tokens including evaluation, checkpoint and inference benchmark for E-1M and E-1M-dense.
+- The whole queue with mini runs (`--smoke`).
+- Speed: E-1M ≈ 79,000 tok/s (≈ 1.9 h per run), E-1M-dense ≈ 64,000 tok/s (≈ 2.3 h). Memory ≈ 10.5 GiB each.
 
-## Nachtrag Schritt 3: Wo steckt das Gelernte von Q+T? (Tabellen-Ablation, Kriterien vor der Messung, 2026-10-07)
+## Addendum to step 3: where does Q+T keep what it learned? (table ablation, criteria before measuring, 2026-10-07)
 
-**Frage:** Q+T passt sich den Trainingsartikeln viel stärker an als Q+D (PPL auf trainierten Artikeln −58 % statt
-−30 %). Steckt das in der Wertetabelle oder in Keys, Query-Projektion, BatchNorm, swilu und Gates? Bisher nicht
-getestet (Codex-Befund 12).
+**Question:** Q+T adapts to the training articles much more strongly than Q+D (PPL on trained articles −58% instead of
+−30%). Is that in the value table or in keys, query projection, BatchNorm, swilu and gates? Not tested so far (Codex
+finding 12).
 
-**Messung** (zu Hause, RX 9070, `scripts/qwen_table_ablation.py`, kein Training): dasselbe trainierte Add-on
-`runs/qwen_cloud/QT-s0/addons.pt` in drei Varianten.
-- **T:** wie trainiert, zu Hause neu gemessen, damit alle Vergleiche von derselben Karte kommen.
-- **Z (Hauptvariante):** Wertetabelle auf null, alles andere unverändert. Die Add-on-Blöcke liefern dann nur noch den
-  Bias ihrer Ausgabeprojektion.
-- **R:** Wertetabelle neu gezogen, mit derselben Verteilung wie beim Start des Trainings (Normal, σ = 1/√1024).
-- **Gemessen:** PPL auf `mem_probe` (Ausschnitt der Trainingsartikel), `val_new` (neue, nie trainierte Artikel) und
-  `val_known` (Artikel von vor dem Qwen-Stichtag), dazu der Faktentest (je 500 Lücken aus Trainings- und
-  Gegenprobe-Artikeln). Vergleichswert Q: zu Hause gemessen (`runs/qwen/Q-base`, `report/qwen/facts_Q_home.json`).
+**Measurement** (at home, RX 9070, `scripts/qwen_table_ablation.py`, no training): the same trained add-on
+`runs/qwen_cloud/QT-s0/addons.pt` in three variants.
+- **T:** as trained, measured again at home, so that all comparisons come from the same card.
+- **Z (main variant):** value table set to zero, everything else unchanged. The add-on blocks then only deliver the
+  bias of their output projection.
+- **R:** value table drawn again, with the same distribution as at the start of training (normal, σ = 1/√1024).
+- **Measured:** PPL on `mem_probe` (a slice of the training articles), `val_new` (new, never trained articles) and
+  `val_known` (articles from before Qwen's cut-off), plus the fact test (500 blanks each from training and
+  counter-check articles). Reference Q: measured at home (`runs/qwen/Q-base`, `report/qwen/facts_Q_home.json`).
 
-**Kriterien:**
-- **Anteil der Tabelle** am Gewinn je PPL-Satz, auf log-PPL: s = (ln Z − ln T) / (ln Q − ln T). Bei s = 1 geht mit
-  der Tabelle der ganze Gewinn gegenüber Qwen allein verloren, bei s = 0 nichts.
-  - **„überwiegend in der Tabelle“:** s ≥ 0,5.
-  - **„geteilt“:** 0,2 < s < 0,5.
-  - **„überwiegend im Rest“:** s ≤ 0,2.
-- **Hauptsatz** ist `mem_probe` (die Frage nach dem auswendig Gelernten), `val_new` und `val_known` werden genauso
-  berichtet.
-- **Faktentest:** Trefferquote von T, Z und Q mit gepaarten Bootstrap-Intervallen (95 %) für T − Z. Nur wenn das
-  Intervall die Null ausschließt, heißt es „Faktengewinn hängt an der Tabelle“.
-- **R** wird berichtet, ohne Urteil. R zeigt, ob das Modell den Inhalt der Tabelle braucht oder nur Werte dieser
-  Größenordnung; R schlechter als Q spräche dafür, dass der Rest auf die trainierte Tabelle abgestimmt ist.
+**Criteria:**
+- **Share of the table** in the gain per PPL set, on log PPL: s = (ln Z − ln T) / (ln Q − ln T). At s = 1 the whole
+  gain over Qwen alone goes away with the table, at s = 0 nothing.
+  - **"mostly in the table":** s ≥ 0.5.
+  - **"shared":** 0.2 < s < 0.5.
+  - **"mostly in the rest":** s ≤ 0.2.
+- **Main set** is `mem_probe` (the question about what was memorised), `val_new` and `val_known` are reported the
+  same way.
+- **Fact test:** hit rate of T, Z and Q with paired bootstrap intervals (95%) for T − Z. Only if the interval excludes
+  zero does it say "the fact gain depends on the table".
+- **R** is reported without a verdict. R shows whether the model needs the content of the table or just values of
+  this size; R worse than Q would suggest that the rest is tuned to the trained table.
 
-**Ergebnis** (2026-10-07, RX 9070, 47 min, `report/qwen/table_ablation.json`):
+**Result** (2026-10-07, RX 9070, 47 min, `report/qwen/table_ablation.json`):
 
-| | Q (Gates 0) | T (trainiert) | Z (Tabelle 0) | R (Tabelle zufällig) | Anteil s der Tabelle |
+| | Q (gates 0) | T (trained) | Z (table 0) | R (table random) | Share s of the table |
 |---|---|---|---|---|---|
-| PPL `mem_probe` (Trainingsartikel) | 13,363 | 5,640 | 12,772 | 12,870 | **0,95** |
-| PPL `val_new` (neue Artikel) | 12,977 | 10,095 | 12,388 | 12,485 | **0,82** |
-| PPL `val_known` (alte Artikel) | 13,935 | 14,903 | 13,400 | 13,499 | 1,58 |
-| PPL `val_known_same` | 14,282 | 14,031 | 13,706 | 13,823 | −1,33 |
-| Faktentest Training | 25/500 (zu Hause) | 51/500 | 23/500 | 25/500 | |
-| Faktentest Gegenprobe | 19/500 (zu Hause) | 48/500 | 22/500 | 21/500 | |
+| PPL `mem_probe` (training articles) | 13.363 | 5.640 | 12.772 | 12.870 | **0.95** |
+| PPL `val_new` (new articles) | 12.977 | 10.095 | 12.388 | 12.485 | **0.82** |
+| PPL `val_known` (old articles) | 13.935 | 14.903 | 13.400 | 13.499 | 1.58 |
+| PPL `val_known_same` | 14.282 | 14.031 | 13.706 | 13.823 | −1.33 |
+| Fact test training | 25/500 (at home) | 51/500 | 23/500 | 25/500 | |
+| Fact test counter-check | 19/500 (at home) | 48/500 | 22/500 | 21/500 | |
 
-- **Kontrollen:** Q über Gates 0 trifft die bisherigen Q-Werte auf alle Stellen. T trifft die Cloud-Messung
-  (5,638 / 10,093).
-- **Urteil `mem_probe`: „überwiegend in der Tabelle“** (s = 0,95). Ohne Tabelle ist fast die ganze Anpassung an die
-  Trainingsartikel weg (13,36 → 5,64 → 12,77).
-- **`val_new`: ebenfalls „überwiegend in der Tabelle“** (s = 0,82).
-- **`val_known`:** Die Verschlechterung auf alten Artikeln (+7 %) kommt ganz aus der Tabelle. Ohne Tabelle ist das
-  Add-on dort sogar 3,8 % besser als Qwen allein (s > 1).
-- **`val_known_same`:** T ist nur 1,8 % besser als Q, ohne Tabelle 4 % besser. Die Tabelle schadet hier gegenüber dem
-  Rest des Add-ons, deshalb ist s negativ und nicht sinnvoll als Anteil zu lesen.
-- **Faktentest: „Faktengewinn hängt an der Tabelle“.** T − Z = +5,6 Pp. [3,0; 8,2] bei Trainingsartikeln und
-  +5,2 Pp. [3,2; 7,4] bei der Gegenprobe. Ohne Tabelle fällt das Add-on auf das Niveau von Qwen allein zurück.
-  Der Gewinn ist bei Trainings- und Gegenprobe-Artikeln gleich groß, die Tabelle hilft also allgemein beim
-  Vervollständigen von Wikipedia-Fakten, nicht gezielt bei den trainierten.
-- **R ≈ Z:** Eine zufällige Tabelle hilft so wenig wie keine. Das Modell nutzt den gelernten Inhalt, nicht nur Werte
-  dieser Größenordnung.
-- **Der Rest des Add-ons ohne Tabelle** bringt auf allen Sätzen gleichmäßig ≈ 4 %. Mit Tabelle null liefern die
-  Blöcke nur noch den gelernten Bias ihrer Ausgabeprojektion, also eine feste Verschiebung pro Block, eine allgemeine
-  Anpassung an Wikipedia-Text.
+- **Controls:** Q via gates 0 matches the earlier Q values in every digit. T matches the cloud measurement (5.638 /
+  10.093).
+- **Verdict `mem_probe`: "mostly in the table"** (s = 0.95). Without the table almost the whole adaptation to the
+  training articles is gone (13.36 → 5.64 → 12.77).
+- **`val_new`: also "mostly in the table"** (s = 0.82).
+- **`val_known`:** the worsening on old articles (+7%) comes entirely from the table. Without the table the add-on is
+  even 3.8% better than Qwen alone there (s > 1).
+- **`val_known_same`:** T is only 1.8% better than Q, without the table 4% better. Here the table does harm compared
+  with the rest of the add-on, so s is negative and can't be read as a share.
+- **Fact test: "the fact gain depends on the table".** T − Z = +5.6 pp [3.0; 8.2] on training articles and +5.2 pp
+  [3.2; 7.4] on the counter-check. Without the table the add-on falls back to the level of Qwen alone. The gain is the
+  same on training and counter-check articles, so the table helps with completing Wikipedia facts in general, not
+  specifically with the trained ones.
+- **R ≈ Z:** a random table helps as little as none. The model uses the learned content, not just values of this size.
+- **The rest of the add-on without the table** brings ≈ 4% evenly on all sets. With the table at zero, the blocks only
+  deliver the learned bias of their output projection, so a fixed shift per block, a general adaptation to Wikipedia
+  text.
 
-**Was das bedeutet:** Die Tabelle ist der Speicher. Sie trägt das Auswendiggelernte der Trainingsartikel, die
-Anpassung an neue Artikel, den Gewinn im Faktentest und auch den Schaden auf älterem Text. Offen bleibt der
-Befund aus Schritt 3: Die gespeicherten Artikel machen die *trainierten* Fakten nicht besser abrufbar als andere.
-Die Frage „Wo steckt es?“ ist damit beantwortet, die Frage „Warum kommt es nicht gezielt wieder heraus?“ nicht.
+**What that means:** the table is the memory. It carries what was memorised from the training articles, the
+adaptation to new articles, the gain in the fact test and also the harm on older text. The finding from step 3 stays
+open: the stored articles don't make the *trained* facts more retrievable than others. So the question "where is it?"
+is answered, the question "why doesn't it come back out in a targeted way?" isn't.

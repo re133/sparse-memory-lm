@@ -1,4 +1,4 @@
-"""Night queue at home (RX 9070): Engram-style n-gram memory vs. product keys (REPORT.md, "Schritt 4").
+"""Night queue at home (RX 9070): Engram-style n-gram memory vs. product keys (REPORT.md, "Step 4").
 
   python scripts/run_engram.py          (in tmux; resumable, a finished run is skipped)
   python scripts/run_engram.py --smoke DIR   (whole queue on 2M tokens per run into DIR, no ntfy: test before the night)

@@ -12,7 +12,7 @@
   4. B-1M-sparse s1   as run 1 with init seed 1 (no abort rule)
 
 Every run: GPU temperatures (edge, junction/hotspot, memory), power, clocks, fan and VRAM every 10 s in
-<run>/gpu_thermal.csv. After every run scripts/hampter_status.py refreshes the status block in REPORT.md.
+<run>/gpu_thermal.csv. After every run scripts/hampter_status.py refreshes the status block in REPORT.de.md.
 Queue log: runs/hampter/queue.log.
 """
 import csv

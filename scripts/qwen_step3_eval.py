@@ -1,4 +1,4 @@
-"""Step 3 evaluation against the pre-registered criteria (REPORT.md, "Schritt 3"): Q, Q+T, Q+D from runs/qwen_cloud.
+"""Step 3 evaluation against the pre-registered criteria (REPORT.md, "Step 3"): Q, Q+T, Q+D from runs/qwen_cloud.
 
   python scripts/qwen_step3_eval.py      -> report/qwen/step3_summary.json + markdown on stdout
 

@@ -1,6 +1,6 @@
 """Where does Q+T keep what it learned? The trained add-on with its value table as trained (T), zeroed (Z) or
-re-drawn from the initial distribution (R); Q = all gates at zero (bit-for-bit Qwen alone). REPORT.md, "Nachtrag
-Schritt 3: Wo steckt das Gelernte von Q+T?".
+re-drawn from the initial distribution (R); Q = all gates at zero (bit-for-bit Qwen alone).
+REPORT.md, "Addendum to step 3: where does Q+T keep what it learned?".
 
   python scripts/qwen_table_ablation.py [--addons runs/qwen_cloud/QT-s0/addons.pt] [--skip_facts]
 
