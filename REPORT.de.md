@@ -2343,6 +2343,35 @@ Product-Key-Modell bedeutet ein anderer Kontext auch andere Tabellenzeilen.
 
 **Vor den Kriterien:** Die Bewertung wurde nur an drei erfundenen Prompts getestet.
 
+### Ergebnis des Nachtrags (2026-10-07, RX 9070, `report/facts_lm/logprob_summary.json`)
+
+- **Erinnert sich B-16M überhaupt? „Keine messbare Erinnerung“.** Zeitliche Nähe (spät minus früh, Kontext-Prompt)
+  +0,06 Nats [−1,18; 1,33]. Ehrlich gesagt: Mit rund 220 Aufgaben pro Fünftel und großer Streuung pro Aufgabe sieht
+  dieser Test nur Effekte von mehr als etwa einem Nat. Er ist schwächer, als ich beim Schreiben der Kriterien dachte.
+- **Tabelle gegen dicht: „Kein klarer Unterschied“.** Lücke von B-16M minus D-100M +0,15 Nats [−0,01; 0,31], minus
+  D-200M +0,10 [−0,04; 0,23].
+- Kontext-Prompt, mittlere Log-Wahrscheinlichkeit der Antwort (Nats):
+
+| Modell | Val-PPL | Gesehen | Ungesehen | Lücke [95 %] | Zeitliche Nähe [95 %] |
+|---|---:|---:|---:|---:|---:|
+| A | 25,67 | −9,64 | −10,01 | +0,37 [−0,27; 0,99] | −0,08 [−1,44; 1,28] |
+| D-50M | 22,45 | −9,10 | −9,46 | +0,36 [−0,26; 0,95] | +0,06 [−1,20; 1,33] |
+| B-1M | 21,84 | −8,81 | −9,24 | +0,42 [−0,16; 1,00] | +0,11 [−1,14; 1,38] |
+| B-4M | 20,80 | −8,57 | −9,03 | +0,46 [−0,12; 1,02] | +0,30 [−0,99; 1,60] |
+| D-100M | 20,27 | −8,72 | −9,11 | +0,39 [−0,21; 0,97] | +0,00 [−1,26; 1,25] |
+| **B-16M** | **19,96** | **−8,27** | **−8,80** | **+0,54 [−0,03; 1,08]** | **+0,06 [−1,18; 1,33]** |
+| D-200M | 18,76 | −8,38 | −8,82 | +0,44 [−0,14; 0,99] | +0,17 [−1,06; 1,40] |
+| D-400M | 17,60 | −8,09 | −8,61 | +0,52 [−0,04; 1,07] | +0,18 [−1,05; 1,40] |
+
+- **Was ich daraus lese:** Jedes Modell, sogar A, hält die gesehenen Antworten um etwa 0,4–0,5 Nats für
+  wahrscheinlicher. Weil es bei allen gleich ist, kann es genauso gut sein, dass die gesehenen Artikel etwas leichter
+  sind; das kann der Test nicht trennen. Die Lücke wächst etwas mit der Modellqualität, und B-16M hat die größte
+  (+0,54, wie D-400M mit +0,52), etwas über seinen beiden dichten Nachbarn, aber im Rauschen. Der Lückentext-Prompt
+  zeigt dasselbe Bild (B-16M minus D-100M +0,10 [−0,05; 0,25], minus D-200M +0,06 [−0,07; 0,20]).
+- **Zusammen mit Schritt 6:** Einmal gesehene Fakten hinterlassen in all diesen Modellen höchstens eine kleine Spur,
+  mit oder ohne Tabelle. Der Weg zu einer klaren Antwort ist der kontrollierte Test mit wiederholten Fakten (FACTK in
+  meinen Notizen), nicht ein feineres Messen derselben Daten.
+
 ## Schritt 7: Wie lexikalisch ist die Tabelle? (ohne Training, Kriterien vor der Messung, 2026-10-07)
 
 **Frage** (aus demselben Review): Braucht die Tabelle überhaupt kontextabhängige Adressen, oder lässt sich das meiste,
@@ -2375,3 +2404,28 @@ Product Keys.
 **Vor den Kriterien:** Ein Technik-Test mit Statistiken aus nur 64 Trainingsfenstern, ausgewertet auf 16 anderen
 Trainingsfenstern (nicht dem Validierungssatz), hat gezeigt, dass die Varianten laufen und sich deutlich
 unterscheiden. Diese Zahlen habe ich gesehen; die Schwellen oben sind die, die ich vor diesem Test geplant hatte.
+
+### Ergebnis Schritt 7 (2026-10-07, RX 9070, `report/lex/eval.json`)
+
+| Variante | Val-PPL | Behaltener Anteil des Gewinns [95 %] |
+|---|---:|---:|
+| echt | 21,84 | 100 % |
+| null (kein Tabelleninhalt) | 84,81 | 0 % |
+| Token (Mittelwert je aktuellem Token) | 44,21 | 64,5 % [64,2; 64,7] |
+| **Bigramm (Mittelwert je letzten zwei Tokens)** | **37,19** | **75,6 % [75,3; 75,9]** |
+| anderer Kontext (echter Bag desselben Tokens aus einem anderen Satz) | 71,52 | 21,1 % [20,5; 21,7] |
+
+- **Urteil nach den Kriterien: „Weitgehend lexikalisch“**, knapp über der Linie: Der Bigramm-Mittelwert behält
+  75,6 % des Gewinns, das ganze Intervall liegt über 75 %.
+- **Aber diese Zahl schmeichelt dem lexikalischen Teil, und das hätte ich vorher sehen sollen:** Die Referenz „null“
+  ist ein Modell, dessen Tabelle plötzlich nichts mehr liefert, und mit 84,81 ist es viel schlechter als Modell A, das
+  nie eine Tabelle hatte (25,67). Gegen A gemessen dreht sich das Bild: Mit Bigramm-Mittelwerten landet B-1M bei
+  37,19, also klar *schlechter* als ganz ohne Tabelle. Das Viertel, das vom Kontext abhängt, ist genau der Teil, der
+  B-1M besser macht als A.
+- **„Anderer Kontext“ zeigt, wie kontextabhängig ein einzelner Bag ist:** Ein echter Bag desselben Tokens aus einem
+  anderen Satz behält nur 21 %. Der Mittelwert funktioniert, weil er die kontextabhängigen Anteile herausmittelt.
+- **Was das bedeutet:** Etwa drei Viertel dessen, was die Tabelle liefert, lassen sich aus den letzten zwei Tokens
+  vorhersagen; diesen Teil könnte eine n-Gramm-Tabelle billig liefern. Der Rest hängt vom Kontext ab und ist in diesem
+  Modell unverzichtbar. Eine Grenze: Der Rest von B-1M wurde mit den echten Bags zusammen trainiert; ein Modell, das
+  von Anfang an mit n-Gramm-Zeilen lernt, kann den fehlenden Teil woanders ausgleichen. Ob es das tut, misst genau der
+  Engram-Lauf heute Nacht (Schritt 4).

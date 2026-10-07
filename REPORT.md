@@ -2235,6 +2235,35 @@ also means other table rows.
 
 **Before the criteria:** the scoring was only tested on three made-up prompts.
 
+### Result of the addendum (2026-10-07, RX 9070, `report/facts_lm/logprob_summary.json`)
+
+- **Does B-16M remember at all? "No measurable memory".** Recency (late minus early, context prompt) +0.06 nats
+  [−1.18; 1.33]. Honestly: with ~220 items per fifth and a large spread per item, this test can only see effects of
+  more than about a nat. It is weaker than I expected when I wrote the criteria.
+- **Table against dense: "no clear difference".** Gap of B-16M minus D-100M +0.15 nats [−0.01; 0.31], minus D-200M
+  +0.10 [−0.04; 0.23].
+- Context prompt, mean log-probability of the answer (nats):
+
+| Model | Val PPL | Seen | Unseen | Gap [95%] | Recency [95%] |
+|---|---:|---:|---:|---:|---:|
+| A | 25.67 | −9.64 | −10.01 | +0.37 [−0.27; 0.99] | −0.08 [−1.44; 1.28] |
+| D-50M | 22.45 | −9.10 | −9.46 | +0.36 [−0.26; 0.95] | +0.06 [−1.20; 1.33] |
+| B-1M | 21.84 | −8.81 | −9.24 | +0.42 [−0.16; 1.00] | +0.11 [−1.14; 1.38] |
+| B-4M | 20.80 | −8.57 | −9.03 | +0.46 [−0.12; 1.02] | +0.30 [−0.99; 1.60] |
+| D-100M | 20.27 | −8.72 | −9.11 | +0.39 [−0.21; 0.97] | +0.00 [−1.26; 1.25] |
+| **B-16M** | **19.96** | **−8.27** | **−8.80** | **+0.54 [−0.03; 1.08]** | **+0.06 [−1.18; 1.33]** |
+| D-200M | 18.76 | −8.38 | −8.82 | +0.44 [−0.14; 0.99] | +0.17 [−1.06; 1.40] |
+| D-400M | 17.60 | −8.09 | −8.61 | +0.52 [−0.04; 1.07] | +0.18 [−1.05; 1.40] |
+
+- **What I read from it:** every model, even A, finds the seen answers about 0.4–0.5 nats more likely. Since it's the
+  same for all, it can just as well be that the seen articles are a little easier; the test can't separate that. The
+  gap grows a bit with model quality, and B-16M has the largest one (+0.54, like D-400M with +0.52), slightly above
+  its two dense neighbours, but inside the noise. The cloze prompt gives the same picture (B-16M minus D-100M +0.10
+  [−0.05; 0.25], minus D-200M +0.06 [−0.07; 0.20]).
+- **Overall with step 6:** once-seen facts leave at most a small trace in all these models, with or without table.
+  The way to a clear answer is the controlled test with repeated facts (FACTK in my notes), not a finer measurement of
+  the same data.
+
 ## Step 7: how lexical is the table? (no training, criteria before measuring, 2026-10-07)
 
 **Question** (from the same review): does the table need context-specific addresses at all, or is most of what it
@@ -2264,3 +2293,27 @@ much of the expensive search. If not, the content-based addressing of product ke
 **Before the criteria:** a plumbing test with statistics from only 64 training windows, evaluated on 16 other
 training windows (not the validation set), showed that the variants run and differ clearly. I looked at those
 numbers; the thresholds above are the ones I had planned before that test.
+
+### Result of step 7 (2026-10-07, RX 9070, `report/lex/eval.json`)
+
+| Variant | Val PPL | Kept share of the gain [95%] |
+|---|---:|---:|
+| real | 21.84 | 100% |
+| zero (no table content) | 84.81 | 0% |
+| tok (mean per current token) | 44.21 | 64.5% [64.2; 64.7] |
+| **bigram (mean per last two tokens)** | **37.19** | **75.6% [75.3; 75.9]** |
+| other (real bag of the same token from another context) | 71.52 | 21.1% [20.5; 21.7] |
+
+- **Verdict by the criteria: "largely lexical"**, just over the line: the bigram mean keeps 75.6% of the gain, the
+  whole interval lies above 75%.
+- **But that number flatters the lexical part, and I should have seen it before:** the reference "zero" is a model
+  whose table suddenly delivers nothing, and at 84.81 it is much worse than model A, which never had a table (25.67).
+  Measured against A, the picture turns around: with bigram means B-1M lands at 37.19, clearly *worse* than having no
+  table at all. The quarter that depends on context is exactly the part that makes B-1M better than A.
+- **"other" shows how context-specific a single bag is:** a real bag of the same token from another sentence keeps
+  only 21%. The mean works because it averages the context-specific parts away.
+- **What that means:** about three quarters of what the table delivers can be predicted from the last two tokens, so
+  an n-gram lookup could supply that part cheaply. The rest depends on the context, and in this model it is
+  indispensable. One limit: the rest of B-1M was trained together with the real bags; a model trained with n-gram
+  rows from the start can learn to make up for the missing part elsewhere. Whether it does is exactly what tonight's
+  Engram run (step 4) measures.
