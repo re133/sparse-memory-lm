@@ -2012,3 +2012,58 @@ Graphen, kausale Normierung statt BatchNorm.
 - Die Qwen-Tests (8) in `.venv-qwen`.
 - Die Kernel-Tests zu den betroffenen Kerneln zusätzlich im CPU-Interpreter.
 - Die Queue-Logik ohne Pod: `tests/test_cloud_queue.py` und der Fake-Modus von `run_dense.py`.
+
+## Schritt 4: n-Gramm-Tabelle (Engram) gegen Product Keys (Kriterien vor dem Lauf festgelegt, 2026-10-07)
+
+**Frage:** Seit Ende August hat Qwen3.8-Flash-Next eine große n-Gramm-Tabelle, die auf der SSD liegen kann (Prinzip
+Engram, Cheng et al. 2026). Die Zeilen werden dort über die letzten 2–3 Tokens ausgesucht, bei uns über den Hidden
+State (Product Keys). Welche Art der Zeilenauswahl bringt bei gleich großer Tabelle mehr?
+
+**Aufbau, festgelegt und nicht anhand kurzer Probeläufe abgestimmt:**
+- **Modell E-1M** (`smlm/engram.py`, Preset `E-1M`):
+  - Modell A plus zwei Engram-Module, vor der Attention auf den Residual-Strom addiert, die FFN bleibt.
+  - Lage: Layer 2 und 6 (0-basiert 1 und 5), früh und mittig wie im Paper (Layer 2 und 15 von ~30). Gewählt nach
+    dieser Analogie, nicht abgestimmt.
+  - Pro Modul n-Gramme der Ordnung 2 und 3 mit je 8 Hash-Köpfen. Jeder Kopf hat eine eigene Tabelle mit 524.287
+    Zeilen (Primzahl) zu 24 Werten, das ergibt 16 Zeilen pro Token und Modul, aneinandergehängt 384 Werte.
+  - Token-Kompression NFKC + Kleinschreibung auf den GPT-2-Tokens: 39.393 statt 50.304 Ids (−22 %).
+  - Context-aware Gate auf dem Hidden State, kausale Depthwise-Faltung (Kern 4, Dilation 3, mit null initialisiert).
+  - Tabellen zusammen **402.652.416 Parameter**, B-1M hat 402.653.184. Dichter Teil 21,84 M (A: 21,24 M).
+- **Training:** exakt die Argumente von B-1M-sparse (`runs/hampter`): Wikipedia, 500 M Tokens, Daten-Seed 1234,
+  Batch 32 × 1024, LR 6e-4, Eval alle 10 M Tokens, WikiText-103 als Nebenwert. Geändert sind nur `--model` und die
+  Tabellen-LR **3e-3** (Paper: 5 × LR).
+- **Optimizer der Tabellen:** zeilen-sparsam mit Lazy Adam, wie die Product-Key-Tabelle. **Abweichung vom Paper**
+  (dort normales Adam): Hier wird pro Schritt nur ein kleiner Teil der Zeilen gelesen, Lazy oder normales Adam kann
+  also mehr ausmachen als bei Product Keys. Deshalb gibt es einen Kontrolllauf mit normalem Adam.
+- **Läufe** (zu Hause, RX 9070, `scripts/run_engram.py`, Ausgabe `runs/engram/`):
+  - E-1M Seed 0 und Seed 1: Hauptvergleich.
+  - E-1M-dense Seed 0: Kontrolle, normales Adam auf allen Zeilen, ein Seed.
+- **Nicht in diesem Schritt:** beide Tabellen zusammen (Preset BE-1M) passt mit ~12 GiB nur für Tabellen- und
+  Optimizer-Zustand nicht auf die 16-GB-Karte. Kommt später auf einer größeren GPU.
+
+**Kriterien:**
+- **Haupturteil:** Val-PPL Wikipedia nach 500 M Tokens, Mittel aus 2 Seeds, E-1M gegen B-1M-sparse (21,837 / 21,752,
+  Mittel 21,794). Die gemessene Seed-Spanne liegt bei ~0,4 %.
+  - **„E besser“:** E ≤ 0,99 × B.
+  - **„gleichauf“:** E innerhalb ±1 % von B.
+  - **„B besser“:** E ≥ 1,01 × B.
+- **Gegen A** (25,665 / 25,756, Mittel 25,711): Verbesserung in % und gleichwertige dichte Größe mit derselben
+  Interpolation wie bei B (B-1M: 60 M).
+- **Kontrolle Optimizer:** Ist E-1M-dense-s0 ≤ 0,99 × E-1M-s0, benachteiligt Lazy Adam die n-Gramm-Tabelle. Dann
+  wird das Haupturteil zusätzlich mit dem Dense-Wert angegeben, als Hinweis mit nur einem Seed.
+- **Berichtet, aber ohne Urteil:**
+  - WikiText-103-Val-PPL (B-1M-sparse: 65,51 / 65,09).
+  - Trainingstempo auf der RX 9070 (B-1M mit Kerneln: ≈ 59.700 tok/s) und Spitze des GPU-Speichers.
+  - Gelesene Tabellenwerte pro Token: E 2 × 16 × 24 = 768, B 3 × 128 × 384 = 147.456 (192-mal mehr). Das ist für
+    das Auslagern auf RAM oder SSD wichtig, wird hier aber nicht gemessen.
+  - Anteil der Tabellenzeilen, die im Val-Set gelesen werden.
+
+**Vorbehalt, vorab festgehalten:** Engram ist für viel größere Modelle und Tabellen gebaut (Paper: 5,7 Mrd.
+Tabellenparameter). Bei 0,4 Mrd. in 16 × 524.287 kleinen Zeilen teilen sich viele n-Gramme eine Zeile. Verliert E
+hier, sagt das etwas über diesen Maßstab und diese Konfiguration, nicht über Engram allgemein. Ebenso nicht übernommen:
+die Hyper-Connections (mHC) des Papers.
+
+**Probeläufe vor der Freigabe (nur Technik, keine Abstimmung):**
+- Kompletter Durchlauf über 4 M Tokens inkl. Auswertung, Checkpoint und Inferenz-Benchmark für E-1M und E-1M-dense.
+- Ganze Warteschlange mit Mini-Läufen (`--smoke`).
+- Tempo: E-1M ≈ 79.000 tok/s (≈ 1,9 h pro Lauf), E-1M-dense ≈ 64.000 tok/s (≈ 2,3 h). Speicher je ≈ 10,5 GiB.

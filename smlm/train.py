@@ -47,6 +47,12 @@ MODELS = {
     # Engram-style n-gram memory instead of product keys: A plus two modules (early and middle layer, as the paper's
     # layers 2 and 15 of ~30), tables together as big as B-1M's (2 x 16 heads x 524,287 rows x 24 = 402.65M)
     "E-1M": dict(eng_layers=[1, 5]),
+    # control: E-1M with dense table gradients and plain Adam on all rows (the paper's optimizer) instead of lazy Adam
+    "E-1M-dense": dict(eng_layers=[1, 5], eng_value_grad="dense"),
+    # both memories: B-1M-sparse's product-key layers plus E-1M's Engram modules (twice the table parameters;
+    # ~12 GiB of table and optimizer state alone, doesn't fit a 16 GB card)
+    "BE-1M": dict(mem_layers=[2, 6, 10], mem_n_keys=1024, mem_share_values=True, mem_value_grad="row_sparse",
+                  eng_layers=[1, 5]),
     # step 1 "Gegenwert der Tabelle": dense Llama models like A without memory, width and depth grown together,
     # head_dim 64, FFN ~ 8/3 d rounded to a multiple of 64 (as A: 384 -> 1024); name = non-embedding parameters
     "D-50M": dict(d_model=640, n_layers=10, n_heads=10, ffn_hidden=1728),
@@ -56,7 +62,7 @@ MODELS = {
 }
 # micro-batch (sequences) per forward pass; gradient accumulation fills up --batch_seqs
 MICRO_BS = {"A": 8, "B": 8, "C": 4, "B-v2a": 8, "B-v2b": 8, "B-1M": 4, "B-1M-sparse": 4, "B-4M-sparse": 4,
-            "B-16M-sparse": 4, "E-1M": 4, "D-50M": 8, "D-100M": 8, "D-200M": 8, "D-400M": 4}
+            "B-16M-sparse": 4, "E-1M": 4, "E-1M-dense": 4, "BE-1M": 4, "D-50M": 8, "D-100M": 8, "D-200M": 8, "D-400M": 4}
 
 METRIC_FIELDS = [
     "step", "tokens", "epoch", "lr_mult", "train_loss", "val_loss", "val_ppl", "val_word_ppl",
@@ -250,6 +256,7 @@ def main():
     ap.add_argument("--micro_bs", type=int, default=None)
     ap.add_argument("--lr", type=float, default=6e-4)
     ap.add_argument("--value_lr", type=float, default=1e-3)
+    ap.add_argument("--eng_value_lr", type=float, default=None, help="Engram tables (default: --value_lr)")
     ap.add_argument("--weight_decay", type=float, default=0.1)
     ap.add_argument("--warmup_frac", type=float, default=0.05)
     ap.add_argument("--min_lr_ratio", type=float, default=0.1)
@@ -300,7 +307,7 @@ def main():
         if args.mem_impl is not None:
             mcfg.mem_impl = args.mem_impl
     model = Transformer(mcfg).cuda()
-    opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay)
+    opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, eng_value_lr=args.eng_value_lr)
     mems = model.memory_layers()
     n_val_words = meta["splits"]["validation"]["n_words"]
     n_val2_words = load_meta(args.extra_val)["splits"]["validation"]["n_words"] if args.extra_val else None

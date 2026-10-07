@@ -50,6 +50,7 @@ class ModelConfig:
     eng_conv_kernel: int = 4
     eng_hash_seed: int = 0           # fixed hash functions, independent of the init seed
     eng_impl: str = "triton"         # row lookup / gradient / lazy Adam: "torch" reference or the Triton kernels
+    eng_value_grad: str = "row_sparse"   # "dense": plain embedding gradient + Adam on all rows (the paper's setup)
 
     def to_dict(self):
         return asdict(self)
@@ -134,7 +135,7 @@ class Block(nn.Module):
         if layer_id in cfg.eng_layers:
             self.engram = EngramMemory(cfg.d_model, len(cfg.eng_orders) * cfg.eng_heads, cfg.eng_head_dim,
                                        cfg.eng_rows, conv_kernel=cfg.eng_conv_kernel, dilation=max(cfg.eng_orders),
-                                       eps=cfg.norm_eps, impl=cfg.eng_impl)
+                                       eps=cfg.norm_eps, impl=cfg.eng_impl, value_grad=cfg.eng_value_grad)
 
     def forward(self, x, kv_cache=None, pos0=0, eng_rows=None):
         if self.engram is not None:

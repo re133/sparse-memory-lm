@@ -14,7 +14,7 @@ import torch
 from .sparse_values import LazyRowAdam, OptimizerSet, clip_row_sparse, row_sparse_tables
 
 
-def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e-8):
+def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e-8, eng_value_lr=None):
     """AdamW for everything; value tables with row-sparse gradients get a LazyRowAdam instead
     (same lr / betas / eps, no weight decay) and the two are returned as one OptimizerSet."""
     sparse_tables = row_sparse_tables(model)
@@ -39,9 +39,19 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
         g["lr"] = g["base_lr"]
     opt = torch.optim.AdamW(groups, betas=betas, eps=eps, fused=True)
     if sparse_tables:
-        impl = "triton" if any(getattr(m, "impl", "torch") == "triton" for m in model.modules()
-                               if getattr(m, "value_grad", None) == "row_sparse") else "torch"
-        return OptimizerSet(opt, LazyRowAdam(sparse_tables, lr=value_lr, betas=betas, eps=eps, impl=impl))
+        # one lazy Adam for the product-key table(s), one for the Engram tables (own learning rate eng_value_lr,
+        # default value_lr); clipping stays one global norm over all of them (optim.clip_grads)
+        owners = {id(m.values.weight): m for m in model.modules() if getattr(m, "value_grad", None) == "row_sparse"}
+        lazy = []
+        for engram in (False, True):
+            tabs = [t for t in sparse_tables if getattr(owners[id(t)], "is_engram", False) == engram]
+            if not tabs:
+                continue
+            impl = "triton" if any(getattr(owners[id(t)], "impl", "torch") == "triton" for t in tabs) else "torch"
+            tlr = (eng_value_lr or value_lr) if engram else value_lr
+            lazy.append(LazyRowAdam(tabs, lr=tlr, betas=betas, eps=eps, impl=impl,
+                                    name="engram_values" if engram else "memory_values"))
+        return OptimizerSet(opt, *lazy)
     return opt
 
 

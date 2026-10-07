@@ -79,13 +79,17 @@ class EngramMemory(nn.Module):
     """One Engram module: looks up n_lookups rows of head_dim, gates them with the hidden state, short conv."""
 
     def __init__(self, d_model, n_lookups, head_dim, rows_per_head, conv_kernel=4, dilation=3, eps=1e-5,
-                 impl="triton"):
+                 impl="triton", value_grad="row_sparse"):
         super().__init__()
         self.d_model, self.n_lookups, self.head_dim = d_model, n_lookups, head_dim
         self.d_mem = n_lookups * head_dim
         self.values = nn.Embedding(n_lookups * rows_per_head, head_dim)
         self.values.weight.pk_value_param = True            # own learning rate, no weight decay (smlm/optim.py)
-        self.value_grad = "row_sparse"                      # trained like the product-key table
+        # "row_sparse": trained like the product-key table (row-sparse gradients, lazy Adam); "dense": an ordinary
+        # embedding gradient and Adam on every row, as in the paper
+        assert value_grad in ("row_sparse", "dense")
+        self.value_grad = value_grad
+        self.is_engram = True                               # own lazy Adam / learning rate (smlm/optim.py)
         assert impl in ("torch", "triton")
         self.impl = impl
         self.w_k = nn.Linear(self.d_mem, d_model, bias=False)
@@ -108,7 +112,10 @@ class EngramMemory(nn.Module):
         """h: (B, T, d) residual stream, rows: (B, T, n_lookups) from NgramHash -> Y (B, T, d) to add to h."""
         B, T, _ = h.shape
         flat = rows.reshape(-1, 1)
-        e = row_sparse_embedding_bag(flat, torch.ones(flat.shape, device=h.device), self.values.weight, self.impl)
+        if self.value_grad == "dense":
+            e = F.embedding(flat.squeeze(1), self.values.weight)
+        else:
+            e = row_sparse_embedding_bag(flat, torch.ones(flat.shape, device=h.device), self.values.weight, self.impl)
         e = e.view(B, T, self.d_mem)
         k, v = self.w_k(e), self.w_v(e)
         alpha = torch.sigmoid((self.h_norm(h) * self.k_norm(k)).sum(-1, keepdim=True) / math.sqrt(self.d_model))
