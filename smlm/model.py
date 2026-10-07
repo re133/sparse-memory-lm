@@ -6,6 +6,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from .engram import EngramMemory, NgramHash
 from .pkm import ProductKeyMemory
 
 
@@ -40,6 +41,15 @@ class ModelConfig:
     mem_value_grad: str = "dense"
     # "torch": PyTorch reference; "triton": kernels of smlm/kernels.py (same results up to rounding / ties)
     mem_impl: str = "torch"
+    # Engram-style n-gram memory (smlm/engram.py): 0-indexed layers that get a module added before attention
+    eng_layers: list = field(default_factory=list)
+    eng_orders: list = field(default_factory=lambda: [2, 3])
+    eng_heads: int = 8               # hash heads per n-gram order
+    eng_head_dim: int = 24           # width of one row; one module reads len(orders) * heads rows per token
+    eng_rows: int = 524287           # rows per head table (a prime, 2^19 - 1)
+    eng_conv_kernel: int = 4
+    eng_hash_seed: int = 0           # fixed hash functions, independent of the init seed
+    eng_impl: str = "triton"         # row lookup / gradient / lazy Adam: "torch" reference or the Triton kernels
 
     def to_dict(self):
         return asdict(self)
@@ -120,8 +130,15 @@ class Block(nn.Module):
                 value_grad=cfg.mem_value_grad, impl=cfg.mem_impl)
         else:
             self.ffn = SwiGLU(cfg.d_model, cfg.ffn_hidden)
+        self.engram = None
+        if layer_id in cfg.eng_layers:
+            self.engram = EngramMemory(cfg.d_model, len(cfg.eng_orders) * cfg.eng_heads, cfg.eng_head_dim,
+                                       cfg.eng_rows, conv_kernel=cfg.eng_conv_kernel, dilation=max(cfg.eng_orders),
+                                       eps=cfg.norm_eps, impl=cfg.eng_impl)
 
-    def forward(self, x, kv_cache=None, pos0=0):
+    def forward(self, x, kv_cache=None, pos0=0, eng_rows=None):
+        if self.engram is not None:
+            x = x + self.engram(x, eng_rows, kv_cache)
         x = x + self.attn(self.attn_norm(x), kv_cache, pos0)
         return x + self.ffn(self.ffn_norm(x))
 
@@ -136,6 +153,8 @@ class Transformer(nn.Module):
             v_dim = cfg.mem_v_dim if cfg.mem_v_dim > 0 else cfg.d_model
             shared = nn.Embedding(cfg.mem_n_keys ** 2, v_dim)          # initialised by the memory layers
         self.layers = nn.ModuleList([Block(cfg, i, shared) for i in range(cfg.n_layers)])
+        self.ngram = (NgramHash(cfg.vocab_size, cfg.eng_orders, cfg.eng_heads, cfg.eng_rows, cfg.eng_hash_seed)
+                      if cfg.eng_layers else None)
         self.norm = nn.RMSNorm(cfg.d_model, eps=cfg.norm_eps)
         self.lm_head = nn.Linear(cfg.d_model, cfg.vocab_size, bias=False)
         self.lm_head.weight = self.tok_emb.weight          # tied input / output embeddings
@@ -155,6 +174,9 @@ class Transformer(nn.Module):
 
     def memory_layers(self):
         return [b.ffn for b in self.layers if b.is_memory]
+
+    def engram_layers(self):
+        return [b.engram for b in self.layers if b.engram is not None]
 
     def set_memory_decode_graphs(self, enabled=True):
         """Single-token no-grad forwards of the memory layers replay a captured CUDA/HIP graph
@@ -187,8 +209,19 @@ class Transformer(nn.Module):
 
     def forward(self, idx, targets=None, kv_caches=None, pos0=0):
         x = self.tok_emb(idx)
+        rows = None
+        if self.ngram is not None:
+            # n-gram rows need the last tokens before this chunk: pad at the start, else from the cache
+            c = self.ngram.canon[idx]
+            hist = kv_caches[0].get("eng_hist") if kv_caches is not None else None
+            if hist is None:
+                hist = torch.full((c.shape[0], self.ngram.history), self.ngram.pad, dtype=c.dtype, device=c.device)
+            c = torch.cat([hist, c], 1)
+            if kv_caches is not None:
+                kv_caches[0]["eng_hist"] = c[:, -self.ngram.history:]
+            rows = self.ngram(c)
         for i, blk in enumerate(self.layers):
-            x = blk(x, None if kv_caches is None else kv_caches[i], pos0)
+            x = blk(x, None if kv_caches is None else kv_caches[i], pos0, rows)
         logits = self.lm_head(self.norm(x))
         if targets is None:
             return logits
@@ -198,9 +231,9 @@ class Transformer(nn.Module):
     # ---- bookkeeping -------------------------------------------------------------------------
     def param_counts(self):
         """Parameter counts. 'embedding' = tied token embedding / LM head matrix;
-        'memory_values' = product-key value table; 'dense_body' = everything else."""
+        'memory_values' = product-key value table and Engram tables; 'dense_body' = everything else."""
         emb = self.tok_emb.weight.numel()
-        tables = {id(m.values.weight): m.values.weight.numel() for m in self.memory_layers()}
+        tables = {id(m.values.weight): m.values.weight.numel() for m in self.memory_layers() + self.engram_layers()}
         values = sum(tables.values())                                     # a shared table counts once
         total = sum(p.numel() for p in self.parameters())
         buffers = sum(b.numel() for n, b in self.named_buffers() if "running" in n)
@@ -212,7 +245,8 @@ class Transformer(nn.Module):
             "dense_body": total - emb - values,
             # active per token (non-embedding): dense body + the heads*knn value rows actually read
             "active_non_embedding_per_token": total - emb - values + sum(
-                m.heads * m.knn * m.v_dim for m in self.memory_layers()),
+                m.heads * m.knn * m.v_dim for m in self.memory_layers()) + sum(
+                m.n_lookups * m.head_dim for m in self.engram_layers()),
             "bn_running_stats": buffers,
         }
 
@@ -222,8 +256,10 @@ class Transformer(nn.Module):
         c = self.cfg
         T = context_len or c.max_seq_len
         d = c.d_model
-        out = {"attn_proj": 0, "attn_scores": 0, "ffn": 0, "memory": 0, "lm_head": d * c.vocab_size}
+        out = {"attn_proj": 0, "attn_scores": 0, "ffn": 0, "memory": 0, "engram": 0, "lm_head": d * c.vocab_size}
         for blk in self.layers:
+            if blk.engram is not None:
+                out["engram"] += blk.engram.macs_per_token()
             out["attn_proj"] += 4 * d * d
             out["attn_scores"] += 2 * d * (T / 2)
             if blk.is_memory:

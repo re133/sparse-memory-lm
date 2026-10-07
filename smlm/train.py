@@ -44,6 +44,9 @@ MODELS = {
     # cloud: same as B-1M-sparse with 2048^2 = 4M and 4096^2 = 16M table entries
     "B-4M-sparse": dict(mem_layers=[2, 6, 10], mem_n_keys=2048, mem_share_values=True, mem_value_grad="row_sparse"),
     "B-16M-sparse": dict(mem_layers=[2, 6, 10], mem_n_keys=4096, mem_share_values=True, mem_value_grad="row_sparse"),
+    # Engram-style n-gram memory instead of product keys: A plus two modules (early and middle layer, as the paper's
+    # layers 2 and 15 of ~30), tables together as big as B-1M's (2 x 16 heads x 524,287 rows x 24 = 402.65M)
+    "E-1M": dict(eng_layers=[1, 5]),
     # step 1 "Gegenwert der Tabelle": dense Llama models like A without memory, width and depth grown together,
     # head_dim 64, FFN ~ 8/3 d rounded to a multiple of 64 (as A: 384 -> 1024); name = non-embedding parameters
     "D-50M": dict(d_model=640, n_layers=10, n_heads=10, ffn_hidden=1728),
@@ -53,7 +56,7 @@ MODELS = {
 }
 # micro-batch (sequences) per forward pass; gradient accumulation fills up --batch_seqs
 MICRO_BS = {"A": 8, "B": 8, "C": 4, "B-v2a": 8, "B-v2b": 8, "B-1M": 4, "B-1M-sparse": 4, "B-4M-sparse": 4,
-            "B-16M-sparse": 4, "D-50M": 8, "D-100M": 8, "D-200M": 8, "D-400M": 4}
+            "B-16M-sparse": 4, "E-1M": 4, "D-50M": 8, "D-100M": 8, "D-200M": 8, "D-400M": 4}
 
 METRIC_FIELDS = [
     "step", "tokens", "epoch", "lr_mult", "train_loss", "val_loss", "val_ppl", "val_word_ppl",
