@@ -26,7 +26,7 @@ import torch.nn.functional as F
 
 from .data import DATASETS, TrainStream, data_dir, has_split, load_meta, load_split
 from .model import ModelConfig, Transformer
-from .optim import build_optimizer, clip_grads, lr_multiplier, set_lr
+from .optim import build_optimizer, clip_grads, lr_multiplier, set_lr, value_table_memory
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -257,6 +257,8 @@ def main():
     ap.add_argument("--lr", type=float, default=6e-4)
     ap.add_argument("--value_lr", type=float, default=1e-3)
     ap.add_argument("--eng_value_lr", type=float, default=None, help="Engram tables (default: --value_lr)")
+    ap.add_argument("--value_state", choices=["fp32", "bf16", "int8"], default="fp32",
+                    help="LazyRowAdam moment storage for PKM and Engram tables (requires row_sparse gradients)")
     ap.add_argument("--weight_decay", type=float, default=0.1)
     ap.add_argument("--warmup_frac", type=float, default=0.05)
     ap.add_argument("--min_lr_ratio", type=float, default=0.1)
@@ -307,7 +309,8 @@ def main():
         if args.mem_impl is not None:
             mcfg.mem_impl = args.mem_impl
     model = Transformer(mcfg).cuda()
-    opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, eng_value_lr=args.eng_value_lr)
+    opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, eng_value_lr=args.eng_value_lr,
+                          value_state=args.value_state)
     mems = model.memory_layers()
     n_val_words = meta["splits"]["validation"]["n_words"]
     n_val2_words = load_meta(args.extra_val)["splits"]["validation"]["n_words"] if args.extra_val else None
@@ -326,11 +329,15 @@ def main():
                          "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip"
                                       + ("; value table: row-sparse gradients + LazyRowAdam (only rows read in the step "
                                          "are updated, values and Adam state of unread rows unchanged)"
-                                         if mcfg.mem_value_grad == "row_sparse" else ""),
+                                         if ((mcfg.mem_layers and mcfg.mem_value_grad == "row_sparse") or
+                                             (mcfg.eng_layers and mcfg.eng_value_grad == "row_sparse")) else ""),
                          "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
-                         "precision": "bf16 autocast, fp32 weights / optimizer state"},
+                         "precision": ("bf16 autocast, fp32 weights / optimizer state" if args.value_state == "fp32"
+                                       else "bf16 autocast, fp32 weights / dense optimizer state; "
+                                            f"{args.value_state} lazy Adam moments")},
         "model_config": mcfg.to_dict(),
         "params": model.param_counts(),
+        "value_table_memory": value_table_memory(model, args.value_state),
         "macs_per_token": model.macs_per_token(),
         "data": {"dataset": args.data or "wikitext103", "data_dir": data_dir(args.data), **meta,
                  **({"extra_val": args.extra_val} if args.extra_val else {})},
@@ -341,7 +348,8 @@ def main():
             json.dump(info, f, indent=2, default=lambda o: o.item() if hasattr(o, "item") else str(o))
 
     write_info()
-    print(json.dumps({k: info[k] for k in ("model_name", "params", "seeds")}, default=str), flush=True)
+    print(json.dumps({k: info[k] for k in ("model_name", "params", "seeds", "value_table_memory")},
+                     default=str), flush=True)
     print(f"steps={total_steps} warmup={warmup_steps} eval_every={eval_every} accum={accum}", flush=True)
 
     mfile = open(os.path.join(args.out_dir, "metrics.csv"), "w", newline="")

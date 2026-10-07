@@ -14,9 +14,14 @@ import torch
 from .sparse_values import LazyRowAdam, OptimizerSet, clip_row_sparse, row_sparse_tables
 
 
-def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e-8, eng_value_lr=None):
+def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e-8, eng_value_lr=None,
+                    value_state="fp32"):
     """AdamW for everything; value tables with row-sparse gradients get a LazyRowAdam instead
-    (same lr / betas / eps, no weight decay) and the two are returned as one OptimizerSet."""
+    (same lr / betas / eps, no weight decay) and the two are returned as one OptimizerSet.
+    value_state controls moment storage for both PKM and Engram row-sparse tables.
+    """
+    if value_state not in ("fp32", "bf16", "int8"):
+        raise ValueError(f"unknown value_state: {value_state}")
     sparse_tables = row_sparse_tables(model)
     sparse_ids = {id(t) for t in sparse_tables}
     decay, no_decay, values = [], [], []
@@ -29,6 +34,8 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
             decay.append(p)
         else:
             no_decay.append(p)
+    if values and value_state != "fp32":
+        raise ValueError("value_state requires row_sparse gradients for every trainable value table")
     groups = [
         {"params": decay, "weight_decay": weight_decay, "base_lr": lr, "name": "decay"},
         {"params": no_decay, "weight_decay": 0.0, "base_lr": lr, "name": "no_decay"},
@@ -49,10 +56,46 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
                 continue
             impl = "triton" if any(getattr(owners[id(t)], "impl", "torch") == "triton" for t in tabs) else "torch"
             tlr = (eng_value_lr or value_lr) if engram else value_lr
-            lazy.append(LazyRowAdam(tabs, lr=tlr, betas=betas, eps=eps, impl=impl,
+            lazy.append(LazyRowAdam(tabs, lr=tlr, betas=betas, eps=eps, impl=impl, state_dtype=value_state,
                                     name="engram_values" if engram else "memory_values"))
         return OptimizerSet(opt, *lazy)
     return opt
+
+
+def value_table_memory(model, value_state="fp32"):
+    """Expected persistent table tensors after optimizer initialization, excluding temporary workspace.
+
+    Count shared parameters once and frozen tables as weights only. Dense gradients count at their peak
+    allocation (zero_grad(set_to_none=True) releases them); row accumulators persist between steps.
+    """
+    if value_state not in ("fp32", "bf16", "int8"):
+        raise ValueError(f"unknown value_state: {value_state}")
+    sparse_ids = {id(t) for t in row_sparse_tables(model)}
+    out = dict(table_bytes=0, gradient_bytes=0, moment_bytes=0, scale_bytes=0, touched_bytes=0, step_bytes=0)
+    for p in model.parameters():
+        if not getattr(p, "pk_value_param", False):
+            continue
+        n, size = p.numel(), p.element_size()
+        out["table_bytes"] += n * size
+        if not p.requires_grad:
+            continue
+        sparse = id(p) in sparse_ids
+        if not sparse and value_state != "fp32":
+            raise ValueError("value_state requires row_sparse gradients for every trainable value table")
+        if sparse and value_state != "fp32" and p.dtype != torch.float32:
+            raise ValueError("compact value states require fp32 tables")
+        out["gradient_bytes"] += n * (max(4, size) if sparse else size)
+        if sparse and value_state == "bf16":
+            out["moment_bytes"] += n * 4
+        elif sparse and value_state == "int8":
+            out["moment_bytes"] += n * 2
+            out["scale_bytes"] += p.shape[0] * 8
+        else:
+            out["moment_bytes"] += n * 2 * size
+        out["touched_bytes"] += p.shape[0] if sparse else 0
+        out["step_bytes"] += 4
+    out["total_bytes"] = sum(out.values())
+    return out
 
 
 def lr_multiplier(step, total_steps, warmup_steps, min_ratio):
