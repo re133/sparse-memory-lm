@@ -2095,3 +2095,42 @@ B-16M read clearly fewer pages if rows that are read together sit on the same pa
 **Caveats:** It's a simulation. A real page cache can drop pages, and the SSD merges neighbouring pages into one
 request, so fewer pages don't automatically mean the same share less time. Teacher forcing on real text instead of
 generated text. One model (B-16M), one cache size.
+
+## Step 6: do the models trained from scratch remember the facts they saw? (fact test, criteria before measuring, 2026-10-07)
+
+**Question:** In step 3 the table add-on for Qwen stored what it learned, but didn't bring the trained facts back
+better than others (addendum to step 3). My guess: a frozen Qwen core doesn't know how or where to fetch them. So now
+the models that learned with the table from the start: does B-16M bring back facts from articles it saw in training
+better than facts from articles it never saw, and by more than dense models of similar quality?
+
+**Setup:**
+- **Items** (`scripts/make_fact_cloze_lm.py` → `data/lm_fact_cloze.jsonl`, sha256 `9c02b5b0…2673`), same rules as
+  in step 3: names, dates/years, numbers; prompt = title + blank line + the sentence up to the fact; the answer doesn't
+  occur in the prompt.
+  - **Seen:** 1,382 items from training articles. The answer was a prediction target in a window that was used in
+    training. All 500 M-token Wikipedia models used the same windows in the same order (data seed 1234), so "seen" is
+    the same for all of them, and the training step in which an item was seen is known.
+  - **Unseen:** 1,382 items from the 1,917 validation articles (random articles of the same dump).
+  - Same mix on both sides: 600 names, 450 dates/years, 332 numbers. Every article was seen exactly once (one epoch).
+- **Scoring** (`scripts/eval_fact_cloze_lm.py`): greedy, first attempt, exact match at the start as in step 3.
+  Product-key models with the 4-bit table (B-16M only fits that way; for B-1M the 4-bit table changes val PPL by
+  +0.13%).
+- **Models:** B-16M (val PPL 19.96) against D-100M (20.27) and D-200M (18.76), which bracket it. Also A, B-1M, B-4M,
+  D-50M, D-400M.
+
+**Criteria:**
+- **Memory gap** of a model = accuracy on seen items minus accuracy on unseen items, in percentage points.
+- **Main verdict:** gap of B-16M minus gap of D-100M, and minus gap of D-200M, each with a 95% bootstrap interval
+  (items resampled within each split, the same draws for all models, so the comparison is paired).
+  - **"The table remembers more":** both intervals above 0.
+  - **"Dense remembers more":** both intervals below 0.
+  - **"No clear difference":** otherwise.
+- **Side check:** is the gap of B-16M itself above 0 (interval)? If not, B-16M doesn't bring back seen facts better
+  than unseen ones at all.
+- **Reported without a verdict:** the gaps of all eight models against their val PPL; by type; accuracy on seen items
+  by fifth of training (seen early or late: forgetting); accuracy on unseen items (general knowledge and guessing).
+
+**Caveats:** Small models, and every article was seen only once, so low hit rates are expected; what counts is seen
+against unseen. The prompt only has the title and the sentence, not the article text before it. One seed per model.
+Names come from a simple pattern, so some "names" are other capitalised phrases, the same for all models. Before the
+criteria I only tested the scoring on three made-up prompts, none of the items.

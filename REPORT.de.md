@@ -2183,3 +2183,49 @@ werden, auf derselben Seite liegen?
 **Vorbehalte:** Es ist eine Simulation. Ein echter Seiten-Cache kann Seiten verwerfen, und die SSD fasst benachbarte
 Seiten zu einer Anfrage zusammen, weniger Seiten heißen also nicht automatisch im selben Maß weniger Zeit. Teacher
 Forcing auf echtem Text statt erzeugtem Text. Ein Modell (B-16M), eine Cache-Größe.
+
+## Schritt 6: Erinnern sich die von Grund auf trainierten Modelle an gesehene Fakten? (Faktentest, Kriterien vor der Messung, 2026-10-07)
+
+**Frage:** In Schritt 3 hat das Tabellen-Add-on für Qwen das Gelernte gespeichert, die trainierten Fakten aber nicht
+besser zurückgebracht als andere (Nachtrag zu Schritt 3). Meine Vermutung: Ein eingefrorener Qwen-Kern weiß nicht,
+wie oder wo er sie holen soll. Deshalb jetzt die Modelle, die von Anfang an mit Tabelle gelernt haben: Bringt B-16M
+Fakten aus Artikeln, die es im Training gesehen hat, besser zurück als Fakten aus nie gesehenen Artikeln, und zwar um
+mehr als gleich gute dichte Modelle?
+
+**Aufbau:**
+- **Aufgaben** (`scripts/make_fact_cloze_lm.py` → `data/lm_fact_cloze.jsonl`, sha256 `9c02b5b0…2673`), gleiche
+  Regeln wie in Schritt 3: Namen, Daten/Jahre, Zahlen; Prompt = Titel + Leerzeile + der Satz bis zum Fakt; die Antwort
+  kommt im Prompt nicht vor.
+  - **Gesehen:** 1.382 Aufgaben aus Trainingsartikeln. Die Antwort war ein Vorhersageziel in einem Fenster, das im
+    Training benutzt wurde. Alle Wikipedia-Modelle mit 500 M Tokens haben dieselben Fenster in derselben Reihenfolge
+    gesehen (Daten-Seed 1234), „gesehen“ ist also für alle gleich, und der Trainingsschritt, in dem eine Aufgabe
+    gesehen wurde, ist bekannt.
+  - **Ungesehen:** 1.382 Aufgaben aus den 1.917 Validierungsartikeln (zufällige Artikel desselben Dumps).
+  - Gleiche Mischung auf beiden Seiten: 600 Namen, 450 Daten/Jahre, 332 Zahlen. Jeder Artikel wurde genau einmal
+    gesehen (eine Epoche).
+- **Bewertung** (`scripts/eval_fact_cloze_lm.py`): greedy, erster Versuch, exakter Treffer am Anfang wie in Schritt 3.
+  Product-Key-Modelle mit 4-Bit-Tabelle (B-16M passt nur so; bei B-1M ändert die 4-Bit-Tabelle die Val-PPL um
+  +0,13 %).
+- **Modelle:** B-16M (Val-PPL 19,96) gegen D-100M (20,27) und D-200M (18,76), die es einrahmen. Dazu A, B-1M, B-4M,
+  D-50M, D-400M.
+
+**Kriterien:**
+- **Gedächtnislücke** eines Modells = Trefferquote auf gesehenen minus Trefferquote auf ungesehenen Aufgaben, in
+  Prozentpunkten.
+- **Haupturteil:** Lücke von B-16M minus Lücke von D-100M und minus Lücke von D-200M, jeweils mit 95-%-Bootstrap-
+  Intervall (Aufgaben innerhalb jeder Hälfte neu gezogen, dieselben Ziehungen für alle Modelle, der Vergleich ist also
+  gepaart).
+  - **„Die Tabelle erinnert sich besser“:** beide Intervalle über 0.
+  - **„Dicht erinnert sich besser“:** beide Intervalle unter 0.
+  - **„Kein klarer Unterschied“:** sonst.
+- **Nebenprüfung:** Liegt die Lücke von B-16M selbst über 0 (Intervall)? Wenn nicht, bringt B-16M gesehene Fakten
+  überhaupt nicht besser zurück als ungesehene.
+- **Berichtet ohne Urteil:** die Lücken aller acht Modelle gegen ihre Val-PPL; nach Typ; Trefferquote auf gesehenen
+  Aufgaben nach Fünftel des Trainings (früh oder spät gesehen: Vergessen); Trefferquote auf ungesehenen Aufgaben
+  (Allgemeinwissen und Raten).
+
+**Vorbehalte:** Kleine Modelle, und jeder Artikel wurde nur einmal gesehen, niedrige Trefferquoten sind also zu
+erwarten; entscheidend ist gesehen gegen ungesehen. Der Prompt enthält nur Titel und Satz, nicht den Artikeltext
+davor. Ein Seed pro Modell. Namen kommen aus einem einfachen Muster, manche „Namen“ sind also andere großgeschriebene
+Wortgruppen, für alle Modelle gleich. Vor den Kriterien habe ich die Bewertung nur an drei erfundenen Prompts
+getestet, an keiner der Aufgaben.
