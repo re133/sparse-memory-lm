@@ -2045,10 +2045,13 @@ finding 12).
   deliver the learned bias of their output projection, so a fixed shift per block, a general adaptation to Wikipedia
   text.
 
-**What that means:** the table is the memory. It carries what was memorised from the training articles, the
-adaptation to new articles, the gain in the fact test and also the harm on older text. The finding from step 3 stays
-open: the stored articles don't make the *trained* facts more retrievable than others. So the question "where is it?"
-is answered, the question "why doesn't it come back out in a targeted way?" isn't.
+**What that means:** the gain needs the learned table. Without it the add-on loses what was memorised from the
+training articles, the adaptation to new articles, the gain in the fact test and also the harm on older text.
+Strictly, zeroing the table also cuts off everything the trained keys, queries and swilu projections do, because they
+only act through the table. So this shows that the gain lives in the jointly trained table system, not that it sits in
+the table values alone. The finding from step 3 stays open: the stored articles don't make the *trained* facts more
+retrievable than others. (Sharpened on 2026-10-07 after a review: the first version said "the table is the memory"
+and that the question "where is it?" was answered, which goes further than the data.)
 
 ## Step 5: reorder the table rows on the SSD (offline simulation, criteria before measuring, 2026-10-07)
 
@@ -2114,8 +2117,10 @@ generated text. One model (B-16M), one cache size.
   ~3,770 of the 4,096 i blocks with ~7 rows each, and needs ~26,400 pages for them: practically one page per row.
   Which j's are read together depends on the query and the head. Within only 200 sessions, 96% of all 16.8 M possible
   j pairs were read together with the same i at least once. A fixed order has nothing to hold on to.
-- **What that means:** every row that misses the RAM costs its own random read, whatever the layout. What helps is
-  fewer misses (more rows in RAM, prefetching) or more reads per second. The quick run of the direct-I/O benchmark
+- **What that means:** with the layouts tested here (one fixed order of an index axis), practically every row that
+  misses the RAM costs its own random read. That doesn't rule out every possible layout, but there is little stable
+  structure to exploit. (Sharpened on 2026-10-07 after a review: the first version said "whatever the layout".) What
+  helps more directly is fewer misses (more rows in RAM, prefetching) or more reads per second. The quick run of the direct-I/O benchmark
   (`scripts/bench_table_io.py`, branch `codex/dio`) gives io_uring 1.4–1.8× the reads per second of mmap; that's
   the next step.
 - **Plausibility check:** the latency measurement counted 8,059 device reads for the cold prompt (simulation: 9,648
@@ -2186,10 +2191,15 @@ criteria I only tested the scoring on three made-up prompts, none of the items.
 - **By type:** names are hit most often (B-16M 10.0% seen, 11.5% unseen), numbers least (4.2% / 3.6%), no type with a
   clear gap. 172 seen and 165 unseen items are hit by at least one model, 36 and 39 by all eight: mostly general
   knowledge or easy to guess.
-- **What that means:** after seeing an article once, none of these models, with or without table, recalls its facts
-  better than facts from articles it never saw. My guess from step 3 (the frozen Qwen core doesn't know how or where
-  to fetch) isn't confirmed: models that learned with the table from the start don't do it either. With one pass (here)
-  and two passes (step 3), no targeted recall shows up at this size. B-16M has the highest hit rate of all models on
+- **What that means:** after seeing an article once, none of these models, with or without table, shows a measurable
+  advantage on its facts over facts from articles it never saw. For B-16M an advantage of up to 1.7 points is still
+  inside the interval. Two limits: "unseen" refers to the article, not the fact, which can also appear in other
+  training articles; and the cloze prompt is a different context than the training window, which for a product-key
+  model also changes which rows are read. My guess from step 3 (the frozen Qwen core doesn't know how or where to
+  fetch) isn't supported: models that learned with the table from the start don't show it either. With one pass
+  (here) and two passes (step 3), no targeted recall shows up in these tests. A more sensitive follow-up would score
+  the probability of the full answer and use the original training context as the prompt. (Sharpened on 2026-10-07
+  after a review: the first version said the models don't recall the facts, which the intervals don't support.) B-16M has the highest hit rate of all models on
   seen items (7.0%, D-400M 6.95%), but just as much on unseen ones: general knowledge, not memory of the article.
 - **Open:** from how many repetitions does a fact stick, and does a model with table need fewer than a dense one? That
   needs a controlled test with facts that appear a known number of times (idea, not planned yet).

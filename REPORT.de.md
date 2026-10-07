@@ -2129,10 +2129,14 @@ getestet (Codex-Befund 12).
   Blöcke nur noch den gelernten Bias ihrer Ausgabeprojektion, also eine feste Verschiebung pro Block, eine allgemeine
   Anpassung an Wikipedia-Text.
 
-**Was das bedeutet:** Die Tabelle ist der Speicher. Sie trägt das Auswendiggelernte der Trainingsartikel, die
-Anpassung an neue Artikel, den Gewinn im Faktentest und auch den Schaden auf älterem Text. Offen bleibt der
-Befund aus Schritt 3: Die gespeicherten Artikel machen die *trainierten* Fakten nicht besser abrufbar als andere.
-Die Frage „Wo steckt es?“ ist damit beantwortet, die Frage „Warum kommt es nicht gezielt wieder heraus?“ nicht.
+**Was das bedeutet:** Der Gewinn braucht die gelernte Tabelle. Ohne sie verliert das Add-on das Auswendiggelernte
+der Trainingsartikel, die Anpassung an neue Artikel, den Gewinn im Faktentest und auch den Schaden auf älterem Text.
+Genau genommen schneidet eine Nulltabelle aber auch alles ab, was die trainierten Keys, Queries und
+SwiLU-Projektionen tun, weil sie nur über die Tabelle wirken. Gezeigt ist also: Der Gewinn steckt im gemeinsam
+trainierten Tabellen-System, nicht dass er allein in den Tabellenwerten liegt. Offen bleibt der Befund aus Schritt 3:
+Die gespeicherten Artikel machen die *trainierten* Fakten nicht besser abrufbar als andere. (Geschärft am 2026-10-07
+nach einem Review: Die erste Fassung sagte „Die Tabelle ist der Speicher“ und die Frage „Wo steckt es?“ sei
+beantwortet; das geht weiter als die Daten.)
 
 ## Schritt 5: Tabellenzeilen auf der SSD umsortieren (offline durchgerechnet, Kriterien vor der Messung, 2026-10-07)
 
@@ -2205,8 +2209,10 @@ Forcing auf echtem Text statt erzeugtem Text. Ein Modell (B-16M), eine Cache-Gr�
   praktisch eine Seite pro Zeile. Welche j zusammen gelesen werden, hängt von Anfrage und Kopf ab. Schon in nur
   200 Sitzungen wurden 96 % aller 16,8 Mio. möglichen j-Paare mindestens einmal mit gleichem i zusammen gelesen. Eine
   feste Reihenfolge hat nichts, woran sie sich halten kann.
-- **Was das bedeutet:** Jede Zeile, die nicht im RAM liegt, kostet einen eigenen zufälligen Lesezugriff, egal wie die
-  Tabelle angeordnet ist. Helfen kann nur: weniger Fehlzugriffe (mehr Zeilen im RAM, Vorab-Laden) oder mehr
+- **Was das bedeutet:** Mit den hier getesteten Anordnungen (eine feste Reihenfolge einer Index-Achse) kostet
+  praktisch jede Zeile, die nicht im RAM liegt, einen eigenen zufälligen Lesezugriff. Das schließt nicht jede denkbare
+  Anordnung aus, aber es gibt wenig stabile Struktur, die man nutzen könnte. (Geschärft am 2026-10-07 nach einem
+  Review: Die erste Fassung sagte „egal wie die Tabelle angeordnet ist“.) Helfen kann nur: weniger Fehlzugriffe (mehr Zeilen im RAM, Vorab-Laden) oder mehr
   Lesezugriffe pro Sekunde. Der Kurzlauf des Direct-I/O-Messprogramms (`scripts/bench_table_io.py`, Branch
   `codex/dio`) gibt io_uring 1,4–1,8-mal so viele Lesezugriffe pro Sekunde wie mmap; das ist der nächste Schritt.
 - **Plausibilitätsprüfung:** Die Latenzmessung hat für den kalten Prompt 8.059 Lesezugriffe des Geräts gezählt
@@ -2286,11 +2292,17 @@ getestet, an keiner der Aufgaben.
 - **Nach Typ:** Namen werden am häufigsten getroffen (B-16M 10,0 % gesehen, 11,5 % ungesehen), Zahlen am seltensten
   (4,2 % / 3,6 %), kein Typ mit klarer Lücke. 172 gesehene und 165 ungesehene Aufgaben trifft mindestens ein Modell,
   36 bzw. 39 alle acht: meist Allgemeinwissen oder leicht zu raten.
-- **Was das bedeutet:** Nachdem es einen Artikel einmal gesehen hat, bringt keines dieser Modelle, ob mit oder ohne
-  Tabelle, dessen Fakten besser zurück als Fakten aus nie gesehenen Artikeln. Meine Vermutung aus Schritt 3 (der
-  eingefrorene Qwen-Kern weiß nicht, wie oder wo er holen soll) bestätigt sich nicht: Modelle, die von Anfang an mit
-  Tabelle gelernt haben, tun es auch nicht. Bei einem Durchgang (hier) und zwei Durchgängen (Schritt 3) zeigt sich bei
-  dieser Größe kein gezieltes Erinnern. B-16M trifft auf gesehenen Aufgaben am häufigsten von allen Modellen (7,0 %,
+- **Was das bedeutet:** Nachdem es einen Artikel einmal gesehen hat, zeigt keines dieser Modelle, ob mit oder ohne
+  Tabelle, einen messbaren Vorteil bei dessen Fakten gegenüber Fakten aus nie gesehenen Artikeln. Für B-16M liegt ein
+  Vorteil von bis zu 1,7 Punkten noch im Intervall. Zwei Grenzen: „Ungesehen“ bezieht sich auf den Artikel, nicht auf
+  den Fakt, der auch in anderen Trainingsartikeln stehen kann; und der Lückentext-Prompt ist ein anderer Kontext als
+  das Trainingsfenster, was bei einem Product-Key-Modell auch ändert, welche Zeilen gelesen werden. Meine Vermutung aus
+  Schritt 3 (der eingefrorene Qwen-Kern weiß nicht, wie oder wo er holen soll) wird nicht gestützt: Modelle, die von
+  Anfang an mit Tabelle gelernt haben, zeigen es auch nicht. Bei einem Durchgang (hier) und zwei Durchgängen
+  (Schritt 3) zeigt sich in diesen Tests kein gezieltes Erinnern. Empfindlicher wäre ein Folgetest, der die
+  Wahrscheinlichkeit der ganzen Antwort misst und den ursprünglichen Trainingskontext als Prompt nimmt. (Geschärft am
+  2026-10-07 nach einem Review: Die erste Fassung sagte, die Modelle erinnern sich nicht; das tragen die Intervalle
+  nicht.) B-16M trifft auf gesehenen Aufgaben am häufigsten von allen Modellen (7,0 %,
   D-400M 6,95 %), auf ungesehenen aber genauso: Allgemeinwissen, keine Erinnerung an den Artikel.
 - **Offen:** Ab wie vielen Wiederholungen sitzt ein Fakt, und braucht ein Modell mit Tabelle weniger als ein dichtes?
   Dafür braucht es einen kontrollierten Test mit Fakten, die eine bekannte Anzahl Male vorkommen (Idee, noch nicht

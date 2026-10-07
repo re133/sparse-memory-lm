@@ -196,11 +196,12 @@ to text (step 5 in the [report](REPORT.md)). Reading the rows faster might: a fi
   learned new facts" was +10 points.
 - **It's all in the table:** zeroing only the table and keeping the trained keys, projections and gates takes away
   95% of the gain on the training articles and the whole fact-test gain, on seen and unseen articles alike. A
-  randomly re-drawn table doesn't help either. So the table does store what was learned, it just doesn't hand the
+  randomly re-drawn table doesn't help either. So the gain needs the trained table, but it doesn't hand the
   trained facts back out selectively ([details](report/qwen/table_ablation.json)).
 - **Not just an add-on problem:** I ran the same kind of fact test on the models I trained from scratch, facts from
   articles they saw once in training against articles they never saw. None of them, with or without table, gets the
-  seen facts right more often (differences between −1.2 and +0.1 points, step 6 in the [report](REPORT.md)).
+  seen facts right measurably more often (differences between −1.2 and +0.1 points, all within noise; step 6 in
+  the [report](REPORT.md)).
 - **Side effects:** it also cost some MMLU, the dense add-on didn't.
 
 ## How it works
