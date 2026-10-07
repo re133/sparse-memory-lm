@@ -152,7 +152,8 @@ class MemoryStats:
 
 
 @torch.no_grad()
-def evaluate(model, split, seq_len, n_words, batch=8, mem_stats=False, sample_windows=0, dataset=None):
+def evaluate(model, split, seq_len, n_words, batch=8, mem_stats=False, sample_windows=0, dataset=None,
+             fused_ce=False, ce_chunk_size=1024):
     """Token-level NLL over the whole split (non-overlapping windows, every token but the first).
     Memory statistics: one MemoryStats per memory layer, plus a combined one over all layers (with a
     shared value table this is the usage of the table itself). Index samples: (T, heads, knn) for one
@@ -174,9 +175,14 @@ def evaluate(model, split, seq_len, n_words, batch=8, mem_stats=False, sample_wi
         chunks.append((tok[full * seq_len:n].unsqueeze(0), tok[full * seq_len + 1:n + 1].unsqueeze(0)))
     nll, count, seen_windows = 0.0, 0, 0
     for x, y in chunks:
-        with torch.autocast("cuda", dtype=torch.bfloat16):
-            logits = model(x)
-        nll += float(F.cross_entropy(logits.float().view(-1, logits.size(-1)), y.reshape(-1), reduction="sum"))
+        if fused_ce:
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                _, loss = model(x, y, fused_ce=True, ce_chunk_size=ce_chunk_size)
+            nll += float(loss) * y.numel()
+        else:
+            with torch.autocast("cuda", dtype=torch.bfloat16):
+                logits = model(x)
+            nll += float(F.cross_entropy(logits.float().view(-1, logits.size(-1)), y.reshape(-1), reduction="sum"))
         count += y.numel()
         for s, m in zip(stats, mems):
             s.add(m)
@@ -254,6 +260,9 @@ def main():
     ap.add_argument("--seq_len", type=int, default=1024)
     ap.add_argument("--batch_seqs", type=int, default=32)
     ap.add_argument("--micro_bs", type=int, default=None)
+    ap.add_argument("--fused_ce", action="store_true", help="chunk the output projection and CE, including backward")
+    ap.add_argument("--ce_chunk_size", type=int, default=1024, help="tokens per output-projection chunk with --fused_ce")
+    ap.add_argument("--compile", action="store_true", help="compile dense block parts; memory and KV caches stay eager")
     ap.add_argument("--lr", type=float, default=6e-4)
     ap.add_argument("--value_lr", type=float, default=1e-3)
     ap.add_argument("--eng_value_lr", type=float, default=None, help="Engram tables (default: --value_lr)")
@@ -280,6 +289,11 @@ def main():
     ap.add_argument("--abort_max_rel", type=float, default=0.05)
     ap.add_argument("--no_save", action="store_true", help="do not write model.pt (benchmark runs)")
     args = ap.parse_args()
+    micro_bs = MICRO_BS[args.model] if args.micro_bs is None else args.micro_bs
+    if micro_bs <= 0 or args.batch_seqs <= 0 or args.batch_seqs % micro_bs:
+        ap.error("--micro_bs must be positive and divide --batch_seqs")
+    if args.ce_chunk_size <= 0:
+        ap.error("--ce_chunk_size must be positive")
 
     os.makedirs(args.out_dir, exist_ok=True)
     t_start = time.time()
@@ -293,8 +307,6 @@ def main():
     eval_every = max(1, int(round(args.eval_every_tokens / stream.tokens_per_step)))
     abort_step = (int(round(args.abort_at_tokens / stream.tokens_per_step / eval_every)) * eval_every
                   if args.abort_ref else None)
-    micro_bs = args.micro_bs or MICRO_BS[args.model]
-    assert args.batch_seqs % micro_bs == 0
     accum = args.batch_seqs // micro_bs
 
     torch.manual_seed(args.seed)
@@ -307,6 +319,10 @@ def main():
         if args.mem_impl is not None:
             mcfg.mem_impl = args.mem_impl
     model = Transformer(mcfg).cuda()
+    if args.compile:
+        from .compile import compile_dense
+        compile_dense(model)
+    loss_options = {"fused_ce": True, "ce_chunk_size": args.ce_chunk_size} if args.fused_ce else {}
     opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, eng_value_lr=args.eng_value_lr)
     mems = model.memory_layers()
     n_val_words = meta["splits"]["validation"]["n_words"]
@@ -371,9 +387,9 @@ def main():
         # training peak since the last evaluation (evaluation itself is not counted)
         peak_train_vram = max(peak_train_vram, torch.cuda.max_memory_allocated() / 2**30)
         ev = evaluate(model, "validation", args.seq_len, n_val_words, batch=micro_bs, mem_stats=bool(mems),
-                      dataset=args.data)
+                      dataset=args.data, **loss_options)
         ev2 = evaluate(model, "validation", args.seq_len, n_val2_words, batch=micro_bs,
-                       dataset=args.extra_val) if args.extra_val else None
+                       dataset=args.extra_val, **loss_options) if args.extra_val else None
         for m in mems:
             m.record = True
         row = {
@@ -434,7 +450,7 @@ def main():
         for i in range(accum):
             mb = batch[i * micro_bs:(i + 1) * micro_bs]
             with torch.autocast("cuda", dtype=torch.bfloat16):
-                _, loss = model(mb[:, :-1], mb[:, 1:])
+                _, loss = model(mb[:, :-1], mb[:, 1:], **loss_options)
             (loss / accum).backward()
             interval_loss += loss.detach() / accum
             log_loss += loss.detach() / accum
@@ -485,11 +501,11 @@ def main():
                 break
 
     final_val = evaluate(model, "validation", args.seq_len, n_val_words, batch=micro_bs, mem_stats=bool(mems),
-                         sample_windows=args.sample_windows if mems else 0, dataset=args.data)
+                         sample_windows=args.sample_windows if mems else 0, dataset=args.data, **loss_options)
     final_test = (evaluate(model, "test", args.seq_len, meta["splits"]["test"]["n_words"], batch=micro_bs,
-                           dataset=args.data) if has_split("test", args.data) else None)
+                           dataset=args.data, **loss_options) if has_split("test", args.data) else None)
     final_val2 = (evaluate(model, "validation", args.seq_len, n_val2_words, batch=micro_bs,
-                           dataset=args.extra_val) if args.extra_val else None)
+                           dataset=args.extra_val, **loss_options) if args.extra_val else None)
     if not args.no_save:
         torch.save({"model_config": mcfg.to_dict(), "state_dict": model.state_dict()},
                    os.path.join(args.out_dir, "model.pt"))

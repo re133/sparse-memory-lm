@@ -208,7 +208,8 @@ class Transformer(nn.Module):
             else:
                 raise ValueError(kind)
 
-    def forward(self, idx, targets=None, kv_caches=None, pos0=0):
+    def forward(self, idx, targets=None, kv_caches=None, pos0=0, fused_ce=False, ce_chunk_size=1024):
+        """Return logits, or (logits, loss); fused_ce with targets returns (None, loss)."""
         x = self.tok_emb(idx)
         rows = None
         if self.ngram is not None:
@@ -223,6 +224,11 @@ class Transformer(nn.Module):
             rows = self.ngram(c)
         for i, blk in enumerate(self.layers):
             x = blk(x, None if kv_caches is None else kv_caches[i], pos0, rows)
+        if fused_ce and targets is not None:
+            from .fused_ce import chunked_cross_entropy
+            # Loss-only training avoids retaining a vocabulary-sized tensor for every token.
+            loss = chunked_cross_entropy(self.norm(x), self.lm_head.weight, targets, ce_chunk_size)
+            return None, loss
         logits = self.lm_head(self.norm(x))
         if targets is None:
             return logits
