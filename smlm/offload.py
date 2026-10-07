@@ -176,6 +176,98 @@ class MmapQ4Table(OffloadTable):
         self.stats["misses"] += int(len(miss_rows))
 
 
+class DirectQ4Table(OffloadTable):
+    """4-bit table read with O_DIRECT, with the same static/FIFO row cache as MmapQ4Table.
+
+    Use DirectQ4Table(path, scales_path, rows, dim, backend="pread", threads=16).
+    The optional "uring" backend uses queue_depth instead of threads. Both request O_DIRECT reads.
+    """
+
+    def __init__(self, path, scales_path, rows, dim, hot_rows=None, cache_rows=0, fifo_rows=0, device="cuda",
+                 *, backend="pread", threads=16, queue_depth=128):
+        super().__init__(rows, dim, True, torch.uint8, device)
+        self.path = path
+        self.row_bytes = dim // 2
+        self.backend, self.threads, self.queue_depth = backend, threads, queue_depth
+        self.scales = torch.from_numpy(np.fromfile(scales_path, dtype=np.float16))
+        assert self.scales.numel() == rows
+        self.row2slot = np.full(rows, -1, dtype=np.int32)
+        self.n_static = int(cache_rows)
+        self.n_fifo = int(fifo_rows)
+        self.cache = np.empty((self.n_static + self.n_fifo, self.row_bytes), dtype=np.uint8)
+        self.slot2row = np.full(self.n_static + self.n_fifo, -1, dtype=np.int64)
+        self.fifo_ptr = 0
+        self.reader = None
+        self._open()
+        try:
+            if self.n_static:
+                hot = np.sort(hot_rows[:self.n_static])
+                # Bound temporary page buffers when the hot rows are scattered over a large table.
+                for a in range(0, len(hot), 8192):
+                    part = hot[a:a + 8192]
+                    self.cache[a:a + len(part)] = self.reader.fetch(part)
+                    self.row2slot[part] = np.arange(a, a + len(part), dtype=np.int32)
+                    self.slot2row[a:a + len(part)] = part
+        except BaseException:
+            self.close()
+            raise
+
+    def _open(self):
+        from .table_io import PreadReader, UringReader
+
+        if self.backend == "pread":
+            reader = PreadReader(self.path, self.row_bytes, threads=self.threads)
+        elif self.backend == "uring":
+            reader = UringReader(self.path, self.row_bytes, queue_depth=self.queue_depth)
+        else:
+            raise ValueError(f"unknown direct I/O backend: {self.backend!r}")
+        if reader.size != self.rows * self.row_bytes:
+            reader.close()
+            raise ValueError(f"table size {reader.size} does not match {self.rows} rows of {self.row_bytes} bytes")
+        self.reader = reader
+
+    def close(self):
+        if self.reader is not None:
+            self.reader.close()
+            self.reader = None
+
+    def drop_os_cache(self):
+        """Drop clean file pages without changing the static/FIFO cache or its statistics."""
+        self.close()
+        fd = os.open(self.path, os.O_RDONLY)
+        try:
+            os.posix_fadvise(fd, 0, 0, os.POSIX_FADV_DONTNEED)
+        finally:
+            os.close(fd)
+        self._open()
+
+    def fetch(self, rows_np, out, out_scales):
+        if self.reader is None:
+            raise RuntimeError("DirectQ4Table is closed")
+        slots = self.row2slot[rows_np]
+        hit = slots >= 0
+        o = out.numpy()
+        o[hit] = self.cache[slots[hit]]
+        miss_rows = rows_np[~hit]
+        if len(miss_rows):
+            data = self.reader.fetch(miss_rows)
+            o[~hit] = data
+            self.stats["pages_requested"] += self.reader.last_pages
+            if self.n_fifo:
+                k = min(len(miss_rows), self.n_fifo)
+                new_rows, new_data = miss_rows[-k:], data[-k:]
+                pos = self.n_static + (self.fifo_ptr + np.arange(k)) % self.n_fifo
+                old = self.slot2row[pos]
+                self.row2slot[old[old >= 0]] = -1
+                self.row2slot[new_rows] = pos.astype(np.int32)
+                self.slot2row[pos] = new_rows
+                self.cache[pos] = new_data
+                self.fifo_ptr = (self.fifo_ptr + k) % self.n_fifo
+        torch.index_select(self.scales, 0, torch.from_numpy(rows_np), out=out_scales)
+        self.stats["hits"] += int(hit.sum())
+        self.stats["misses"] += int(len(miss_rows))
+
+
 def load_model(rest_path, table=None, device="cuda"):
     """Model from rest.pt (scripts/convert_table.py) without allocating the fp32 table.
     table: OffloadTable (variants b, c) or a tuple (gpu_table, gpu_scales_or_None) (variant a)."""
