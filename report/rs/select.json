@@ -1,0 +1,55 @@
+{
+ "sessions": 512,
+ "cache_frac": 0.3,
+ "A0": {
+  "pages_per_session": 26423.3,
+  "prompt_pages": 9580.9,
+  "pages_per_continuation_token": 65.79,
+  "change_vs_A0_pct": 0.0,
+  "ci95_pct": [
+   0.0,
+   0.0
+  ]
+ },
+ "AJ_spectral": {
+  "pages_per_session": 26319.9,
+  "prompt_pages": 9550.5,
+  "pages_per_continuation_token": 65.51,
+  "change_vs_A0_pct": -0.4,
+  "ci95_pct": [
+   -0.4,
+   -0.4
+  ]
+ },
+ "AJ_greedy": {
+  "pages_per_session": 25965.2,
+  "prompt_pages": 9433.3,
+  "pages_per_continuation_token": 64.58,
+  "change_vs_A0_pct": -1.7,
+  "ci95_pct": [
+   -1.8,
+   -1.7
+  ]
+ },
+ "AI_spectral": {
+  "pages_per_session": 26335.0,
+  "prompt_pages": 9553.5,
+  "pages_per_continuation_token": 65.55,
+  "change_vs_A0_pct": -0.3,
+  "ci95_pct": [
+   -0.4,
+   -0.3
+  ]
+ },
+ "AI_greedy": {
+  "pages_per_session": 25937.4,
+  "prompt_pages": 9428.7,
+  "pages_per_continuation_token": 64.49,
+  "change_vs_A0_pct": -1.8,
+  "ci95_pct": [
+   -1.9,
+   -1.8
+  ]
+ },
+ "chosen": "AI_greedy"
+}

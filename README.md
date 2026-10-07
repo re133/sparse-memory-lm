@@ -163,7 +163,10 @@ in the last bits. Both are equally close to an exact fp64 sum, and the generated
 included. When writing, the slow part isn't
 the SSD but the three round trips between GPU and CPU per token: even with no cache at all the NVMe version is only
 18% slower than RAM. When reading a prompt every token needs ~270 different rows, and every missed row costs a
-whole 4 KB page from the SSD. That's where it falls apart.
+whole 4 KB page from the SSD. That's where it falls apart. Sorting the rows so that rows read together share a page
+doesn't fix it: in a simulation that saves only 1.8% of the pages, because which rows come together changes from text
+to text (step 5 in the [report](REPORT.md)). Reading the rows faster might: a first quick benchmark with io_uring reads
+1.4 to 1.8 times as many rows per second as the memory-mapped file. That isn't built in yet.
 
 ![Table on the NVMe](report/offload_cache.png)
 
@@ -195,6 +198,9 @@ whole 4 KB page from the SSD. That's where it falls apart.
   95% of the gain on the training articles and the whole fact-test gain, on seen and unseen articles alike. A
   randomly re-drawn table doesn't help either. So the table does store what was learned, it just doesn't hand the
   trained facts back out selectively ([details](report/qwen/table_ablation.json)).
+- **Not just an add-on problem:** I ran the same kind of fact test on the models I trained from scratch, facts from
+  articles they saw once in training against articles they never saw. None of them, with or without table, gets the
+  seen facts right more often (differences between −1.2 and +0.1 points, step 6 in the [report](REPORT.md)).
 - **Side effects:** it also cost some MMLU, the dense add-on didn't.
 
 ## How it works

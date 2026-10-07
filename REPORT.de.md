@@ -2184,6 +2184,36 @@ werden, auf derselben Seite liegen?
 Seiten zu einer Anfrage zusammen, weniger Seiten heißen also nicht automatisch im selben Maß weniger Zeit. Teacher
 Forcing auf echtem Text statt erzeugtem Text. Ein Modell (B-16M), eine Cache-Größe.
 
+### Ergebnis Schritt 5 (2026-10-07, offline, `report/rs/`)
+
+- **Urteil: „Anordnung ist nicht der Hebel“.** Die gewählte Anordnung (AI, gierig) liest **1,8 % weniger Seiten** pro
+  Sitzung als die heutige [95-%-Intervall −1,9; −1,8], weit unter der 10-%-Schwelle. Die umsortierte Tabelle wird
+  nicht gebaut.
+- 1.000 Validierungs-Sitzungen à 384 Tokens:
+
+| | Heute (A0) | Umsortiert (AI gierig) | Änderung |
+|---|---:|---:|---:|
+| Seiten pro Sitzung, 30 % der Zeilen im RAM | 26.762 | 26.276 | −1,8 % |
+| davon im Prompt (128 Tokens) | 9.648 | 9.495 | |
+| Neue Seiten pro weiterem Token | 66,9 | 65,6 | |
+| Seiten pro Sitzung, nichts im RAM | 100.515 | 96.767 | −3,7 % |
+
+- Auswahl auf den 512 Trainings-Sitzungen: AJ spektral −0,4 %, AJ gierig −1,7 %, AI spektral −0,3 %, AI gierig
+  −1,8 %.
+- **Warum so wenig** (100 der Trainings-Sitzungen): Eine Sitzung liest rund 26.500 verschiedene Zeilen außerhalb des
+  RAM, verteilt auf rund 3.770 der 4.096 i-Blöcke mit je etwa 7 Zeilen, und braucht dafür rund 26.400 Seiten:
+  praktisch eine Seite pro Zeile. Welche j zusammen gelesen werden, hängt von Anfrage und Kopf ab. Schon in nur
+  200 Sitzungen wurden 96 % aller 16,8 Mio. möglichen j-Paare mindestens einmal mit gleichem i zusammen gelesen. Eine
+  feste Reihenfolge hat nichts, woran sie sich halten kann.
+- **Was das bedeutet:** Jede Zeile, die nicht im RAM liegt, kostet einen eigenen zufälligen Lesezugriff, egal wie die
+  Tabelle angeordnet ist. Helfen kann nur: weniger Fehlzugriffe (mehr Zeilen im RAM, Vorab-Laden) oder mehr
+  Lesezugriffe pro Sekunde. Der Kurzlauf des Direct-I/O-Messprogramms (`scripts/bench_table_io.py`, Branch
+  `codex/dio`) gibt io_uring 1,4–1,8-mal so viele Lesezugriffe pro Sekunde wie mmap; das ist der nächste Schritt.
+- **Plausibilitätsprüfung:** Die Latenzmessung hat für den kalten Prompt 8.059 Lesezugriffe des Geräts gezählt
+  (Simulation: 9.648 Seiten) und rund 31 pro weiterem Token (Simulation: 67). Die SSD fasst benachbarte Seiten zu einer
+  Anfrage zusammen, und die Messung lief mit dem eigenen Text des Modells weiter, der sich mehr wiederholt als echter
+  Text. Vergleichbar ist also nur die Größenordnung.
+
 ## Schritt 6: Erinnern sich die von Grund auf trainierten Modelle an gesehene Fakten? (Faktentest, Kriterien vor der Messung, 2026-10-07)
 
 **Frage:** In Schritt 3 hat das Tabellen-Add-on für Qwen das Gelernte gespeichert, die trainierten Fakten aber nicht
@@ -2229,3 +2259,39 @@ erwarten; entscheidend ist gesehen gegen ungesehen. Der Prompt enthält nur Tite
 davor. Ein Seed pro Modell. Namen kommen aus einem einfachen Muster, manche „Namen“ sind also andere großgeschriebene
 Wortgruppen, für alle Modelle gleich. Vor den Kriterien habe ich die Bewertung nur an drei erfundenen Prompts
 getestet, an keiner der Aufgaben.
+
+### Ergebnis Schritt 6 (2026-10-07, RX 9070, `report/facts_lm/`)
+
+- **Urteil: „Kein klarer Unterschied“.** Lücke von B-16M minus Lücke von D-100M: +0,9 Pp. [−0,5; 2,4]; minus Lücke
+  von D-200M: +1,0 Pp. [−0,4; 2,4].
+- **Nebenprüfung nicht bestanden:** Die Lücke von B-16M selbst ist −0,2 Pp. [−2,2; 1,7]. B-16M bringt Fakten aus
+  gesehenen Artikeln nicht besser zurück als aus ungesehenen.
+- **Und auch kein anderes Modell:** Alle acht Lücken liegen zwischen −1,2 und +0,1 Pp., jedes Intervall schließt 0
+  ein.
+
+| Modell | Val-PPL | Gesehen | Ungesehen | Lücke [95 %] |
+|---|---:|---:|---:|---:|
+| A | 25,67 | 4,9 % | 4,9 % | 0,0 Pp. [−1,7; 1,6] |
+| B-1M | 21,84 | 5,8 % | 5,7 % | +0,1 Pp. [−1,7; 1,8] |
+| D-50M | 22,45 | 5,4 % | 5,7 % | −0,4 Pp. [−2,1; 1,4] |
+| B-4M | 20,80 | 6,5 % | 7,2 % | −0,7 Pp. [−2,5; 1,2] |
+| D-100M | 20,27 | 5,4 % | 6,6 % | −1,2 Pp. [−3,0; 0,6] |
+| **B-16M** | **19,96** | **7,0 %** | **7,2 %** | **−0,2 Pp. [−2,2; 1,7]** |
+| D-200M | 18,76 | 5,9 % | 7,2 % | −1,2 Pp. [−3,1; 0,7] |
+| D-400M | 17,60 | 7,0 % | 7,7 % | −0,7 Pp. [−2,7; 1,2] |
+
+- **Nach Fünftel des Trainings** (gesehene Aufgaben, rund 276 pro Fünftel, also einige Punkte Rauschen): B-16M 6,0 /
+  8,6 / 5,8 / 7,1 / 7,3 %, kein Trend. Nur A steigt von 2,3 auf 7,3 %; bei einem Modell und diesem Rauschen lese ich
+  daraus nichts.
+- **Nach Typ:** Namen werden am häufigsten getroffen (B-16M 10,0 % gesehen, 11,5 % ungesehen), Zahlen am seltensten
+  (4,2 % / 3,6 %), kein Typ mit klarer Lücke. 172 gesehene und 165 ungesehene Aufgaben trifft mindestens ein Modell,
+  36 bzw. 39 alle acht: meist Allgemeinwissen oder leicht zu raten.
+- **Was das bedeutet:** Nachdem es einen Artikel einmal gesehen hat, bringt keines dieser Modelle, ob mit oder ohne
+  Tabelle, dessen Fakten besser zurück als Fakten aus nie gesehenen Artikeln. Meine Vermutung aus Schritt 3 (der
+  eingefrorene Qwen-Kern weiß nicht, wie oder wo er holen soll) bestätigt sich nicht: Modelle, die von Anfang an mit
+  Tabelle gelernt haben, tun es auch nicht. Bei einem Durchgang (hier) und zwei Durchgängen (Schritt 3) zeigt sich bei
+  dieser Größe kein gezieltes Erinnern. B-16M trifft auf gesehenen Aufgaben am häufigsten von allen Modellen (7,0 %,
+  D-400M 6,95 %), auf ungesehenen aber genauso: Allgemeinwissen, keine Erinnerung an den Artikel.
+- **Offen:** Ab wie vielen Wiederholungen sitzt ein Fakt, und braucht ein Modell mit Tabelle weniger als ein dichtes?
+  Dafür braucht es einen kontrollierten Test mit Fakten, die eine bekannte Anzahl Male vorkommen (Idee, noch nicht
+  geplant).

@@ -1,0 +1,48 @@
+{
+ "sessions": 1000,
+ "chosen": "AI_greedy",
+ "cache0.3": {
+  "A0": {
+   "pages_per_session": 26762.2,
+   "prompt_pages": 9647.5,
+   "pages_per_continuation_token": 66.85,
+   "change_vs_A0_pct": 0.0,
+   "ci95_pct": [
+    0.0,
+    0.0
+   ]
+  },
+  "AI_greedy": {
+   "pages_per_session": 26276.4,
+   "prompt_pages": 9495.3,
+   "pages_per_continuation_token": 65.55,
+   "change_vs_A0_pct": -1.8,
+   "ci95_pct": [
+    -1.9,
+    -1.8
+   ]
+  }
+ },
+ "cache0": {
+  "A0": {
+   "pages_per_session": 100514.7,
+   "prompt_pages": 39846.2,
+   "pages_per_continuation_token": 236.99,
+   "change_vs_A0_pct": 0.0,
+   "ci95_pct": [
+    0.0,
+    0.0
+   ]
+  },
+  "AI_greedy": {
+   "pages_per_session": 96767.2,
+   "prompt_pages": 38575.3,
+   "pages_per_continuation_token": 227.31,
+   "change_vs_A0_pct": -3.7,
+   "ci95_pct": [
+    -3.8,
+    -3.7
+   ]
+  }
+ }
+}

@@ -2096,6 +2096,33 @@ B-16M read clearly fewer pages if rows that are read together sit on the same pa
 request, so fewer pages don't automatically mean the same share less time. Teacher forcing on real text instead of
 generated text. One model (B-16M), one cache size.
 
+### Result of step 5 (2026-10-07, offline, `report/rs/`)
+
+- **Verdict: "layout is not the lever".** The chosen layout (AI, greedy) reads **1.8% fewer pages** per session than
+  today's [95% interval −1.9; −1.8], far below the 10% threshold. The reordered table won't be built.
+- 1,000 validation sessions of 384 tokens:
+
+| | Today (A0) | Reordered (AI greedy) | Change |
+|---|---:|---:|---:|
+| Pages per session, 30% of the rows in RAM | 26,762 | 26,276 | −1.8% |
+| of which in the prompt (128 tokens) | 9,648 | 9,495 | |
+| New pages per further token | 66.9 | 65.6 | |
+| Pages per session, nothing in RAM | 100,515 | 96,767 | −3.7% |
+
+- Choice on the 512 training sessions: AJ spectral −0.4%, AJ greedy −1.7%, AI spectral −0.3%, AI greedy −1.8%.
+- **Why so little** (100 of the training sessions): a session reads ~26,500 different rows outside RAM, spread over
+  ~3,770 of the 4,096 i blocks with ~7 rows each, and needs ~26,400 pages for them: practically one page per row.
+  Which j's are read together depends on the query and the head. Within only 200 sessions, 96% of all 16.8 M possible
+  j pairs were read together with the same i at least once. A fixed order has nothing to hold on to.
+- **What that means:** every row that misses the RAM costs its own random read, whatever the layout. What helps is
+  fewer misses (more rows in RAM, prefetching) or more reads per second. The quick run of the direct-I/O benchmark
+  (`scripts/bench_table_io.py`, branch `codex/dio`) gives io_uring 1.4–1.8× the reads per second of mmap; that's
+  the next step.
+- **Plausibility check:** the latency measurement counted 8,059 device reads for the cold prompt (simulation: 9,648
+  pages) and ~31 per further token (simulation: 67). The SSD merges neighbouring pages into one request, and the
+  measurement continued with the model's own text, which repeats itself more than real text. So only the order of
+  magnitude is comparable.
+
 ## Step 6: do the models trained from scratch remember the facts they saw? (fact test, criteria before measuring, 2026-10-07)
 
 **Question:** In step 3 the table add-on for Qwen stored what it learned, but didn't bring the trained facts back
@@ -2134,3 +2161,35 @@ better than facts from articles it never saw, and by more than dense models of s
 against unseen. The prompt only has the title and the sentence, not the article text before it. One seed per model.
 Names come from a simple pattern, so some "names" are other capitalised phrases, the same for all models. Before the
 criteria I only tested the scoring on three made-up prompts, none of the items.
+
+### Result of step 6 (2026-10-07, RX 9070, `report/facts_lm/`)
+
+- **Verdict: "no clear difference".** Gap of B-16M minus gap of D-100M: +0.9 pp [−0.5; 2.4]; minus gap of D-200M:
+  +1.0 pp [−0.4; 2.4].
+- **Side check failed:** the gap of B-16M itself is −0.2 pp [−2.2; 1.7]. B-16M doesn't bring back facts from seen
+  articles better than from unseen ones.
+- **And neither does any other model:** all eight gaps lie between −1.2 and +0.1 pp, every interval includes 0.
+
+| Model | Val PPL | Seen | Unseen | Gap [95%] |
+|---|---:|---:|---:|---:|
+| A | 25.67 | 4.9% | 4.9% | 0.0 pp [−1.7; 1.6] |
+| B-1M | 21.84 | 5.8% | 5.7% | +0.1 pp [−1.7; 1.8] |
+| D-50M | 22.45 | 5.4% | 5.7% | −0.4 pp [−2.1; 1.4] |
+| B-4M | 20.80 | 6.5% | 7.2% | −0.7 pp [−2.5; 1.2] |
+| D-100M | 20.27 | 5.4% | 6.6% | −1.2 pp [−3.0; 0.6] |
+| **B-16M** | **19.96** | **7.0%** | **7.2%** | **−0.2 pp [−2.2; 1.7]** |
+| D-200M | 18.76 | 5.9% | 7.2% | −1.2 pp [−3.1; 0.7] |
+| D-400M | 17.60 | 7.0% | 7.7% | −0.7 pp [−2.7; 1.2] |
+
+- **By fifth of training** (seen items, ~276 per fifth, so a few points of noise): B-16M 6.0 / 8.6 / 5.8 / 7.1 /
+  7.3%, no trend. Only A rises from 2.3 to 7.3%; with one model and this noise I don't read anything into it.
+- **By type:** names are hit most often (B-16M 10.0% seen, 11.5% unseen), numbers least (4.2% / 3.6%), no type with a
+  clear gap. 172 seen and 165 unseen items are hit by at least one model, 36 and 39 by all eight: mostly general
+  knowledge or easy to guess.
+- **What that means:** after seeing an article once, none of these models, with or without table, recalls its facts
+  better than facts from articles it never saw. My guess from step 3 (the frozen Qwen core doesn't know how or where
+  to fetch) isn't confirmed: models that learned with the table from the start don't do it either. With one pass (here)
+  and two passes (step 3), no targeted recall shows up at this size. B-16M has the highest hit rate of all models on
+  seen items (7.0%, D-400M 6.95%), but just as much on unseen ones: general knowledge, not memory of the article.
+- **Open:** from how many repetitions does a fact stick, and does a model with table need fewer than a dense one? That
+  needs a controlled test with facts that appear a known number of times (idea, not planned yet).
