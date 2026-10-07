@@ -2096,3 +2096,38 @@ getestet (Codex-Befund 12).
   Intervall die Null ausschließt, heißt es „Faktengewinn hängt an der Tabelle“.
 - **R** wird berichtet, ohne Urteil. R zeigt, ob das Modell den Inhalt der Tabelle braucht oder nur Werte dieser
   Größenordnung; R schlechter als Q spräche dafür, dass der Rest auf die trainierte Tabelle abgestimmt ist.
+
+**Ergebnis** (2026-10-07, RX 9070, 47 min, `report/qwen/table_ablation.json`):
+
+| | Q (Gates 0) | T (trainiert) | Z (Tabelle 0) | R (Tabelle zufällig) | Anteil s der Tabelle |
+|---|---|---|---|---|---|
+| PPL `mem_probe` (Trainingsartikel) | 13,363 | 5,640 | 12,772 | 12,870 | **0,95** |
+| PPL `val_new` (neue Artikel) | 12,977 | 10,095 | 12,388 | 12,485 | **0,82** |
+| PPL `val_known` (alte Artikel) | 13,935 | 14,903 | 13,400 | 13,499 | 1,58 |
+| PPL `val_known_same` | 14,282 | 14,031 | 13,706 | 13,823 | −1,33 |
+| Faktentest Training | 25/500 (zu Hause) | 51/500 | 23/500 | 25/500 | |
+| Faktentest Gegenprobe | 19/500 (zu Hause) | 48/500 | 22/500 | 21/500 | |
+
+- **Kontrollen:** Q über Gates 0 trifft die bisherigen Q-Werte auf alle Stellen. T trifft die Cloud-Messung
+  (5,638 / 10,093).
+- **Urteil `mem_probe`: „überwiegend in der Tabelle“** (s = 0,95). Ohne Tabelle ist fast die ganze Anpassung an die
+  Trainingsartikel weg (13,36 → 5,64 → 12,77).
+- **`val_new`: ebenfalls „überwiegend in der Tabelle“** (s = 0,82).
+- **`val_known`:** Die Verschlechterung auf alten Artikeln (+7 %) kommt ganz aus der Tabelle. Ohne Tabelle ist das
+  Add-on dort sogar 3,8 % besser als Qwen allein (s > 1).
+- **`val_known_same`:** T ist nur 1,8 % besser als Q, ohne Tabelle 4 % besser. Die Tabelle schadet hier gegenüber dem
+  Rest des Add-ons, deshalb ist s negativ und nicht sinnvoll als Anteil zu lesen.
+- **Faktentest: „Faktengewinn hängt an der Tabelle“.** T − Z = +5,6 Pp. [3,0; 8,2] bei Trainingsartikeln und
+  +5,2 Pp. [3,2; 7,4] bei der Gegenprobe. Ohne Tabelle fällt das Add-on auf das Niveau von Qwen allein zurück.
+  Der Gewinn ist bei Trainings- und Gegenprobe-Artikeln gleich groß, die Tabelle hilft also allgemein beim
+  Vervollständigen von Wikipedia-Fakten, nicht gezielt bei den trainierten.
+- **R ≈ Z:** Eine zufällige Tabelle hilft so wenig wie keine. Das Modell nutzt den gelernten Inhalt, nicht nur Werte
+  dieser Größenordnung.
+- **Der Rest des Add-ons ohne Tabelle** bringt auf allen Sätzen gleichmäßig ≈ 4 %. Mit Tabelle null liefern die
+  Blöcke nur noch den gelernten Bias ihrer Ausgabeprojektion, also eine feste Verschiebung pro Block, eine allgemeine
+  Anpassung an Wikipedia-Text.
+
+**Was das bedeutet:** Die Tabelle ist der Speicher. Sie trägt das Auswendiggelernte der Trainingsartikel, die
+Anpassung an neue Artikel, den Gewinn im Faktentest und auch den Schaden auf älterem Text. Offen bleibt der
+Befund aus Schritt 3: Die gespeicherten Artikel machen die *trainierten* Fakten nicht besser abrufbar als andere.
+Die Frage „Wo steckt es?“ ist damit beantwortet, die Frage „Warum kommt es nicht gezielt wieder heraus?“ nicht.

@@ -190,8 +190,11 @@ whole 4 KB page from the SSD. That's where it falls apart.
 - **No sign of learned facts:** its perplexity on the training articles fell far more than with the dense add-on,
   but in the fact test it was only 2.4 points ahead of the dense version on those articles, and 2.2 points ahead
   on articles it had never seen. So it didn't recall facts from its training articles any better. My bar for "it
-  learned new facts" was +10 points. Where in the add-on the training text ended up (table, keys, projections) I
-  didn't test.
+  learned new facts" was +10 points.
+- **It's all in the table:** zeroing only the table and keeping the trained keys, projections and gates takes away
+  95% of the gain on the training articles and the whole fact-test gain, on seen and unseen articles alike. A
+  randomly re-drawn table doesn't help either. So the table does store what was learned, it just doesn't hand the
+  trained facts back out selectively ([details](report/qwen/table_ablation.json)).
 - **Side effects:** it also cost some MMLU, the dense add-on didn't.
 
 ## How it works

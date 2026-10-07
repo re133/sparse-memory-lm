@@ -1,0 +1,235 @@
+{
+ "addons": "runs/qwen_cloud/QT-s0/addons.pt",
+ "gpu": "AMD Radeon RX 9070",
+ "started": "2026-10-07 10:10:35",
+ "gates": [
+  0.1579161435365677,
+  -0.21902568638324738,
+  -0.3203273415565491
+ ],
+ "variants": {
+  "Q": {
+   "mem_probe": {
+    "loss": 2.592511400580406,
+    "ppl": 13.363290070869189,
+    "tokens": 655360,
+    "knowledge_ppl": 17.027094231375205,
+    "knowledge_tokens": 148617
+   },
+   "val_new": {
+    "loss": 2.5631529496562098,
+    "ppl": 12.97666766200241,
+    "tokens": 1015808,
+    "knowledge_ppl": 16.32592545288909,
+    "knowledge_tokens": 234725
+   },
+   "val_known": {
+    "loss": 2.634367840359635,
+    "ppl": 13.934500849237441,
+    "tokens": 1544192,
+    "knowledge_ppl": 17.311617729161426,
+    "knowledge_tokens": 369809
+   },
+   "val_known_same": {
+    "loss": 2.6589846520254454,
+    "ppl": 14.281780757251578,
+    "tokens": 1613824,
+    "knowledge_ppl": 18.980760052272828,
+    "knowledge_tokens": 366461
+   },
+   "seconds": 400.6
+  },
+  "T": {
+   "mem_probe": {
+    "loss": 1.7299365863204001,
+    "ppl": 5.640296225149764,
+    "tokens": 655360,
+    "knowledge_ppl": 6.979804682517135,
+    "knowledge_tokens": 148617
+   },
+   "val_new": {
+    "loss": 2.3120052179982586,
+    "ppl": 10.094646340321809,
+    "tokens": 1015808,
+    "knowledge_ppl": 12.566218992149595,
+    "knowledge_tokens": 234725
+   },
+   "val_known": {
+    "loss": 2.7015473773055745,
+    "ppl": 14.902774107088915,
+    "tokens": 1544192,
+    "knowledge_ppl": 17.13121111889814,
+    "knowledge_tokens": 369809
+   },
+   "val_known_same": {
+    "loss": 2.6413029329425792,
+    "ppl": 14.031473772160076,
+    "tokens": 1613824,
+    "knowledge_ppl": 18.509331390018243,
+    "knowledge_tokens": 366461
+   },
+   "facts": {
+    "train": {
+     "n": 500,
+     "correct": 51,
+     "acc": 0.102,
+     "wilson95": [
+      0.07843397139617729,
+      0.1316352249544218
+     ]
+    },
+    "heldout": {
+     "n": 500,
+     "correct": 48,
+     "acc": 0.096,
+     "wilson95": [
+      0.07317313790557156,
+      0.12498755386739835
+     ]
+    }
+   },
+   "seconds": 794.3
+  },
+  "Z": {
+   "mem_probe": {
+    "loss": 2.547287327051163,
+    "ppl": 12.772409377241553,
+    "tokens": 655360,
+    "knowledge_ppl": 15.890457050621624,
+    "knowledge_tokens": 148617
+   },
+   "val_new": {
+    "loss": 2.5167567787631864,
+    "ppl": 12.388353269324831,
+    "tokens": 1015808,
+    "knowledge_ppl": 15.237176631890982,
+    "knowledge_tokens": 234725
+   },
+   "val_known": {
+    "loss": 2.5952392509824715,
+    "ppl": 13.399792891543655,
+    "tokens": 1544192,
+    "knowledge_ppl": 16.25893775386542,
+    "knowledge_tokens": 369809
+   },
+   "val_known_same": {
+    "loss": 2.617827275682827,
+    "ppl": 13.70591204229032,
+    "tokens": 1613824,
+    "knowledge_ppl": 17.711351278196542,
+    "knowledge_tokens": 366461
+   },
+   "facts": {
+    "train": {
+     "n": 500,
+     "correct": 23,
+     "acc": 0.046,
+     "wilson95": [
+      0.030844883399787512,
+      0.06807827022627275
+     ]
+    },
+    "heldout": {
+     "n": 500,
+     "correct": 22,
+     "acc": 0.044,
+     "wilson95": [
+      0.029233737680341678,
+      0.06571991441984218
+     ]
+    }
+   },
+   "seconds": 794.4
+  },
+  "R": {
+   "mem_probe": {
+    "loss": 2.554918746650219,
+    "ppl": 12.87025386379663,
+    "tokens": 655360,
+    "knowledge_ppl": 15.97231606086098,
+    "knowledge_tokens": 148617
+   },
+   "val_new": {
+    "loss": 2.524527050795094,
+    "ppl": 12.484989101390774,
+    "tokens": 1015808,
+    "knowledge_ppl": 15.319864328880602,
+    "knowledge_tokens": 234725
+   },
+   "val_known": {
+    "loss": 2.602589258780846,
+    "ppl": 13.498644308117187,
+    "tokens": 1544192,
+    "knowledge_ppl": 16.367296715069102,
+    "knowledge_tokens": 369809
+   },
+   "val_known_same": {
+    "loss": 2.6263603123311463,
+    "ppl": 13.823365496686705,
+    "tokens": 1613824,
+    "knowledge_ppl": 17.85169039511178,
+    "knowledge_tokens": 366461
+   },
+   "facts": {
+    "train": {
+     "n": 500,
+     "correct": 25,
+     "acc": 0.05,
+     "wilson95": [
+      0.03409350665098192,
+      0.07276865002683111
+     ]
+    },
+    "heldout": {
+     "n": 500,
+     "correct": 21,
+     "acc": 0.042,
+     "wilson95": [
+      0.027632099334746148,
+      0.06335205123956134
+     ]
+    }
+   },
+   "seconds": 794.6
+  }
+ },
+ "share_lost_without_table": {
+  "mem_probe": 0.9475708393270901,
+  "val_new": 0.8152634284739935,
+  "val_known": 1.582448036351467,
+  "val_known_same": -1.3276795740127165
+ },
+ "facts_T_minus_Z": {
+  "train": {
+   "diff_pp": 5.6,
+   "ci95_pp": [
+    3.0,
+    8.200000000000001
+   ]
+  },
+  "heldout": {
+   "diff_pp": 5.2,
+   "ci95_pp": [
+    3.2,
+    7.3999999999999995
+   ]
+  }
+ },
+ "facts_T_minus_R": {
+  "train": {
+   "diff_pp": 5.199999999999999,
+   "ci95_pp": [
+    2.6,
+    7.8
+   ]
+  },
+  "heldout": {
+   "diff_pp": 5.4,
+   "ci95_pp": [
+    3.2,
+    7.6
+   ]
+  }
+ },
+ "finished": "2026-10-07 10:57:00"
+}
