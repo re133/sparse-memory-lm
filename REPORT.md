@@ -2203,3 +2203,64 @@ criteria I only tested the scoring on three made-up prompts, none of the items.
   seen items (7.0%, D-400M 6.95%), but just as much on unseen ones: general knowledge, not memory of the article.
 - **Open:** from how many repetitions does a fact stick, and does a model with table need fewer than a dense one? That
   needs a controlled test with facts that appear a known number of times (idea, not planned yet).
+
+## Addendum to step 6: a more sensitive fact test (criteria before measuring, 2026-10-07)
+
+**Why:** a review (Codex, 2026-10-07) pointed out that "hit or no hit" is a coarse measure, and that the short cloze
+prompt is a different context than the one the model saw in training. For a product-key model a different context
+also means other table rows.
+
+**Setup** (`scripts/eval_fact_logprob_lm.py`, same 2 × 1,382 items as step 6, same eight models, 4-bit table):
+- **Measure:** log-probability of the whole answer (sum over its tokens, teacher forced), not just greedy hit or
+  miss.
+- **Two prompts:**
+  - *cloze:* as in step 6.
+  - *context:* the article's own text before the fact, from the article start, at most 1,000 tokens. For seen items
+    that's the text the model read right before the fact in training. Items whose answer already appears in that
+    context are left out (copying, not memory): 1,204 seen and 1,189 unseen remain.
+- **Recency, new:** the training windows came in random order, so facts seen in the last fifth of training and facts
+  seen in the first fifth are equally hard on average. A difference between them can only come from having seen them
+  (remembering and forgetting). Unlike seen against unseen, this comparison isn't affected by the two sets of
+  articles being of different difficulty.
+
+**Criteria** (context prompt; 95% bootstrap intervals over items, paired across models):
+- **Does B-16M remember at all?** Recency of B-16M = mean log-probability of late-seen minus early-seen items. Interval
+  above 0: "B-16M carries a measurable memory of recently seen articles". Otherwise: "no measurable memory".
+- **Table against dense:** gap (seen minus unseen) of B-16M minus that of D-100M, and minus that of D-200M.
+  - "The table remembers more": both intervals above 0.
+  - "Dense remembers more": both below 0.
+  - "No clear difference": otherwise.
+- **Reported without a verdict:** the same for the recency difference B-16M minus D; everything for the cloze prompt;
+  all eight models; log-probability per fifth of training; the hit rate along the article's own tokens.
+
+**Before the criteria:** the scoring was only tested on three made-up prompts.
+
+## Step 7: how lexical is the table? (no training, criteria before measuring, 2026-10-07)
+
+**Question** (from the same review): does the table need context-specific addresses at all, or is most of what it
+delivers predictable from the current token or the last two? If so, a cheap n-gram lookup like Engram could replace
+much of the expensive search. If not, the content-based addressing of product keys is what counts.
+
+**Setup** (`scripts/lex_bags.py`, model B-1M from the cloud runs, val PPL 21.84):
+- The bag (weighted sum of the value rows a memory layer reads, before the swilu gate) is replaced in all three memory
+  layers at once. Gate, output projection and everything else still see the real context.
+- **Variants:**
+  - *real:* unchanged.
+  - *zero:* bag = 0, what the model is worth without the table's content.
+  - *tok:* mean bag of the current token.
+  - *bigram:* mean bag of the last two tokens (hashed into 2^20 buckets; fewer than 4 occurrences fall back to *tok*).
+  - *other:* a real bag of the same current token from another context, drawn at random (16 kept per token).
+- Means and samples come from 4,096 random training windows (4.2 M tokens). The evaluation runs once on the whole
+  validation set (1,449 windows of 1,024 tokens).
+- **Kept share** of the table's gain = (PPL_zero − PPL_variant) / (PPL_zero − PPL_real), 95% bootstrap interval over
+  the windows.
+
+**Criteria** (for *bigram*):
+- **"Largely lexical":** kept share ≥ 75%.
+- **"Partly lexical":** 25–75%.
+- **"Mostly context":** < 25%.
+- **Reported without a verdict:** *tok*, *other*, and the PPL of every variant.
+
+**Before the criteria:** a plumbing test with statistics from only 64 training windows, evaluated on 16 other
+training windows (not the validation set), showed that the variants run and differ clearly. I looked at those
+numbers; the thresholds above are the ones I had planned before that test.

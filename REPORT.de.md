@@ -2307,3 +2307,71 @@ getestet, an keiner der Aufgaben.
 - **Offen:** Ab wie vielen Wiederholungen sitzt ein Fakt, und braucht ein Modell mit Tabelle weniger als ein dichtes?
   Dafür braucht es einen kontrollierten Test mit Fakten, die eine bekannte Anzahl Male vorkommen (Idee, noch nicht
   geplant).
+
+## Nachtrag zu Schritt 6: ein empfindlicherer Faktentest (Kriterien vor der Messung, 2026-10-07)
+
+**Warum:** Ein Review (Codex, 2026-10-07) hat darauf hingewiesen, dass „getroffen oder nicht“ ein grobes Maß ist und
+der kurze Lückentext-Prompt ein anderer Kontext ist als der, den das Modell im Training gesehen hat. Bei einem
+Product-Key-Modell bedeutet ein anderer Kontext auch andere Tabellenzeilen.
+
+**Aufbau** (`scripts/eval_fact_logprob_lm.py`, dieselben 2 × 1.382 Aufgaben wie in Schritt 6, dieselben acht Modelle,
+4-Bit-Tabelle):
+- **Maß:** Log-Wahrscheinlichkeit der ganzen Antwort (Summe über ihre Tokens, Teacher Forcing), nicht nur greedy
+  getroffen oder nicht.
+- **Zwei Prompts:**
+  - *Lückentext:* wie in Schritt 6.
+  - *Kontext:* der eigene Text des Artikels vor dem Fakt, ab Artikelanfang, höchstens 1.000 Tokens. Bei gesehenen
+    Aufgaben ist das der Text, den das Modell im Training direkt vor dem Fakt gelesen hat. Aufgaben, deren Antwort
+    schon in diesem Kontext steht, fallen raus (Abschreiben, kein Erinnern): Es bleiben 1.204 gesehene und 1.189
+    ungesehene.
+- **Neu, zeitliche Nähe:** Die Trainingsfenster kamen in zufälliger Reihenfolge. Fakten aus dem letzten Fünftel des
+  Trainings und Fakten aus dem ersten Fünftel sind deshalb im Schnitt gleich schwer. Ein Unterschied zwischen ihnen
+  kann nur vom Gesehen-Haben kommen (Erinnern und Vergessen). Anders als gesehen gegen ungesehen hängt dieser Vergleich
+  nicht davon ab, ob die beiden Artikelmengen unterschiedlich schwer sind.
+
+**Kriterien** (Kontext-Prompt; 95-%-Bootstrap-Intervalle über die Aufgaben, gepaart über die Modelle):
+- **Erinnert sich B-16M überhaupt?** Zeitliche Nähe von B-16M = mittlere Log-Wahrscheinlichkeit spät gesehener minus
+  früh gesehener Aufgaben. Intervall über 0: „B-16M trägt eine messbare Erinnerung an kürzlich gesehene Artikel“.
+  Sonst: „keine messbare Erinnerung“.
+- **Tabelle gegen dicht:** Lücke (gesehen minus ungesehen) von B-16M minus der von D-100M, und minus der von D-200M.
+  - „Die Tabelle erinnert sich besser“: beide Intervalle über 0.
+  - „Dicht erinnert sich besser“: beide unter 0.
+  - „Kein klarer Unterschied“: sonst.
+- **Berichtet ohne Urteil:** dasselbe für den Unterschied der zeitlichen Nähe B-16M minus D; alles für den
+  Lückentext-Prompt; alle acht Modelle; Log-Wahrscheinlichkeit pro Fünftel des Trainings; die Trefferquote entlang der
+  eigenen Tokens des Artikels.
+
+**Vor den Kriterien:** Die Bewertung wurde nur an drei erfundenen Prompts getestet.
+
+## Schritt 7: Wie lexikalisch ist die Tabelle? (ohne Training, Kriterien vor der Messung, 2026-10-07)
+
+**Frage** (aus demselben Review): Braucht die Tabelle überhaupt kontextabhängige Adressen, oder lässt sich das meiste,
+was sie liefert, schon aus dem aktuellen Token oder den letzten zwei vorhersagen? Dann könnte eine billige
+n-Gramm-Suche wie Engram viel von der teuren Suche ersetzen. Wenn nicht, zählt die inhaltsabhängige Adressierung der
+Product Keys.
+
+**Aufbau** (`scripts/lex_bags.py`, Modell B-1M aus den Cloud-Läufen, Val-PPL 21,84):
+- Der Bag (gewichtete Summe der Wertzeilen, die eine Speicherschicht liest, vor dem SwiLU-Gate) wird in allen drei
+  Speicherschichten gleichzeitig ersetzt. Gate, Ausgabeprojektion und alles andere sehen weiter den echten Kontext.
+- **Varianten:**
+  - *echt:* unverändert.
+  - *null:* Bag = 0, was das Modell ohne den Inhalt der Tabelle wert ist.
+  - *Token:* mittlerer Bag des aktuellen Tokens.
+  - *Bigramm:* mittlerer Bag der letzten zwei Tokens (gehasht in 2^20 Fächer; weniger als 4 Vorkommen fallen auf
+    *Token* zurück).
+  - *anderer Kontext:* ein echter Bag desselben aktuellen Tokens aus einem anderen Kontext, zufällig gezogen
+    (16 gespeichert pro Token).
+- Mittelwerte und Stichproben stammen aus 4.096 zufälligen Trainingsfenstern (4,2 M Tokens). Ausgewertet wird einmal
+  auf dem ganzen Validierungssatz (1.449 Fenster à 1.024 Tokens).
+- **Behaltener Anteil** des Tabellengewinns = (PPL_null − PPL_Variante) / (PPL_null − PPL_echt), 95-%-Bootstrap-
+  Intervall über die Fenster.
+
+**Kriterien** (für *Bigramm*):
+- **„Weitgehend lexikalisch“:** behaltener Anteil ≥ 75 %.
+- **„Teilweise lexikalisch“:** 25–75 %.
+- **„Vor allem Kontext“:** < 25 %.
+- **Berichtet ohne Urteil:** *Token*, *anderer Kontext* und die PPL jeder Variante.
+
+**Vor den Kriterien:** Ein Technik-Test mit Statistiken aus nur 64 Trainingsfenstern, ausgewertet auf 16 anderen
+Trainingsfenstern (nicht dem Validierungssatz), hat gezeigt, dass die Varianten laufen und sich deutlich
+unterscheiden. Diese Zahlen habe ich gesehen; die Schwellen oben sind die, die ich vor diesem Test geplant hatte.
