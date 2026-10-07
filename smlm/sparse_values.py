@@ -138,21 +138,102 @@ class LazyRowAdam(torch.optim.Optimizer):
     """Adam (no weight decay) on the rows read since the last step; rows that were not read keep their values
     and their Adam state bit-for-bit (global step count for bias correction, as torch SparseAdam / TF LazyAdam).
 
-    Implementation: in practice almost every row is read in a 32k-token step, so instead of gathering and
+    The fp32 torch path: in practice almost every row is read in a 32k-token step, so instead of gathering and
     scattering ~1M rows (slow), one fused Adam step runs over the whole table with the accumulated row
     gradients, and the few unread rows (values, exp_avg, exp_avg_sq) are saved before and written back after.
-    The result equals a row-wise lazy update exactly (see tests/test_sparse_values.py)."""
+    The result equals a row-wise lazy update exactly (see tests/test_sparse_values.py).
 
-    def __init__(self, params, lr, betas=(0.9, 0.95), eps=1e-8, name="memory_values", impl="torch"):
+    state_dtype="bf16" / "int8" keeps compact moments and computes updates in fp32. The torch compact path
+    gathers only touched rows in bounded chunks; Triton updates them in place. Int8 uses signed square-root
+    first moments and unsigned fourth-root second moments, each with an fp32 scale per row.
+    Stores round to nearest even; a positive second moment never gets a zero code.
+    Values and RowStore stay fp32; compact modes require contiguous fp32 tables.
+    """
+
+    def __init__(self, params, lr, betas=(0.9, 0.95), eps=1e-8, name="memory_values", impl="torch",
+                 state_dtype="fp32"):
         params = list(params)
+        if state_dtype not in ("fp32", "bf16", "int8"):
+            raise ValueError(f"unknown state_dtype: {state_dtype}")
+        if state_dtype != "fp32":
+            if any(p.dtype != torch.float32 or p.ndim != 2 or not p.is_contiguous() or p.shape[1] == 0
+                   for p in params):
+                raise ValueError("compact LazyRowAdam states require contiguous fp32 tables with nonzero width")
+            if not 0 <= lr or not 0 <= eps or not all(0 <= b < 1 for b in betas):
+                raise ValueError("invalid LazyRowAdam learning rate, epsilon or betas")
         super().__init__(params, dict(lr=lr, betas=betas, eps=eps, weight_decay=0.0))
         for g in self.param_groups:
             g["name"] = name
             g["base_lr"] = lr
         assert impl in ("torch", "triton")
         self.impl = impl                    # "triton": kernel 3 (smlm/kernels.py), in place, no copies
+        self.state_dtype = state_dtype
         fused = all(p.is_cuda for p in params)
-        self._adam = {p: torch.optim.Adam([p], lr=lr, betas=betas, eps=eps, fused=fused or None) for p in params}
+        self._adam = ({p: torch.optim.Adam([p], lr=lr, betas=betas, eps=eps, fused=fused or None) for p in params}
+                      if state_dtype == "fp32" else {})
+
+    def _lowmem_state(self, p):
+        state = self.state[p]
+        if not state:
+            state["step"] = torch.zeros((), dtype=torch.float32)
+            quantized = self.state_dtype == "int8"
+            state["exp_avg"] = torch.zeros_like(p, dtype=torch.int8 if quantized else torch.bfloat16)
+            state["exp_avg_sq"] = torch.zeros_like(p, dtype=torch.uint8 if quantized else torch.bfloat16)
+            if quantized:
+                state["exp_avg_scale"] = torch.zeros(p.shape[0], dtype=torch.float32, device=p.device)
+                state["exp_avg_sq_scale"] = torch.zeros(p.shape[0], dtype=torch.float32, device=p.device)
+        return state
+
+    @torch.no_grad()
+    def _step_lowmem(self, group, p, st):
+        if self.impl == "torch" and not bool(st.touched.any()):
+            return
+        state = self._lowmem_state(p)
+        state["step"] += 1
+        step = int(state["step"])
+        b1, b2 = group["betas"]
+        if self.impl == "triton":
+            from .kernels import lazy_adam_step_lowmem
+            lazy_adam_step_lowmem(p, state["exp_avg"], state["exp_avg_sq"], st.acc, st.touched, st.grad_scale,
+                                  step, group["lr"], b1, b2, group["eps"], self.state_dtype,
+                                  state.get("exp_avg_scale"), state.get("exp_avg_sq_scale"))
+            st.grad_scale = 1.0
+            return
+        rows = st.touched.nonzero().squeeze(1)
+        step_size = group["lr"] / (1 - b1 ** step)
+        bc2_sqrt = math.sqrt(1 - b2 ** step)
+        # Bound fp32 scratch even when almost every row of a large table was read.
+        chunk_rows = max(1, (1 << 20) // p.shape[1])
+        for a in range(0, rows.numel(), chunk_rows):
+            r = rows[a:a + chunk_rows]
+            g = st.acc.index_select(0, r) * st.grad_scale
+            m = state["exp_avg"].index_select(0, r).float()
+            v = state["exp_avg_sq"].index_select(0, r).float()
+            if self.state_dtype == "int8":
+                m = m / 127
+                m = m.sign() * m.square() * state["exp_avg_scale"].index_select(0, r)[:, None]
+                v = (v / 255 * state["exp_avg_sq_scale"].index_select(0, r)[:, None]).square().square()
+            m = b1 * m + (1 - b1) * g
+            v = b2 * v + (1 - b2) * g * g
+            values = p.index_select(0, r) - step_size * m / (v.sqrt() / bc2_sqrt + group["eps"])
+            p.index_copy_(0, r, values)
+            if self.state_dtype == "int8":
+                root_v = v.sqrt().sqrt()
+                ms, vs = m.abs().amax(dim=1), root_v.amax(dim=1)
+                # A zero row has zero codes and zero scale; avoid dividing by zero while encoding it.
+                mq = (m.sign() * (m.abs() / torch.where(ms > 0, ms, 1.0)[:, None]).sqrt()
+                      * 127).round().clamp(-127, 127)
+                vq = (root_v / torch.where(vs > 0, vs, 1.0)[:, None] * 255).round().clamp(0, 255)
+                # A lost denominator with surviving momentum can turn a zero gradient into a huge update.
+                vq = torch.where(v > 0, vq.clamp_min(1), vq)
+                state["exp_avg"].index_copy_(0, r, mq.to(torch.int8))
+                state["exp_avg_sq"].index_copy_(0, r, vq.to(torch.uint8))
+                state["exp_avg_scale"].index_copy_(0, r, ms)
+                state["exp_avg_sq_scale"].index_copy_(0, r, vs)
+            else:
+                state["exp_avg"].index_copy_(0, r, m.to(torch.bfloat16))
+                state["exp_avg_sq"].index_copy_(0, r, v.to(torch.bfloat16))
+        st.reset(rows)
 
     @torch.no_grad()
     def _step_triton(self, group, p, st):
@@ -173,6 +254,9 @@ class LazyRowAdam(torch.optim.Optimizer):
         for group in self.param_groups:
             for p in group["params"]:
                 st = row_store(p)
+                if self.state_dtype != "fp32":
+                    self._step_lowmem(group, p, st)
+                    continue
                 if self.impl == "triton":
                     self._step_triton(group, p, st)
                     continue

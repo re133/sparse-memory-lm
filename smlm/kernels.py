@@ -431,3 +431,85 @@ def lazy_adam_step(param, exp_avg, exp_avg_sq, acc, touched, grad_scale, step, l
     # some rows; minimal reproducers (docs/rocm-issues/repro_byte_store.py) show no byte-store problem in
     # Triton/ROCm, so that was most likely a bug in that early kernel. One memset afterwards is simple and safe.
     touched.zero_()
+
+
+if HAVE_TRITON:
+    @triton.jit
+    def _round_int_rtne(x):
+        # Quantized codes are small enough that integer parity and half-way ties are exact in fp32.
+        lo = tl.floor(x)
+        frac = x - lo
+        up = (frac > 0.5) | ((frac == 0.5) & ((lo.to(tl.int32) & 1) != 0))
+        return lo + up.to(tl.float32)
+
+    @triton.jit
+    def _lazy_adam_lowmem_kernel(p_ptr, m_ptr, v_ptr, m_scale_ptr, v_scale_ptr, acc_ptr, touched_ptr,
+                                 grad_scale_ptr, beta1, beta2, one_minus_beta1, one_minus_beta2, eps,
+                                 step_size, bc2_sqrt, D: tl.constexpr, BLOCK_D: tl.constexpr,
+                                 INT8: tl.constexpr):
+        row = tl.program_id(0).to(tl.int64)
+        if tl.load(touched_ptr + row) != 0:
+            d = tl.arange(0, BLOCK_D)
+            mask = d < D
+            off = row * D + d
+            grad_scale = tl.load(grad_scale_ptr).to(tl.float32)
+            g = tl.load(acc_ptr + off, mask=mask, other=0.0).to(tl.float32) * grad_scale
+            m = tl.load(m_ptr + off, mask=mask, other=0).to(tl.float32)
+            v = tl.load(v_ptr + off, mask=mask, other=0).to(tl.float32)
+            if INT8:
+                m = tl.div_rn(m, 127.0)
+                m = tl.where(m < 0, -1.0, 1.0) * m * m * tl.load(m_scale_ptr + row)
+                v = tl.div_rn(v, 255.0) * tl.load(v_scale_ptr + row)
+                v = v * v
+                v = v * v
+            m = beta1 * m + one_minus_beta1 * g
+            v = beta2 * v + one_minus_beta2 * g * g
+            p = tl.load(p_ptr + off, mask=mask, other=0.0).to(tl.float32)
+            denom = tl.div_rn(tl.sqrt_rn(v), bc2_sqrt) + eps
+            p = p - tl.div_rn(step_size * m, denom)
+            if INT8:
+                # Companding keeps resolution for small coordinates within each row.
+                m_scale = tl.max(tl.abs(m), axis=0)
+                v_root = tl.sqrt_rn(tl.sqrt_rn(v))
+                v_scale = tl.max(v_root, axis=0)
+                mq = tl.sqrt_rn(tl.div_rn(tl.abs(m), tl.where(m_scale > 0, m_scale, 1.0)))
+                mq = tl.where(m < 0, -1.0, 1.0) * mq * 127.0
+                vq = tl.div_rn(v_root, tl.where(v_scale > 0, v_scale, 1.0)) * 255.0
+                mq = _round_int_rtne(tl.minimum(tl.maximum(mq, -127.0), 127.0))
+                vq = _round_int_rtne(tl.minimum(tl.maximum(vq, 0.0), 255.0))
+                # Dropping positive variance to zero can turn retained momentum into an epsilon-sized divisor.
+                vq = tl.where(v > 0, tl.maximum(vq, 1.0), 0.0)
+                tl.store(m_ptr + off, mq.to(tl.int8), mask=mask)
+                tl.store(v_ptr + off, vq.to(tl.uint8), mask=mask)
+                tl.store(m_scale_ptr + row, m_scale)
+                tl.store(v_scale_ptr + row, v_scale)
+            else:
+                tl.store(m_ptr + off, _round_bf16(m).to(tl.bfloat16), mask=mask)
+                tl.store(v_ptr + off, _round_bf16(v).to(tl.bfloat16), mask=mask)
+            tl.store(p_ptr + off, p, mask=mask)
+            tl.store(acc_ptr + off, tl.zeros_like(g), mask=mask)
+
+
+def lazy_adam_step_lowmem(param, exp_avg, exp_avg_sq, acc, touched, grad_scale, step, lr, beta1, beta2, eps,
+                          state_dtype, exp_avg_scale=None, exp_avg_sq_scale=None):
+    """Lazy Adam with bf16 moments or rowwise signed sqrt(m) / unsigned fourth-root(v) codes, in fp32.
+
+    Int8 scales store max(abs(m)) and max(v**0.25) in fp32. Positive v never rounds to a zero code. The
+    parameter update uses fresh fp32 moments; only persistent stores are rounded. Unread rows stay untouched.
+    """
+    if state_dtype not in ("bf16", "int8"):
+        raise ValueError("low-memory Adam state_dtype must be 'bf16' or 'int8'")
+    int8 = state_dtype == "int8"
+    if int8 and (exp_avg_scale is None or exp_avg_sq_scale is None):
+        raise ValueError("int8 Adam needs exp_avg_scale and exp_avg_sq_scale")
+    rows, D = param.shape
+    if not torch.is_tensor(grad_scale):
+        grad_scale = torch.tensor(float(grad_scale), device=param.device)
+    bc1 = 1 - beta1 ** step
+    bc2 = 1 - beta2 ** step
+    _lazy_adam_lowmem_kernel[(rows,)](
+        param, exp_avg, exp_avg_sq, exp_avg_scale if int8 else param, exp_avg_sq_scale if int8 else param,
+        acc, touched.view(torch.uint8), grad_scale.reshape(1).float(), beta1, beta2, 1 - beta1, 1 - beta2,
+        eps, lr / bc1, bc2 ** 0.5, D=D, BLOCK_D=triton.next_power_of_2(D), INT8=int8, num_warps=4,
+        enable_fp_fusion=False)
+    touched.zero_()
