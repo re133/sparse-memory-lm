@@ -10,6 +10,7 @@ import torch
 import torch.nn.functional as F
 from torch import nn
 
+from .host_optim import _c_ok, rows_library
 from .sparse_values import CHUNK, row_store
 
 PHASES = ("unique", "indices_d2h", "gather", "rows_h2d", "gradients_d2h", "scatter")
@@ -67,9 +68,14 @@ class HostEmbedding(nn.Embedding):
         with self.phase("indices_d2h", device):
             rows = unique.cpu()
         with self.phase("gather"):
+            lib = rows_library()
             if device.type == "cuda":
                 cpu = self.staging(rows.numel())
-                torch.index_select(self.weight.detach(), 0, rows, out=cpu)
+                if lib is not None and _c_ok(self.weight, rows):
+                    lib.host_rows_gather(cpu.data_ptr(), self.weight.data_ptr(), rows.data_ptr(), rows.numel(),
+                                         self.embedding_dim, torch.get_num_threads())
+                else:
+                    torch.index_select(self.weight.detach(), 0, rows, out=cpu)
             else:
                 cpu = self.weight.detach().index_select(0, rows)
         with self.phase("rows_h2d", device):
@@ -87,8 +93,13 @@ class HostEmbedding(nn.Embedding):
         with self.phase("scatter"):
             store = row_store(self.weight)
             # rows are unique within this layer; index_add also sums across layers and micro-batches.
-            store.acc.index_add_(0, rows, cpu)
-            store.touched[rows] = True
+            lib = rows_library()
+            if lib is not None and store.acc.dtype == torch.float32 and _c_ok(store.acc, store.touched, rows, cpu):
+                lib.host_rows_add(store.acc.data_ptr(), store.touched.data_ptr(), rows.data_ptr(), cpu.data_ptr(),
+                                  rows.numel(), store.acc.shape[1], torch.get_num_threads())
+            else:
+                store.acc.index_add_(0, rows, cpu)
+                store.touched[rows] = True
 
     def bag(self, indices, weights, impl="torch"):
         if self.weight.device.type != "cpu" or self.weight.dtype != torch.float32:

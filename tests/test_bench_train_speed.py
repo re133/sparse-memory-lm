@@ -76,7 +76,8 @@ def test_failed_baseline_does_not_claim_comparison():
 
 def test_output_cannot_escape_worktree():
     assert bench.output_path(bench.ROOT / ".scratch" / "speed").is_relative_to(bench.ROOT)
-    for path in (bench.ROOT, bench.ROOT.parent / "AngryAnt" / "runs", bench.ROOT / ".." / "escaped"):
+    sibling = bench.ROOT.parent / (bench.ROOT.name + "-sibling") / "runs"      # outside, whatever the checkout is called
+    for path in (bench.ROOT, sibling, bench.ROOT / ".." / "escaped"):
         with pytest.raises(ValueError, match="subdirectory"):
             bench.output_path(path)
 

@@ -32,6 +32,7 @@ import numpy as np  # noqa: E402
 
 from smlm.model import ModelConfig, Transformer  # noqa: E402
 from smlm.optim import build_optimizer, clip_grads, value_table_memory  # noqa: E402
+from smlm.sparse_values import row_sparse_tables, row_store  # noqa: E402
 from smlm.train import MODELS  # noqa: E402
 
 
@@ -145,6 +146,8 @@ def step(model, opt, args, generator, step_index):
     norm, value_norm = clip_grads(model, args.clip)
     synchronize(device)
     clip_wall = time.perf_counter() - clip_start
+    # distinct table rows read in this step (what the CPU optimizer has to update)
+    touched_rows = sum(int(row_store(t).touched.sum()) for t in row_sparse_tables(model))
     cpu_optimizer, device_optimizer = 0.0, 0.0
     for part in getattr(opt, "opts", [opt]):
         params = [p for group in part.param_groups for p in group["params"]]
@@ -166,7 +169,7 @@ def step(model, opt, args, generator, step_index):
         "clip_wall_s": clip_wall, "cpu_optimizer_wall_s": cpu_optimizer,
         "device_optimizer_wall_s": device_optimizer, "host_phases_s": phases,
         "grad_norm": float(norm), "value_grad_norm": float(value_norm) if value_norm is not None else None,
-        "rss_bytes": rss_bytes(),
+        "touched_rows": touched_rows, "rss_bytes": rss_bytes(),
     }
 
 

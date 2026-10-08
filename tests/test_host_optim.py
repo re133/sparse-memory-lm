@@ -58,6 +58,49 @@ def test_host_adam_matches_cpu_reference_with_accumulation_and_clipping(mode, mo
         assert not row_store(host).touched.any()
 
 
+def test_c_row_loops_match_torch_path(monkeypatch):
+    """smlm/host_rows.c against the torch path: scatter-add and gather exactly, Adam within float rounding (torch's
+    lerp may fuse), on enough rows that several threads share the work; unread rows stay bit-identical."""
+    from smlm.host_optim import rows_library
+    from smlm.host_values import HostEmbedding
+    if rows_library() is None:
+        pytest.skip("no C compiler")
+    initial = torch.randn(5000, 384, generator=torch.Generator().manual_seed(3))
+    runs = {}
+    for c in ("1", "0"):
+        monkeypatch.setenv("SMLM_HOST_C", c)
+        generator = torch.Generator().manual_seed(4)            # same rows and gradients in both runs
+        emb = HostEmbedding(nn.Embedding(5000, 384, _weight=initial.clone()))
+        p = emb.weight
+        p.pk_value_param = True
+        opt = HostLazyRowAdam([p], lr=0.01)
+        steps = []
+        for step in range(3):
+            for _ in range(2):
+                rows = torch.randperm(5000, generator=generator)[:2000].sort().values
+                emb.accumulate(rows, torch.randn(2000, 384, generator=generator))
+            acc = row_store(p).acc.clone()
+            row_store(p).grad_scale = 0.5
+            staged = torch.empty(2000, 384)
+            if c == "1":
+                rows_library().host_rows_gather(staged.data_ptr(), p.data_ptr(), rows.data_ptr(), 2000, 384, 4)
+            else:
+                torch.index_select(p.detach(), 0, rows, out=staged)
+            touched = row_store(p).touched.clone()
+            opt.step()
+            steps.append((acc, staged, touched, p.detach().clone(), opt.state[p]["exp_avg"].clone(),
+                          opt.state[p]["exp_avg_sq"].clone()))
+            assert torch.count_nonzero(row_store(p).acc) == 0 and not row_store(p).touched.any()
+            assert row_store(p).grad_scale == 1.0
+            assert torch.equal(p.detach()[~touched], (steps[-2][3] if step else initial)[~touched])
+        runs[c] = steps
+    for fast, ref in zip(runs["1"], runs["0"]):
+        assert torch.equal(fast[0], ref[0]) and torch.equal(fast[2], ref[2])      # accumulate, touched
+        torch.testing.assert_close(fast[1], ref[1], rtol=2e-6, atol=2e-7)          # gather of the moved values
+        for a, r in zip(fast[3:], ref[3:]):
+            torch.testing.assert_close(a, r, rtol=2e-6, atol=2e-7)
+
+
 @pytest.mark.parametrize("mode", ["fp32", "bf16", "int8"])
 def test_empty_host_step_keeps_torch_semantics(mode):
     p = table(torch.ones(7, 3), host=True)
