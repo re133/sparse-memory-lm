@@ -10,6 +10,15 @@ from smlm.model import ModelConfig, Transformer
 from smlm.sparse_values import row_sparse_tables, row_store
 
 
+@pytest.fixture(autouse=True)
+def fresh_dynamo():
+    """Dynamo keeps compiled variants per code object across tests; without a reset the shared dense-body function
+    hits the recompile limit (8) after a few tests, which fullgraph=True turns into a hard error."""
+    torch._dynamo.reset()
+    yield
+    torch._dynamo.reset()
+
+
 def tiny(kind="dense", impl="torch"):
     cfg = ModelConfig(vocab_size=32, d_model=16, n_layers=2, n_heads=2, ffn_hidden=24, max_seq_len=16)
     if kind == "memory":

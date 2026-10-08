@@ -211,8 +211,9 @@ def run(args):
     from smlm.host_optim import value_table_memory_by_device
     from smlm.host_values import enable_host_values
 
-    torch.set_num_threads(args.threads)
-    torch.set_num_interop_threads(1)
+    if args.threads:                         # 0: PyTorch's default, as in smlm.train
+        torch.set_num_threads(args.threads)
+        torch.set_num_interop_threads(1)
     device = torch.device(args.device)
     if device.type == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA/HIP is unavailable; use --device cpu --tiny for a light smoke check")
@@ -331,7 +332,8 @@ def main():
     ap.add_argument("--seq_len", type=int, default=None)
     ap.add_argument("--accum", type=int, default=1)
     ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--threads", type=int, choices=range(1, 5), default=4)
+    ap.add_argument("--threads", type=int, default=4,
+                    help="CPU threads; 0 = PyTorch's default as in smlm.train (use that to estimate real training)")
     ap.add_argument("--lr", type=float, default=6e-4)
     ap.add_argument("--value_lr", type=float, default=1e-3)
     ap.add_argument("--weight_decay", type=float, default=0.1)
