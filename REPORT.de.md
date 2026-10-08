@@ -2136,12 +2136,12 @@ zwei Arten, Zeilen auszuwählen.
 den Unterschied macht, sagt es nicht.
 
 **Was ich daraus lese:**
-- **Schritt 7 hatte eine Frage offen gelassen:** Etwa drei Viertel dessen, was die Tabelle von B-1M liefert, lassen
-  sich aus den letzten zwei Tokens vorhersagen. Kann ein Modell, das von Anfang an mit n-Gramm-Zeilen lernt, den
-  kontextabhängigen Rest woanders ausgleichen? Nur zum Teil. Gegen A gemessen holt E-1M 66 % des Gewinns von B-1M,
-  E-1M-dense 77 %. (Eine andere Referenz als in Schritt 7, das gegen ein Modell mit abgeschalteter Tabelle gemessen
-  hat; die beiden Prozentzahlen sind nicht direkt vergleichbar.) Für den Rest braucht es Zeilen, die nach dem Kontext
-  ausgesucht werden.
+- **Schritt 7 hatte eine Frage offen gelassen:** Ein großer Teil dessen, was die Tabelle von B-1M liefert, lässt
+  sich aus den letzten zwei Tokens vorhersagen (drei Viertel des Gewinns in Perplexity, 61 % im Verlust). Kann ein
+  Modell, das von Anfang an mit n-Gramm-Zeilen lernt, den kontextabhängigen Rest woanders ausgleichen? Nur zum Teil.
+  Gegen A gemessen holt E-1M 66 % des Gewinns von B-1M, E-1M-dense 77 %. (Eine andere Referenz als in Schritt 7, das
+  gegen ein Modell mit abgeschalteter Tabelle gemessen hat; die beiden Prozentzahlen sind nicht direkt vergleichbar.)
+  Für den Rest braucht es Zeilen, die nach dem Kontext ausgesucht werden.
 - **Lazy Adam kostet die n-Gramm-Tabelle etwa 2 %,** bei Product Keys waren es nur 0,16 %, innerhalb des
   Seed-Rauschens (Stufe 1c). Ein möglicher Grund: Eine n-Gramm-Zeile kommt selten und nur für ihr eigenes n-Gramm dran,
   und normales Adam bewegt sie in den Schritten dazwischen mit dem verbliebenen Momentum weiter. Mit einem Seed lasse
@@ -2505,8 +2505,13 @@ unterscheiden. Diese Zahlen habe ich gesehen; die Schwellen oben sind die, die i
   B-1M besser macht als A.
 - **„Anderer Kontext“ zeigt, wie kontextabhängig ein einzelner Bag ist:** Ein echter Bag desselben Tokens aus einem
   anderen Satz behält nur 21 %. Der Mittelwert funktioniert, weil er die kontextabhängigen Anteile herausmittelt.
-- **Was das bedeutet:** Etwa drei Viertel dessen, was die Tabelle liefert, lassen sich aus den letzten zwei Tokens
-  vorhersagen; diesen Teil könnte eine n-Gramm-Tabelle billig liefern. Der Rest hängt vom Kontext ab und ist in diesem
+- **Korrektur (2026-10-09):** Die Anteile oben sind auf der Perplexity-Skala gerechnet, so wie die Kriterien es
+  festgelegt haben. Auf der Verlustskala (Nats), auf der das Modell trainiert wird, ergeben dieselben Zahlen Token
+  48,0 %, Bigramm 60,8 %, anderer Kontext 12,6 %. Meine erste Lesart „drei Viertel dessen, was die Tabelle liefert“
+  war zu stark; ein rein lesendes Review von Codex hat darauf hingewiesen. Das Urteil nach den Kriterien bleibt.
+- **Was das bedeutet:** Ein großer Teil dessen, was die Tabelle liefert, lässt sich aus den letzten zwei Tokens
+  vorhersagen (75,6 % des Gewinns in Perplexity, 60,8 % im Verlust); diesen Teil könnte eine n-Gramm-Tabelle billig
+  liefern. Der Rest hängt vom Kontext ab und ist in diesem
   Modell unverzichtbar. Eine Grenze: Der Rest von B-1M wurde mit den echten Bags zusammen trainiert; ein Modell, das
   von Anfang an mit n-Gramm-Zeilen lernt, kann den fehlenden Teil woanders ausgleichen. Ob es das tut, misst genau der
   Engram-Lauf heute Nacht (Schritt 4). (Ergebnis: nur zum Teil, siehe „Ergebnis Schritt 4“.)
@@ -2572,3 +2577,88 @@ RAM nur den Lauf beenden kann und nicht den Desktop):
 **Was das nicht zeigen kann:** ob auch der Rest bis 500 M Tokens übereinstimmen würde (bei gleichem Schedule ist eine
 Übereinstimmung bei 100 M ein starker Hinweis, kein Beweis); und nichts über Tabellen größer als B-16M (die nächste
 Größe, 4-mal so viele Zeilen, passt nicht in 128 GB).
+
+## Schritt 9: dieselbe Tabelle mit einem Viertel der Lesezugriffe: schmalere Zeilen oder weniger Zeilen? (Kriterien vor den Läufen festgelegt, 2026-10-09)
+
+**Frage:** Pro Token liest B-1M 384 Tabellenzeilen mit je 384 Werten, also 147.456 Werte. Genau das macht die Tabelle
+teuer: Mit der Tabelle im RAM (Schritt 8) wandert jede gelesene Zeile zur GPU und zurück und bekommt auf der CPU ein
+Adam-Update; von der SSD ist jede gelesene Zeile ein Zugriff. Schaffen dieselben 402,65 Mio. Tabellenparameter dasselbe
+mit einem Viertel der gelesenen Werte? Zwei Wege:
+- **B-4M-v96, schmalere Zeilen:** viermal so viele Zeilen (2048² = 4,19 Mio.), jede nur 96 Werte breit. Weiter 384
+  Zeilen pro Token, aber 36.864 Werte. Mit Gradient und Adam braucht die Tabelle etwa 6 GiB, passt also komplett auf
+  die 16-GB-Karte. Die Idee stammt aus einem rein lesenden Review von Codex (2026-10-08); verwandt: UltraMem, das
+  ebenfalls kleinere Werte nutzt.
+- **B-1M-k8, weniger Zeilen:** die Tabelle von B-1M (1 Mio. × 384), aber 8 statt 32 Treffer pro Kopf: 96 Zeilen pro
+  Token, ebenfalls 36.864 Werte.
+
+**Läufe** (`scripts/run_shape.py`, RX 9070, nacheinander, als systemd-Dienst):
+- Dieselben Argumente wie B-1M-sparse in `runs/hampter`: Wikipedia, 500 M Tokens, Seed 0, Daten-Seed 1234, Batch
+  32 × 1024, LR 6e-4, Tabellen-LR 2,4e-3, Auswertung alle 10 M Tokens, WikiText-103 als Nebenwert.
+- Mit den Triton-Kerneln. B-1M lief damals mit dem PyTorch-Pfad; die Kernel ergaben dasselbe B-1M-Ergebnis (21,837 zu
+  Hause und in der Cloud).
+- Referenz: B-1M-sparse Seed 0: 21,837, Seed 1: 21,752, Mittel **21,794** (Seed-Streuung 0,4 %).
+- Ein Seed pro Variante. Der zweite Lauf startet nur, wenn er vor 11:00 Uhr fertig werden kann.
+- Vor den Läufen: Testsuite mit neuen Tests für Zeilen, die schmaler sind als das Modell (Kernel und ganzes Modell,
+  Triton gegen PyTorch), und ein kurzer Probelauf jeder Variante.
+
+**Was sich sonst ändert (nicht abgestimmt, vorher benannt):**
+- B-4M-v96 hat doppelt so viele Teil-Schlüssel (2 × 2.048 pro Kopf), also 3,1 Mio. Schlüsselparameter mehr und doppelt
+  so viel Schlüsselvergleich; die Projektionen in die Tabelle und aus ihr heraus werden kleiner (−0,66 Mio.). Parameter
+  außerhalb der Tabelle: 44,7 Mio. statt 42,2 Mio. (+6 %).
+- Die Tabelle von B-4M-v96 startet mit Werten der Größe 1/√96 statt 1/√384, doppelt so groß. Mit derselben Tabellen-LR
+  bewegt jeder Adam-Schritt sie relativ zu ihrer Größe nur halb so weit. Das ist eine nicht abgestimmte Einstellung; ein
+  Teil eines Verlusts könnte daher kommen.
+- B-1M-k8: Die Product-Key-Suche behält pro Hälfte auch nur die besten 8 Teil-Schlüssel (wie in Lamples Verfahren),
+  vergleicht also weniger Kandidaten.
+
+**Kriterien** (Val-PPL Wikipedia am Ende des Laufs):
+- Jede Variante gegen B-1M, r = PPL / 21,794:
+  - **„Besser mit einem Viertel der Lesezugriffe“:** r < 0,99 (unter 21,58).
+  - **„Gleich gut“:** 0,99 ≤ r ≤ 1,01 (21,58 bis 22,01).
+  - **„Kleine Kosten“:** 1,01 < r ≤ 1,03 (bis 22,45).
+  - **„Deutlich schlechter“:** r > 1,03.
+- Die beiden gegeneinander: **„schmalere Zeilen schlagen weniger Zeilen“**, wenn PPL(B-4M-v96) ≤ 0,99 × PPL(B-1M-k8),
+  **„weniger Zeilen schlagen schmalere Zeilen“** im umgekehrten Fall, sonst **„kein klarer Unterschied“**.
+- Warum 1 %: Die Seed-Streuung von B-1M ist 0,4 %, und jede Variante läuft mit einem Seed.
+- **Ohne Urteil berichtet:** Tokens pro Sekunde, GPU-Speicher-Spitze, WikiText-103, dichtes Äquivalent
+  (`scripts/dense_equiv.py`), der Verlauf über das Training.
+
+**Welche Lesezugriffe wo zählen:** Beim Training mit der Tabelle im RAM zählen die bewegten Bytes, also gelesene Werte.
+Von der SSD zählt die Zahl der Zugriffe, also gelesene Zeilen: B-1M-k8 liest 96 Zeilen pro Token, B-4M-v96 weiter 384.
+
+**Was das nicht zeigen kann:** ein Seed pro Variante; nur diese Größe; die Tabellen-LR ist nicht auf 96 breite Zeilen
+abgestimmt; nichts über größere Tabellen (B-16M mit 96 breiten Zeilen hätte 1,6 Mrd. Tabellenparameter).
+
+## Zweiter Nachtrag zu Schritt 6: der Faktentest im exakten Trainingsfenster (Kriterien vor der Messung, 2026-10-09)
+
+**Warum:** Der Kontext-Prompt des Nachtrags sollte der Text sein, den das Modell im Training direkt vor dem Fakt gelesen
+hat. Ein rein lesendes Review von Codex (2026-10-08) hat darauf hingewiesen, dass er das fast nie ist: Das Training
+schneidet die Daten in feste Fenster von 1.024 Tokens, der Prompt nahm aber bis zu 1.000 Tokens ab Artikelanfang. Das
+Fenster, in dem das Modell den Fakt gelernt hat, beginnt meist woanders, im Mittel etwa 500 Tokens vor der Antwort,
+manchmal im vorherigen Artikel. Für ein Product-Key-Modell bedeutet ein anderer Kontext andere Tabellenzeilen; ein Fakt
+könnte also gespeichert sein, aber nur aus seinem eigenen Fenster erreichbar. Das ist die letzte billige Prüfung vor dem
+kontrollierten Test mit wiederholten Fakten.
+
+**Aufbau** (`scripts/eval_fact_window_lm.py`, dieselben Items, dieselben acht Modelle, 4-Bit-Tabelle, gleiche Bewertung):
+- **Prompt *Fenster*:** für gesehene Items das Trainingsfenster, in dem das erste Token der Antwort ein Ziel war, vom
+  Fensteranfang bis zur Antwort, genau das, was das Modell beim Lernen des Fakts im Kontext hatte. Vorher für alle 1.382
+  gesehenen Items geprüft: Jedes Fenster steckt im Batch seines Trainingsschritts.
+- Für ungesehene Items dasselbe 1.024er-Raster auf dem Validierungs-Split, damit beide Prompts gleich lang verteilt sind
+  (im Mittel 507 Tokens bei gesehenen, 498 bei ungesehenen).
+- Die Antwort muss im selben Fenster liegen. Items, deren Antwort schon im Prompt vorkommt, fallen weg (Kopieren, nicht
+  Gedächtnis): Es bleiben 1.182 gesehene und 1.181 ungesehene.
+
+**Kriterien** (die des Nachtrags, nur der Prompt ändert sich; 95-%-Bootstrap-Intervalle über Items, gepaart über
+Modelle):
+- **Erinnert sich B-16M in seinem eigenen Fenster?** Recency von B-16M (spät gesehen minus früh gesehen). Intervall über
+  0: „B-16M trägt eine messbare Erinnerung an kürzlich gesehene Artikel in ihrem Trainingsfenster“. Sonst: „keine
+  messbare Erinnerung, auch nicht im Trainingsfenster“.
+- **Tabelle gegen dicht:** Lücke (gesehen minus ungesehen) von B-16M minus die von D-100M und minus die von D-200M.
+  - „Die Tabelle erinnert sich im eigenen Fenster besser“: beide Intervalle über 0.
+  - „Dicht erinnert sich besser“: beide unter 0.
+  - „Kein klarer Unterschied“: sonst.
+- **Ohne Urteil berichtet:** alle acht Modelle neben ihren Werten mit dem Artikelkontext-Prompt, Trefferquoten,
+  Log-Wahrscheinlichkeit je Fünftel des Trainings.
+
+**Was das nicht zeigen kann:** dieselben Grenzen wie im Nachtrag (etwa 220 Items pro Fünftel, der Recency-Test sieht
+nur Effekte über etwa ein Nat, gesehene und ungesehene Artikel können unterschiedlich schwer sein).

@@ -2053,11 +2053,11 @@ So "B better" means that this product-key package beats this Engram package at t
 ingredient makes the difference.
 
 **What I read from it:**
-- **Step 7 left a question open:** about three quarters of what B-1M's table delivers can be predicted from the last
-  two tokens. Can a model that learns with n-gram rows from the start make up for the context-dependent rest
-  somewhere else? Only partly. Measured against A, E-1M gets 66% of B-1M's gain, E-1M-dense 77%. (A different
-  reference from step 7, which measured against a model with its table switched off; the two percentages aren't
-  directly comparable.) The rest needs rows picked by the context.
+- **Step 7 left a question open:** a large part of what B-1M's table delivers can be predicted from the last two tokens
+  (three quarters of the gain in perplexity, 61% in loss). Can a model that learns with n-gram rows from the start make
+  up for the context-dependent rest somewhere else? Only partly. Measured against A, E-1M gets 66% of B-1M's gain,
+  E-1M-dense 77%. (A different reference from step 7, which measured against a model with its table switched off; the
+  two percentages aren't directly comparable.) The rest needs rows picked by the context.
 - **Lazy Adam costs the n-gram table about 2%,** for product keys it cost only 0.16%, within the seed noise (stage 1c).
   One possible reason: an n-gram row comes up rarely and only for its own n-gram, and plain Adam keeps moving it with
   the remaining momentum in the steps between. With one seed I'll leave it at that.
@@ -2391,11 +2391,15 @@ numbers; the thresholds above are the ones I had planned before that test.
   table at all. The quarter that depends on context is exactly the part that makes B-1M better than A.
 - **"other" shows how context-specific a single bag is:** a real bag of the same token from another sentence keeps
   only 21%. The mean works because it averages the context-specific parts away.
-- **What that means:** about three quarters of what the table delivers can be predicted from the last two tokens, so
-  an n-gram lookup could supply that part cheaply. The rest depends on the context, and in this model it is
-  indispensable. One limit: the rest of B-1M was trained together with the real bags; a model trained with n-gram
-  rows from the start can learn to make up for the missing part elsewhere. Whether it does is exactly what tonight's
-  Engram run (step 4) measures. (Result: only partly, see "Result of step 4".)
+- **Correction (2026-10-09):** the shares above are on the perplexity scale, as the criteria fixed it. On the loss
+  scale (nats), the one the model is trained on, the same numbers give tok 48.0%, bigram 60.8%, other 12.6%. My first
+  reading, "three quarters of what the table delivers", was too strong; a read-only review by Codex pointed it out.
+  The verdict by the criteria stays.
+- **What that means:** a large part of what the table delivers can be predicted from the last two tokens (75.6% of the
+  gain in perplexity, 60.8% in loss), so an n-gram lookup could supply that part cheaply. The rest depends on the
+  context, and in this model it is indispensable. One limit: the rest of B-1M was trained together with the real bags; a
+  model trained with n-gram rows from the start can learn to make up for the missing part elsewhere. Whether it does is
+  exactly what tonight's Engram run (step 4) measures. (Result: only partly, see "Result of step 4".)
 
 ## Step 8: B-16M at home with its table in RAM (criteria fixed before the run, 2026-10-08)
 
@@ -2455,3 +2459,84 @@ RAM can only end the run and not the desktop):
 **What this can't show:** whether the rest of the way to 500 M tokens would match too (with the same schedule, a match
 at 100 M is a strong hint, not a proof); and nothing about tables bigger than B-16M (the next size, 4× as many rows,
 doesn't fit into 128 GB).
+
+## Step 9: the same table with a quarter of the reads: narrower rows or fewer rows? (criteria fixed before the runs, 2026-10-09)
+
+**Question:** Per token, B-1M reads 384 table rows of 384 values each, 147,456 values. That is what makes the table
+expensive: with the table in RAM (step 8) every row read travels to the GPU and back and gets an Adam update on the CPU;
+from the SSD every row read is one access. Can the same 402.65 M table parameters do as well with a quarter of the
+values read? Two ways:
+- **B-4M-v96, narrower rows:** four times as many rows (2048² = 4.19 M), each only 96 values wide. Still 384 rows per
+  token, but 36,864 values. Including gradient and Adam the table needs about 6 GiB, so it fits completely on the 16 GB
+  card. The idea comes from a read-only review by Codex (2026-10-08); related: UltraMem, which also uses smaller values.
+- **B-1M-k8, fewer rows:** B-1M's table (1 M × 384), but 8 instead of 32 lookups per head: 96 rows per token, also
+  36,864 values.
+
+**Runs** (`scripts/run_shape.py`, RX 9070, one after another, as a systemd unit):
+- Same arguments as B-1M-sparse in `runs/hampter`: Wikipedia, 500 M tokens, seed 0, data seed 1234, batch 32 × 1024,
+  LR 6e-4, table LR 2.4e-3, evaluation every 10 M tokens, WikiText-103 as a side value.
+- With the Triton kernels. B-1M ran with the PyTorch path back then; the kernels gave the same B-1M result (21.837 at
+  home and in the cloud).
+- Reference: B-1M-sparse seed 0: 21.837, seed 1: 21.752, mean **21.794** (seed spread 0.4%).
+- One seed per variant. The second run only starts if it can end before 11:00.
+- Before the runs: the test suite with new tests for rows narrower than the model (kernels and the whole model, Triton
+  against PyTorch), and a short trial of each run.
+
+**What else changes (not tuned, named beforehand):**
+- B-4M-v96 has twice the sub-keys (2 × 2,048 per head), so 3.1 M more key parameters and twice the key scoring; the
+  projections into and out of the table shrink (−0.66 M). Parameters outside the table: 44.7 M instead of 42.2 M (+6%).
+- B-4M-v96's table starts with values of size 1/√96 instead of 1/√384, twice as large. With the same table LR every
+  Adam step moves them half as much relative to their size. That's one untuned setting; part of a loss could come from
+  it.
+- B-1M-k8: the product-key search also keeps only the best 8 sub-keys per half (as in Lample's method), so it compares
+  fewer candidates.
+
+**Criteria** (Val PPL Wikipedia at the end of the run):
+- Each variant against B-1M, r = PPL / 21.794:
+  - **"Better with a quarter of the reads":** r < 0.99 (below 21.58).
+  - **"As good":** 0.99 ≤ r ≤ 1.01 (21.58 to 22.01).
+  - **"Small cost":** 1.01 < r ≤ 1.03 (up to 22.45).
+  - **"Clearly worse":** r > 1.03.
+- The two against each other: **"narrower rows beat fewer rows"** if PPL(B-4M-v96) ≤ 0.99 × PPL(B-1M-k8), **"fewer
+  rows beat narrower rows"** in the opposite case, otherwise **"no clear difference"**.
+- Why 1%: the seed spread of B-1M is 0.4%, and each variant runs with one seed.
+- **Reported without a verdict:** tokens per second, peak GPU memory, WikiText-103, dense equivalent
+  (`scripts/dense_equiv.py`), the course over training.
+
+**Which reads count where:** in training with the table in RAM the bytes moved count, so values read. From the SSD the
+number of accesses counts, so rows read: B-1M-k8 reads 96 rows per token, B-4M-v96 still 384.
+
+**What this can't show:** one seed per variant; only this size; the table LR isn't tuned for 96-wide rows; nothing about
+bigger tables (B-16M with 96-wide rows would have 1.6 B table parameters).
+
+## Second addendum to step 6: the fact test in the exact training window (criteria before measuring, 2026-10-09)
+
+**Why:** the addendum's context prompt was meant to be the text the model read right before the fact in training. A
+read-only review by Codex (2026-10-08) pointed out that it almost never is: training cuts the data into fixed windows of
+1,024 tokens, but the prompt took up to 1,000 tokens from the article start. The window in which the model learned the
+fact usually starts somewhere else, on average about 500 tokens before the answer, sometimes in the previous article.
+For a product-key model another context means other table rows, so a fact could be stored but only reachable from its
+own window. That is the last cheap check before the controlled test with repeated facts.
+
+**Setup** (`scripts/eval_fact_window_lm.py`, same items, same eight models, 4-bit table, same scoring):
+- **Prompt *window*:** for seen items the training window in which the answer's first token was a target, from the
+  window start up to the answer, exactly what the model had in context when it learned the fact. Checked beforehand for
+  all 1,382 seen items: each window is in the batch of its training step.
+- For unseen items the same 1,024 grid on the validation split, so both prompts have the same length distribution
+  (mean 507 tokens for seen, 498 for unseen).
+- The answer must lie inside the same window. Items whose answer already appears in the prompt are left out (copying,
+  not memory): 1,182 seen and 1,181 unseen remain.
+
+**Criteria** (the addendum's, only the prompt changes; 95% bootstrap intervals over items, paired across models):
+- **Does B-16M remember in its own window?** Recency of B-16M (late-seen minus early-seen). Interval above 0: "B-16M
+  carries a measurable memory of recently seen articles in their training window". Otherwise: "no measurable memory,
+  even in the training window".
+- **Table against dense:** gap (seen minus unseen) of B-16M minus that of D-100M, and minus that of D-200M.
+  - "The table remembers more in its own window": both intervals above 0.
+  - "Dense remembers more": both below 0.
+  - "No clear difference": otherwise.
+- **Reported without a verdict:** all eight models next to their values with the article-context prompt, hit rates,
+  log-probability per fifth of training.
+
+**What this can't show:** the same limits as the addendum (about 220 items per fifth, the recency test only sees
+effects of more than about a nat, seen and unseen articles may differ in difficulty).

@@ -31,7 +31,8 @@ if INTERPRET:
 else:
     # 4M rows x 384 needs ~20 GB in this test; on smaller GPUs the 4M table gets 64 columns (same row count,
     # same int64 offsets up to 4M x 64, ~3 GB)
-    SIZES = [(512 ** 2, 384, 4096), (1024 ** 2, 384, 4096), (2048 ** 2, 384 if GPU_MEM_GIB > 40 else 64, 4096)]
+    SIZES = [(512 ** 2, 384, 4096), (1024 ** 2, 384, 4096), (2048 ** 2, 384 if GPU_MEM_GIB > 40 else 64, 4096),
+             (2048 ** 2, 96, 4096)]                     # B-4M-v96: rows narrower than one 128-column block
 TOL = dict(rtol=1e-5, atol=1e-5)
 
 
@@ -87,20 +88,20 @@ def test_bag_backward_rows_matches_reference(rows, D, N):
         torch.cuda.empty_cache()
 
 
-def tiny(impl, seed=0, heads=2):
+def tiny(impl, seed=0, heads=2, v_dim=-1):
     cfg = ModelConfig(vocab_size=128, d_model=32, n_layers=4, n_heads=4, ffn_hidden=64, max_seq_len=64,
                       mem_layers=[0, 2, 3], mem_n_keys=16, mem_heads=heads, mem_knn=4, mem_k_dim=16,
-                      mem_share_values=True, mem_value_grad="row_sparse", mem_impl=impl)
+                      mem_v_dim=v_dim, mem_share_values=True, mem_value_grad="row_sparse", mem_impl=impl)
     torch.manual_seed(seed)
     return Transformer(cfg).to(DEVICE)
 
 
-@pytest.mark.parametrize("heads", [2, 3])
-def test_model_gradients_triton_equal_torch(heads):
+@pytest.mark.parametrize("heads,v_dim", [(2, -1), (3, -1), (2, 24)])
+def test_model_gradients_triton_equal_torch(heads, v_dim):
     """Whole model (3 memory layers sharing one table, 2 micro-batches): every gradient and the row
     accumulator agree between mem_impl='torch' and 'triton'. heads=3: 12 lookups per token, so the bag kernel's
-    last block is only partly used."""
-    ref, ker = tiny("torch", heads=heads), tiny("triton", heads=heads)
+    last block is only partly used. v_dim=24: table rows narrower than the model (as B-4M-v96)."""
+    ref, ker = tiny("torch", heads=heads, v_dim=v_dim), tiny("triton", heads=heads, v_dim=v_dim)
     ker.load_state_dict(ref.state_dict())
     gen = torch.Generator().manual_seed(1)
     batches = [torch.randint(0, 128, (2, 17), generator=gen).to(DEVICE) for _ in range(2)]
@@ -277,11 +278,12 @@ def test_decode_graph_bit_identical(kind):
 
 
 # ----------------------------------------------------------------------------------------- kernel 3
-@pytest.mark.parametrize("rows,D,N", SIZES)
+@pytest.mark.parametrize("rows,D,N", SIZES + ([] if INTERPRET else [(65536, 96, 1024)]))
 def test_lazy_adam_kernel_matches_reference(rows, D, N):
-    if DEVICE == "cuda" and GPU_MEM_GIB < 40:
+    if DEVICE == "cuda" and GPU_MEM_GIB < 40 and rows * D > 2 ** 26:
         # two tables + accumulators + Adam states + the reference's copies of the unread rows: 4M x 384 would
-        # need > 40 GB, 1M x 384 ~13 GB; on small GPUs the rows stay, the columns shrink
+        # need > 40 GB, 1M x 384 ~13 GB; on small GPUs the rows stay, the columns shrink (the small 96-column
+        # case keeps its width: one partly used 128-column block, as B-4M-v96)
         D = 16
     """Three steps of the fused lazy Adam against LazyRowAdam (reference): read rows updated identically up to
     rounding, unread rows (values and both moments) bit-identical, accumulator and mask cleared."""

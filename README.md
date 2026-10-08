@@ -166,8 +166,9 @@ runs in the table went through the slower PyTorch path (~38,500 tok/s).
 - **Product keys win at this size:** the Engram model ends 6% higher in perplexity, the version with plain Adam 4%
   higher. The plain-Adam version was slightly ahead early on, until about 150M tokens, and then fell behind further
   and further.
-- **My reading:** about three quarters of what the product-key table delivers can be predicted from the last two
-  tokens alone. But the remaining quarter, which depends on the context, is exactly what makes B-1M better than A.
+- **My reading:** a large part of what the product-key table delivers can be predicted from the last two tokens
+  alone: three quarters of its gain in perplexity, 61% measured in loss. But the rest, which depends on the context,
+  is exactly what makes B-1M better than A.
   A model that learns with n-gram rows from the start makes up for part of that elsewhere, not for all of it.
 - **Where Engram is better:** it trains faster and reads 192 times fewer values per token, and which rows it needs is
   known before the layer runs. For a table on an SSD that's a big advantage.
