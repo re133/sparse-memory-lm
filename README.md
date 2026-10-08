@@ -160,6 +160,9 @@ same data, at home on the RX 9070:
 | E-1M, plain Adam on the table as in the paper (1 seed) | 22.69 | ~46M params | 768 | 64,300 |
 | B-1M, product keys (2 seeds) | 21.79 | ~61M params | 147,456 | 59,700 |
 
+Training speed is the median on my RX 9070. For B-1M it's from a shorter run with the Triton kernels; the two seed
+runs in the table went through the slower PyTorch path (~38,500 tok/s).
+
 - **Product keys win at this size:** the Engram model ends 6% higher in perplexity, the version with plain Adam 4%
   higher. The plain-Adam version was slightly ahead early on, until about 150M tokens, and then fell behind further
   and further.
