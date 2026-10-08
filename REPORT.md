@@ -1987,6 +1987,85 @@ hyper-connections (mHC).
 - The whole queue with mini runs (`--smoke`).
 - Speed: E-1M ≈ 79,000 tok/s (≈ 1.9 h per run), E-1M-dense ≈ 64,000 tok/s (≈ 2.3 h). Memory ≈ 10.5 GiB each.
 
+### Result of step 4 (2026-10-08, RX 9070, `scripts/engram_eval.py` → `report/engram/summary.json`)
+
+The three runs ran overnight one after another (7.10. 20:18 to 8.10. 02:22), alone on the card: nothing else was
+using the GPU, and the speed stayed flat over the whole run. No errors, no stalls.
+
+| Run | Val PPL Wikipedia | Val PPL WikiText-103 | Training tok/s | Peak GPU memory (training) |
+|---|---:|---:|---:|---:|
+| E-1M seed 0 | 23.133 | 71.04 | 78,879 | 10.49 GiB |
+| E-1M seed 1 | 23.105 | 70.57 | 78,961 | 10.49 GiB |
+| E-1M-dense seed 0 (control, plain Adam) | 22.694 | 68.09 | 64,334 | 10.47 GiB |
+| B-1M-sparse seed 0 / 1 (reference) | 21.837 / 21.752 | 65.51 / 65.09 | ≈ 59,700 with kernels | 10.52 GiB |
+| A seed 0 / 1 (no table) | 25.665 / 25.756 | 78.38 / 78.48 | 91,563 / 91,641 | 7.89 GiB |
+
+**Verdict by the criteria: "B better".**
+- **Main verdict:** E-1M averages 23.119 against 21.794 for B-1M, so E = **1.061 × B**, far outside the ±1% band.
+  The two Engram seeds are only 0.12% apart.
+- **Optimizer control: lazy Adam does put the n-gram table at a disadvantage.** E-1M-dense-s0 is 0.981 × E-1M-s0, so
+  below the 0.99 line. As fixed beforehand, the main verdict with the dense value (one seed, a hint only): 22.694 =
+  **1.041 × B**, still "B better".
+- **Against A:** E-1M is 10.1% better than A (B-1M: 15.2%). Equivalent dense size with the same interpolation as in
+  step 1:
+
+| | Val PPL | Equivalent dense size | Sensitivity range (±0.4%, incl. fit) |
+|---|---:|---:|---:|
+| A (no table) | 25.71 | 21 M | |
+| E-1M (mean of 2 seeds) | 23.12 | **41 M** | 39–43 M |
+| E-1M-dense (1 seed) | 22.69 | **46 M** | 44–49 M |
+| B-1M-sparse (mean of 2 seeds) | 21.79 | **61 M** | 57–64 M |
+
+**Reported without a verdict:**
+- **WikiText-103:** the same order, E-1M 70.8 on average, E-1M-dense 68.1, B-1M 65.3.
+- **Speed:** E-1M trains at ≈ 78,900 tok/s, ≈ 1.3 times as fast as B-1M with the kernels (≈ 59,700) and 86% of the
+  speed of A. The dense control is slower (64,300), because plain Adam touches all 403 M table values in every step.
+  (The B-1M runs in `runs/hampter` used the PyTorch path, at ≈ 38,500 tok/s; the fair comparison is the one with
+  kernels.) Peak memory is the same for all table models, ≈ 10.5 GiB.
+- **Table values read per token:** E 768, B 147,456, i.e. 192 times more for B.
+- **Share of the table rows read on the val set:** E-1M 74% (bigram heads 62%, trigram heads 86%), B-1M practically
+  100%. With E the rows only depend on the tokens, so the number comes straight from the hash.
+
+**Course at equal tokens, not a criterion:**
+
+| Tokens | E-1M (mean) | E-1M-dense | B-1M (mean) | E / B | E-dense / B |
+|---|---:|---:|---:|---:|---:|
+| 100 M | 39.95 | 38.89 | 39.25 | 1.018 | 0.991 |
+| 200 M | 30.50 | 29.84 | 29.60 | 1.030 | 1.008 |
+| 300 M | 26.56 | 26.02 | 25.40 | 1.046 | 1.025 |
+| 400 M | 24.15 | 23.70 | 22.87 | 1.056 | 1.037 |
+| 500 M | 23.12 | 22.69 | 21.79 | 1.061 | 1.041 |
+
+The n-gram table is quick at the start: the dense control was slightly ahead of B-1M until about 150 M tokens.
+At 100 M that lead is under 1%, about as large as the difference between the two Engram seeds at that point, so I
+don't read much into it. After that B-1M pulls away steadily, and the gap is still growing at the end. I didn't
+fix this comparison beforehand, and the control has one seed.
+
+**What this compares:** two whole architectures with the same table size and the same training, not just two ways
+of picking rows.
+- **E-1M** keeps the FFN in all 12 layers and adds two modules before the attention of layers 2 and 6.
+- **B-1M** replaces the FFN in layers 3, 7 and 11 with memory layers.
+- **Reads per token:** E reads 768 table values, B 147,456.
+- **Rows:** E has 16 × 524,287 small rows of 24 values, in which many n-grams share a row; B has 1 M rows of 384
+  values, shared by the three layers.
+
+So "B better" means that this product-key package beats this Engram package at this size. It doesn't say which single
+ingredient makes the difference.
+
+**What I read from it:**
+- **Step 7 left a question open:** about three quarters of what B-1M's table delivers can be predicted from the last
+  two tokens. Can a model that learns with n-gram rows from the start make up for the context-dependent rest
+  somewhere else? Only partly. Measured against A, E-1M gets 66% of B-1M's gain, E-1M-dense 77%. (A different
+  reference from step 7, which measured against a model with its table switched off; the two percentages aren't
+  directly comparable.) The rest needs rows picked by the context.
+- **Lazy Adam costs the n-gram table about 2%,** for product keys it cost only 0.16%, within the seed noise (stage 1c).
+  One possible reason: an n-gram row comes up rarely and only for its own n-gram, and plain Adam keeps moving it with
+  the remaining momentum in the steps between. With one seed I'll leave it at that.
+- **For offloading the picture is reversed:** E reads 192 times fewer values per token, and which ones is known
+  before the layer runs. For a table on the SSD that's a real advantage of Engram, and this run doesn't weigh it.
+- **The caveat written down beforehand still holds:** Engram is built for much bigger models and tables. This result
+  is about 0.4 B table parameters on a 21 M model and 500 M tokens, not about Engram in general.
+
 ## Addendum to step 3: where does Q+T keep what it learned? (table ablation, criteria before measuring, 2026-10-07)
 
 **Question:** Q+T adapts to the training articles much more strongly than Q+D (PPL on trained articles −58% instead of
@@ -2316,4 +2395,4 @@ numbers; the thresholds above are the ones I had planned before that test.
   an n-gram lookup could supply that part cheaply. The rest depends on the context, and in this model it is
   indispensable. One limit: the rest of B-1M was trained together with the real bags; a model trained with n-gram
   rows from the start can learn to make up for the missing part elsewhere. Whether it does is exactly what tonight's
-  Engram run (step 4) measures.
+  Engram run (step 4) measures. (Result: only partly, see "Result of step 4".)

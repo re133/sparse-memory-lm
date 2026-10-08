@@ -2070,6 +2070,87 @@ die Hyper-Connections (mHC) des Papers.
 - Ganze Warteschlange mit Mini-Läufen (`--smoke`).
 - Tempo: E-1M ≈ 79.000 tok/s (≈ 1,9 h pro Lauf), E-1M-dense ≈ 64.000 tok/s (≈ 2,3 h). Speicher je ≈ 10,5 GiB.
 
+### Ergebnis Schritt 4 (2026-10-08, RX 9070, `scripts/engram_eval.py` → `report/engram/summary.json`)
+
+Die drei Läufe liefen über Nacht nacheinander (7.10. 20:18 bis 8.10. 02:22), allein auf der Karte: Nichts anderes hat
+die GPU benutzt, das Tempo blieb über den ganzen Lauf gleich. Keine Fehler, kein Hänger.
+
+| Lauf | Val-PPL Wikipedia | Val-PPL WikiText-103 | Training tok/s | Spitze GPU-Speicher (Training) |
+|---|---:|---:|---:|---:|
+| E-1M Seed 0 | 23,133 | 71,04 | 78.879 | 10,49 GiB |
+| E-1M Seed 1 | 23,105 | 70,57 | 78.961 | 10,49 GiB |
+| E-1M-dense Seed 0 (Kontrolle, normales Adam) | 22,694 | 68,09 | 64.334 | 10,47 GiB |
+| B-1M-sparse Seed 0 / 1 (Referenz) | 21,837 / 21,752 | 65,51 / 65,09 | ≈ 59.700 mit Kerneln | 10,52 GiB |
+| A Seed 0 / 1 (ohne Tabelle) | 25,665 / 25,756 | 78,38 / 78,48 | 91.563 / 91.641 | 7,89 GiB |
+
+**Urteil nach den Kriterien: „B besser“.**
+- **Haupturteil:** E-1M liegt im Mittel bei 23,119, B-1M bei 21,794, also E = **1,061 × B**, weit außerhalb der
+  ±1-%-Spanne. Die beiden Engram-Seeds liegen nur 0,12 % auseinander.
+- **Kontrolle Optimizer: Lazy Adam benachteiligt die n-Gramm-Tabelle tatsächlich.** E-1M-dense-s0 liegt bei
+  0,981 × E-1M-s0, also unter der Linie von 0,99. Wie vorab festgelegt, das Haupturteil mit dem Dense-Wert (ein Seed,
+  nur ein Hinweis): 22,694 = **1,041 × B**, ebenfalls „B besser“.
+- **Gegen A:** E-1M ist 10,1 % besser als A (B-1M: 15,2 %). Gleichwertige dichte Größe mit derselben Interpolation wie
+  in Schritt 1:
+
+| | Val-PPL | Gleichwertige dichte Größe | Empfindlichkeitsbereich (±0,4 %, inkl. Fit) |
+|---|---:|---:|---:|
+| A (ohne Tabelle) | 25,71 | 21 M | |
+| E-1M (Mittel aus 2 Seeds) | 23,12 | **41 M** | 39–43 M |
+| E-1M-dense (1 Seed) | 22,69 | **46 M** | 44–49 M |
+| B-1M-sparse (Mittel aus 2 Seeds) | 21,79 | **61 M** | 57–64 M |
+
+**Berichtet ohne Urteil:**
+- **WikiText-103:** dieselbe Reihenfolge, E-1M im Mittel 70,8, E-1M-dense 68,1, B-1M 65,3.
+- **Tempo:** E-1M trainiert mit ≈ 78.900 tok/s, ≈ 1,3-mal so schnell wie B-1M mit den Kerneln (≈ 59.700) und mit
+  86 % des Tempos von A. Die Dense-Kontrolle ist langsamer (64.300), weil normales Adam in jedem Schritt alle 403 M
+  Tabellenwerte anfasst. (Die B-1M-Läufe in `runs/hampter` liefen über den PyTorch-Weg mit ≈ 38.500 tok/s; fair ist
+  der Vergleich mit Kerneln.) Die Speicherspitze ist bei allen Tabellenmodellen gleich, ≈ 10,5 GiB.
+- **Gelesene Tabellenwerte pro Token:** E 768, B 147.456, bei B also 192-mal mehr.
+- **Anteil der Tabellenzeilen, die im Val-Set gelesen werden:** E-1M 74 % (Bigramm-Köpfe 62 %, Trigramm-Köpfe 86 %),
+  B-1M praktisch 100 %. Bei E hängen die Zeilen nur an den Tokens, die Zahl kommt also direkt aus dem Hash.
+
+**Verlauf bei gleichen Tokens, kein Kriterium:**
+
+| Tokens | E-1M (Mittel) | E-1M-dense | B-1M (Mittel) | E / B | E-dense / B |
+|---|---:|---:|---:|---:|---:|
+| 100 M | 39,95 | 38,89 | 39,25 | 1,018 | 0,991 |
+| 200 M | 30,50 | 29,84 | 29,60 | 1,030 | 1,008 |
+| 300 M | 26,56 | 26,02 | 25,40 | 1,046 | 1,025 |
+| 400 M | 24,15 | 23,70 | 22,87 | 1,056 | 1,037 |
+| 500 M | 23,12 | 22,69 | 21,79 | 1,061 | 1,041 |
+
+Die n-Gramm-Tabelle ist am Anfang schnell: Die Dense-Kontrolle lag bis etwa 150 M Tokens knapp vor B-1M. Bei 100 M
+ist der Vorsprung unter 1 %, etwa so groß wie der Abstand der beiden Engram-Seeds an dieser Stelle, ich lese also
+nicht viel hinein. Danach zieht B-1M stetig davon, und der Abstand wächst am Ende immer noch. Diesen Vergleich hatte
+ich nicht vorab festgelegt, und die Kontrolle hat einen Seed.
+
+**Was hier verglichen wird:** zwei ganze Architekturen mit gleich großer Tabelle und gleichem Training, nicht nur
+zwei Arten, Zeilen auszuwählen.
+- **E-1M** behält die FFN in allen 12 Layern und fügt zwei Module vor der Attention von Layer 2 und 6 hinzu.
+- **B-1M** ersetzt die FFN in Layer 3, 7 und 11 durch Memory-Layer.
+- **Lesen pro Token:** E liest 768 Tabellenwerte, B 147.456.
+- **Zeilen:** E hat 16 × 524.287 kleine Zeilen zu 24 Werten, in denen sich viele n-Gramme eine Zeile teilen; B hat
+  1 M Zeilen zu 384 Werten, die sich die drei Layer teilen.
+
+„B besser“ heißt also: Dieses Product-Key-Paket schlägt dieses Engram-Paket in dieser Größe. Welche einzelne Zutat
+den Unterschied macht, sagt es nicht.
+
+**Was ich daraus lese:**
+- **Schritt 7 hatte eine Frage offen gelassen:** Etwa drei Viertel dessen, was die Tabelle von B-1M liefert, lassen
+  sich aus den letzten zwei Tokens vorhersagen. Kann ein Modell, das von Anfang an mit n-Gramm-Zeilen lernt, den
+  kontextabhängigen Rest woanders ausgleichen? Nur zum Teil. Gegen A gemessen holt E-1M 66 % des Gewinns von B-1M,
+  E-1M-dense 77 %. (Eine andere Referenz als in Schritt 7, das gegen ein Modell mit abgeschalteter Tabelle gemessen
+  hat; die beiden Prozentzahlen sind nicht direkt vergleichbar.) Für den Rest braucht es Zeilen, die nach dem Kontext
+  ausgesucht werden.
+- **Lazy Adam kostet die n-Gramm-Tabelle etwa 2 %,** bei Product Keys waren es nur 0,16 %, innerhalb des
+  Seed-Rauschens (Stufe 1c). Ein möglicher Grund: Eine n-Gramm-Zeile kommt selten und nur für ihr eigenes n-Gramm dran,
+  und normales Adam bewegt sie in den Schritten dazwischen mit dem verbliebenen Momentum weiter. Mit einem Seed lasse
+  ich es dabei.
+- **Fürs Auslagern ist das Bild umgekehrt:** E liest pro Token 192-mal weniger Werte, und welche, steht schon vor dem
+  Layer fest. Für eine Tabelle auf der SSD ist das ein echter Vorteil von Engram, den dieser Lauf nicht gewichtet.
+- **Der vorab festgehaltene Vorbehalt gilt weiter:** Engram ist für viel größere Modelle und Tabellen gebaut. Dieses
+  Ergebnis gilt für 0,4 Mrd. Tabellenparameter an einem 21-M-Modell und 500 M Tokens, nicht für Engram allgemein.
+
 ## Nachtrag Schritt 3: Wo steckt das Gelernte von Q+T? (Tabellen-Ablation, Kriterien vor der Messung, 2026-10-07)
 
 **Frage:** Q+T passt sich den Trainingsartikeln viel stärker an als Q+D (PPL auf trainierten Artikeln −58 % statt
@@ -2428,4 +2509,4 @@ unterscheiden. Diese Zahlen habe ich gesehen; die Schwellen oben sind die, die i
   vorhersagen; diesen Teil könnte eine n-Gramm-Tabelle billig liefern. Der Rest hängt vom Kontext ab und ist in diesem
   Modell unverzichtbar. Eine Grenze: Der Rest von B-1M wurde mit den echten Bags zusammen trainiert; ein Modell, das
   von Anfang an mit n-Gramm-Zeilen lernt, kann den fehlenden Teil woanders ausgleichen. Ob es das tut, misst genau der
-  Engram-Lauf heute Nacht (Schritt 4).
+  Engram-Lauf heute Nacht (Schritt 4). (Ergebnis: nur zum Teil, siehe „Ergebnis Schritt 4“.)

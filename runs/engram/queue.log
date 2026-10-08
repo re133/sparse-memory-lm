@@ -1,0 +1,12 @@
+2026-10-07 20:18:41 engram queue start: ['E-1M-s0', 'E-1M-s1', 'E-1M-dense-s0']
+2026-10-07 20:18:41 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/engram/E-1M-s0 --model E-1M --seed 0 --value_lr 3e-3 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --weight_decay 0.1
+2026-10-07 22:11:41 end E-1M-s0 rc=0  (1.88 h) val_ppl 23.133
+2026-10-07 22:11:41 ntfy: E-1M-s0 fertig, Val-PPL 23.133, 1.9 h
+2026-10-07 22:11:41 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/engram/E-1M-s1 --model E-1M --seed 1 --value_lr 3e-3 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --weight_decay 0.1
+2026-10-08 00:04:41 end E-1M-s1 rc=0  (1.88 h) val_ppl 23.105
+2026-10-08 00:04:41 ntfy: E-1M-s1 fertig, Val-PPL 23.105, 1.9 h
+2026-10-08 00:04:41 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/engram/E-1M-dense-s0 --model E-1M-dense --seed 0 --value_lr 3e-3 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --weight_decay 0.1
+2026-10-08 02:21:41 end E-1M-dense-s0 rc=0  (2.28 h) val_ppl 22.694
+2026-10-08 02:21:42 ntfy: E-1M-dense-s0 fertig, Val-PPL 22.694, 2.3 h
+2026-10-08 02:21:42 QUEUE DONE | E-1M-s0 23.133, E-1M-s1 23.105, E-1M-dense-s0 22.694
+2026-10-08 02:21:42 ntfy: Engram-Nacht fertig: E-1M-s0 23.133, E-1M-s1 23.105, E-1M-dense-s0 22.694. Vergleich: B-1M 21.837 / 21.752, A 25.665 / 25.756.

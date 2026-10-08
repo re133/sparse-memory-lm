@@ -25,6 +25,9 @@ here. The full lab notebook with every criterion, every number and every mishap 
   on the same data. Per token it does roughly a third of the compute.
 - **Bigger keeps helping:** going from 1M to 4M to 16M rows gives about 1.4x "equivalent model size" per step, and
   it isn't flattening out yet.
+- **Product keys beat an n-gram table of the same size:** an Engram-style model, which picks its rows by the last
+  few tokens, got about two thirds of what the product-key table brings, with the same table size and training. It
+  reads 192 times fewer values per token, though, which matters once the table lives outside the GPU.
 - **Generating text doesn't need the table in VRAM:** from RAM or straight off an NVMe SSD the model still writes
   114 to 154 tokens/s on my PC, with the same output. Reading long prompts is a different story.
 - **Portable kernels:** the same hand-written Triton kernels run on three very different GPUs and give the same
@@ -144,6 +147,31 @@ not a confidence interval.
 - **Memory:** B-16M needed about 101 GB of GPU memory to train.
 - **Other text:** on WikiText-103, which is formatted differently, the advantage is smaller (B-16M ~ 95M).
 
+### Product keys against an n-gram table (Engram)
+
+Engram (Cheng et al., 2026) also puts a big table next to the model, but picks its rows by hashing the last two or three tokens
+instead of by the hidden state. I trained an Engram-style model with a table of the same size (403M values) on the
+same data, at home on the RX 9070:
+
+| Model | Val PPL | As good as a dense model with | Table values read per token | Training tok/s |
+|---|---|---|---|---|
+| A (no table) | 25.71 | | | 91,600 |
+| E-1M, Engram-style (2 seeds) | 23.12 | ~41M params | 768 | 78,900 |
+| E-1M, plain Adam on the table as in the paper (1 seed) | 22.69 | ~46M params | 768 | 64,300 |
+| B-1M, product keys (2 seeds) | 21.79 | ~61M params | 147,456 | 59,700 |
+
+- **Product keys win at this size:** the Engram model ends 6% higher in perplexity, the version with plain Adam 4%
+  higher. The plain-Adam version was slightly ahead early on, until about 150M tokens, and then fell behind further
+  and further.
+- **My reading:** about three quarters of what the product-key table delivers can be predicted from the last two
+  tokens alone. But the remaining quarter, which depends on the context, is exactly what makes B-1M better than A.
+  A model that learns with n-gram rows from the start makes up for part of that elsewhere, not for all of it.
+- **Where Engram is better:** it trains faster and reads 192 times fewer values per token, and which rows it needs is
+  known before the layer runs. For a table on an SSD that's a big advantage.
+- **Caveat:** these are two whole architectures compared at one small size (21M model, 0.4B table, 500M tokens),
+  not just two ways of picking rows. Engram is built for much bigger models, so this says nothing about Engram in
+  general. Details: steps 4 and 7 in the [report](REPORT.md).
+
 ### Running the 16.8M table on my PC
 
 B-16M with the table in VRAM, in RAM, or as a 4-bit file on an NVMe SSD (Samsung 990 PRO, memory-mapped, with a
@@ -201,7 +229,9 @@ to text (step 5 in the [report](REPORT.md)). Reading the rows faster might: a fi
 - **Not just an add-on problem:** I ran the same kind of fact test on the models I trained from scratch, facts from
   articles they saw once in training against articles they never saw. None of them, with or without table, gets the
   seen facts right measurably more often (differences between −1.2 and +0.1 points, all within noise; step 6 in
-  the [report](REPORT.md)).
+  the [report](REPORT.md)). A finer version that scores the probability of the whole answer, with the article's own
+  text before the fact as the prompt, doesn't find a clear difference between table and dense models either.
+  Facts seen once leave at most a small trace; testing facts that come up several times is the next step.
 - **Side effects:** it also cost some MMLU, the dense add-on didn't.
 
 ## How it works
@@ -325,7 +355,8 @@ run, and the results published whatever they turn out to be.
   (n-grams). So it's known before the layer runs which rows will be needed, and they can be prefetched from host
   memory while the GPU works on something else. Product keys pick the rows from the hidden state, so here that's
   only known once the layer is reached. Prefetching would hide the waiting, though, not the reading: with the table
-  on the SSD, long prompts are slow here mainly because every missed row costs a whole 4 KB page.
+  on the SSD, long prompts are slow here mainly because every missed row costs a whole 4 KB page. At equal table size
+  and a small scale, product keys came out ahead ([above](#product-keys-against-an-n-gram-table-engram)).
 - Qwen Team, *Qwen3.5*, 2026 (Qwen3.5-0.8B, Apache 2.0).
 
 ## License
