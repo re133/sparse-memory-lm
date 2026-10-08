@@ -2510,3 +2510,65 @@ unterscheiden. Diese Zahlen habe ich gesehen; die Schwellen oben sind die, die i
   Modell unverzichtbar. Eine Grenze: Der Rest von B-1M wurde mit den echten Bags zusammen trainiert; ein Modell, das
   von Anfang an mit n-Gramm-Zeilen lernt, kann den fehlenden Teil woanders ausgleichen. Ob es das tut, misst genau der
   Engram-Lauf heute Nacht (Schritt 4). (Ergebnis: nur zum Teil, siehe „Ergebnis Schritt 4“.)
+
+## Schritt 8: B-16M zu Hause mit der Tabelle im RAM (Kriterien vor dem Lauf festgelegt, 2026-10-08)
+
+**Frage:** Auf der H200 brauchte B-16M zum Trainieren 101 GB GPU-Speicher, weil die Tabelle, ihr Gradienten-Akkumulator
+und die beiden Adam-Momente je so groß sind wie die Tabelle (6,44 Mrd. Werte). Kann eine 16-GB-Spielekarte das
+trainieren, wenn all das im RAM des PCs bleibt (128 GB) und nur die Zeilen, die ein Schritt liest, zur GPU wandern? Und
+kommt dabei dasselbe Modell heraus?
+
+**So funktioniert es** (`--value_device host`: `smlm/host_values.py`, `smlm/host_optim.py`, `smlm/host_rows.c`; von
+Codex als Branch `codex/big` geschrieben, am 2026-10-08 gemergt und geprüft):
+- Tabelle, Akkumulator und beide Adam-Momente bleiben fp32 im RAM, zusammen 96 GiB. Die SSD wird nicht benutzt, im
+  Training wird nichts von der Tabelle dorthin geschrieben.
+- Jeder Memory-Layer kopiert die verschiedenen Zeilen, die er liest, zur GPU und den Gradienten dieser Zeilen zurück,
+  wo er auf den Akkumulator addiert wird.
+- Nach jedem Schritt aktualisiert Adam nur die gelesenen Zeilen, auf der CPU (Lazy Adam wie bisher). Seit 2026-10-08
+  ist das eine kleine C-Schleife über die Zeilen, 2,6-mal so schnell wie die PyTorch-Version.
+- Alles läuft nacheinander, ohne überlappende Schritte, die Rechnung ist also dieselbe wie mit der Tabelle auf der GPU.
+
+**Prüfungen vor der Freigabe (nur Technik, keine Abstimmung):**
+- **Testsuite** auf der RX 9070: 487 bestanden, 7 übersprungen.
+- **B-1M, Tabelle im RAM gegen Tabelle auf der GPU**, je 20 Trainingsschritte, gleicher Seed, gleiche Daten:
+  - Meine Regel vorher war „Verluste gleich bis auf 1e-4“. Sie ist gerissen (Abstände bis 0,044).
+  - Aber der GPU-Weg schafft sie gegen sich selbst auch nicht. Drei GPU-Wiederholungen mit gleichem Seed laufen ab
+    Schritt ~10 um bis zu 0,024 auseinander: Die GPU addiert jedes Mal in anderer Reihenfolge, und die winzigen
+    Rundungsunterschiede wachsen.
+  - Der RAM-Weg lag 0,019 daneben, so nah wie GPU an GPU. Neue Regel, vor den C-Schleifen mit Leon abgestimmt: RAM gegen
+    GPU nicht weiter auseinander als GPU gegen GPU. Mit den C-Schleifen lagen 2 von 3 Läufen innerhalb, einer wegen
+    einer einzelnen Gradienten-Spitze außerhalb.
+- **Gradienten-Spitzen:** Einzelne Schritte mit einer Gradientennorm vom 1,5- bis 45-Fachen des Üblichen traten zufällig
+  in allen Varianten auf, GPU und RAM, mit und ohne C-Schleifen, immer früh im Training. Das Clipping fängt sie ab. Die
+  Triton-Bag-Kernel liefern auf fester Eingabe 40-mal hintereinander dasselbe, sie sind also nicht die Ursache. In den
+  langen Läufen (jeder 10. Schritt protokolliert) fand ich nach Schritt 1.000 keine Spitze. Das bleibt eine offene
+  Frage außerhalb dieses Schritts.
+- **Tempo von B-16M mit der Tabelle im RAM:** 5,8 s pro Schritt mit 32.768 Tokens (davon Adam auf der CPU 2,1 s),
+  99,8 GiB RAM, 6 GiB GPU-Speicher.
+- **Probelauf über den echten Trainingsweg** (10 M Tokens, nach der ersten Auswertung beendet, seine Perplexität wird
+  nicht verwendet): läuft komplett durch, inklusive Auswertungen und Abschluss-Benchmark, höchstens 100,4 GiB RAM.
+
+**Lauf** (`scripts/run_big.py`, ein Lauf über Nacht, als systemd-Dienst mit 112 GB Speichergrenze, damit ein volles
+RAM nur den Lauf beenden kann und nicht den Desktop):
+- Exakt die Argumente des H200-Laufs `runs/cloud/B-16M-s0`: Wikipedia, Schedule über 500 M Tokens, Seed 0, Daten-Seed
+  1234, Batch 32 × 1024, LR 6e-4, Tabellen-LR 2,4e-3, Auswertung alle 10 M Tokens, WikiText-103 als Nebenwert.
+- Dazu `--value_device host --value_state fp32` (dieselbe Rechnung wie auf der H200).
+- `--stop_after_tokens 99.9e6`: Der Lauf endet nach der Auswertung bei Schritt 3.050 (99,9 M Tokens). Der
+  Lernraten-Verlauf bleibt der des vollen 500-M-Laufs, der Wert ist also direkt mit der H200-Kurve an derselben Stelle
+  vergleichbar.
+- `--no_save`: kein 26-GB-Checkpoint auf die SSD.
+- Erwartete Dauer 3,5 bis 6 Stunden, je nachdem, wie viele verschiedene Zeilen ein Schritt liest.
+- Warum nur 100 M Tokens: Der volle Lauf würde zu Hause etwa anderthalb Tage dauern, zu lang für meinen PC.
+
+**Kriterium:**
+- Val-PPL Wikipedia in der Zeile von Schritt 3.050 der `metrics.csv`, gegen dieselbe Zeile des H200-Laufs (37,360):
+  - **„Training im RAM reproduziert den H200-Lauf“:** innerhalb ±1 % (36,99 bis 37,73).
+  - **„Weicht ab“:** außerhalb; dann suche ich die Ursache.
+- Warum ±1 %: Die Seed-Spanne bei B-1M liegt bei 0,4 %, B-1M zu Hause und auf der H200 endeten 0,00 % auseinander, und
+  der GPU-Weg selbst ist nicht deterministisch.
+- **Berichtet ohne Urteil:** Zeit pro Schritt, Spitzen von RAM und GPU-Speicher, der Wert bei 50 M Tokens (H200: 58,26),
+  WikiText-103.
+
+**Was das nicht zeigen kann:** ob auch der Rest bis 500 M Tokens übereinstimmen würde (bei gleichem Schedule ist eine
+Übereinstimmung bei 100 M ein starker Hinweis, kein Beweis); und nichts über Tabellen größer als B-16M (die nächste
+Größe, 4-mal so viele Zeilen, passt nicht in 128 GB).
