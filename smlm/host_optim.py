@@ -15,7 +15,41 @@ import torch
 from .sparse_values import LazyRowAdam, RowStore, row_store
 
 CHUNK_ELEMENTS = 1 << 20
+# -fno-math-errno lets gcc vectorize the Adam loop (sqrtf no longer needs its errno branch); sqrt, division and the
+# other element-wise operations are correctly rounded in scalar and vector form, and -ffp-contract=off keeps them
+# unfused, so the result is bit-identical to a scalar build (tests/test_host_optim.py)
+FLAGS = ["-O3", "-std=c11", "-Wall", "-Wextra", "-Werror", "-ffp-contract=off", "-fno-math-errno", "-pthread",
+         "-shared", "-fPIC"]
 _LIB = []
+
+
+def load_rows_library(flags=FLAGS, cache=None):
+    """Compile smlm/host_rows.c with `flags` (once per source + flags) into `cache` and load it; raises on failure."""
+    source = Path(__file__).with_name("host_rows.c")
+    digest = hashlib.sha256(source.read_bytes() + " ".join(flags).encode()).hexdigest()[:16]
+    cache = Path(cache) if cache is not None else source.parents[1] / ".cache" / "host_rows"
+    library = cache / f"host_rows_{digest}.so"
+    if not library.exists():
+        cache.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(prefix="host_rows-", suffix=".so", dir=cache)
+        os.close(fd)
+        try:
+            result = subprocess.run(["gcc", *flags, str(source), "-o", temporary, "-lm"],
+                                    capture_output=True, text=True)
+            if result.returncode:
+                raise RuntimeError(result.stderr.strip())
+            os.replace(temporary, library)
+        finally:
+            if os.path.exists(temporary):
+                os.unlink(temporary)
+    lib = ctypes.CDLL(str(library))
+    p, i64, f32, i32 = ctypes.c_void_p, ctypes.c_int64, ctypes.c_float, ctypes.c_int
+    lib.host_rows_adam.argtypes = [p, p, p, p, p, p, i64, i64, f32, f32, f32, f32, f32, f32, f32, i32]
+    lib.host_rows_add.argtypes = [p, p, p, p, i64, i64, i32]
+    lib.host_rows_gather.argtypes = [p, p, p, i64, i64, i32]
+    for fn in (lib.host_rows_adam, lib.host_rows_add, lib.host_rows_gather):
+        fn.restype = None
+    return lib
 
 
 def rows_library():
@@ -25,33 +59,8 @@ def rows_library():
         return None
     if _LIB:
         return _LIB[0]
-    source = Path(__file__).with_name("host_rows.c")
-    flags = ["-O3", "-std=c11", "-Wall", "-Wextra", "-Werror", "-ffp-contract=off", "-pthread", "-shared", "-fPIC"]
-    digest = hashlib.sha256(source.read_bytes() + " ".join(flags).encode()).hexdigest()[:16]
-    cache = source.parents[1] / ".cache" / "host_rows"
-    library = cache / f"host_rows_{digest}.so"
-    lib = None
     try:
-        if not library.exists():
-            cache.mkdir(parents=True, exist_ok=True)
-            fd, temporary = tempfile.mkstemp(prefix="host_rows-", suffix=".so", dir=cache)
-            os.close(fd)
-            try:
-                result = subprocess.run(["gcc", *flags, str(source), "-o", temporary, "-lm"],
-                                        capture_output=True, text=True)
-                if result.returncode:
-                    raise RuntimeError(result.stderr.strip())
-                os.replace(temporary, library)
-            finally:
-                if os.path.exists(temporary):
-                    os.unlink(temporary)
-        lib = ctypes.CDLL(str(library))
-        p, i64, f32, i32 = ctypes.c_void_p, ctypes.c_int64, ctypes.c_float, ctypes.c_int
-        lib.host_rows_adam.argtypes = [p, p, p, p, p, p, i64, i64, f32, f32, f32, f32, f32, f32, f32, i32]
-        lib.host_rows_add.argtypes = [p, p, p, p, i64, i64, i32]
-        lib.host_rows_gather.argtypes = [p, p, p, i64, i64, i32]
-        for fn in (lib.host_rows_adam, lib.host_rows_add, lib.host_rows_gather):
-            fn.restype = None
+        lib = load_rows_library()
     except (OSError, RuntimeError) as exc:
         import warnings
         warnings.warn(f"host row loops fall back to torch: {exc}")

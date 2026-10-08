@@ -101,6 +101,38 @@ def test_c_row_loops_match_torch_path(monkeypatch):
             torch.testing.assert_close(a, r, rtol=2e-6, atol=2e-7)
 
 
+def test_vectorized_c_build_is_bit_identical_to_scalar(tmp_path):
+    """The shipped flags (vectorized loops) against a scalar build of the same source: Adam, scatter-add and gather
+    give bit-identical results on the same inputs, with several threads and rows of odd width."""
+    import subprocess
+    from smlm.host_optim import FLAGS, load_rows_library
+    try:
+        subprocess.run(["gcc", "--version"], capture_output=True, check=True)
+    except (OSError, subprocess.CalledProcessError):
+        pytest.skip("no C compiler")
+    libs = {"vector": load_rows_library(FLAGS, tmp_path),
+            "scalar": load_rows_library(FLAGS + ["-fno-tree-vectorize", "-fno-tree-slp-vectorize"], tmp_path)}
+    g = torch.Generator().manual_seed(5)
+    n_rows, width = 6000, 101
+    start = [torch.randn(n_rows, width, generator=g) for _ in range(4)]
+    start[3] = start[3].abs()                                       # second moment
+    rows = torch.randperm(n_rows, generator=g)[:2500].sort().values
+    src = torch.randn(2500, width, generator=g)
+    out = {}
+    for name, lib in libs.items():
+        p, acc, m, v = (t.clone() for t in start)
+        touched = torch.zeros(n_rows, dtype=torch.uint8)
+        lib.host_rows_add(acc.data_ptr(), touched.data_ptr(), rows.data_ptr(), src.data_ptr(), 2500, width, 4)
+        lib.host_rows_adam(p.data_ptr(), acc.data_ptr(), m.data_ptr(), v.data_ptr(), touched.data_ptr(),
+                           rows.data_ptr(), 2500, width, 0.7, 0.1, 0.95, 0.05, 0.31, 1e-8, -2.4e-3, 4)
+        gathered = torch.empty(2500, width)
+        lib.host_rows_gather(gathered.data_ptr(), p.data_ptr(), rows.data_ptr(), 2500, width, 4)
+        out[name] = (p, acc, m, v, touched, gathered)
+    for a, b in zip(out["vector"], out["scalar"]):
+        assert torch.equal(a, b)
+    assert not torch.equal(out["vector"][0], start[0])              # the step did change the read rows
+
+
 @pytest.mark.parametrize("mode", ["fp32", "bf16", "int8"])
 def test_empty_host_step_keeps_torch_semantics(mode):
     p = table(torch.ones(7, 3), host=True)

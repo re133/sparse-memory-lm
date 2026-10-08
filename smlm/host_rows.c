@@ -1,6 +1,7 @@
 /* Row loops over host-resident value tables (smlm/host_optim.py, smlm/host_values.py), split over plain
  * pthreads so they don't compete with PyTorch's OpenMP runtimes. Built on first use with
- * gcc -O3 -ffp-contract=off, so results don't depend on the vector width.
+ * gcc -O3 -ffp-contract=off -fno-math-errno (flags in host_optim.FLAGS): the loops vectorize, and results don't
+ * depend on the vector width.
  *
  *   host_rows_adam    one pass per touched row: Adam on values and moments, accumulator zeroed, row untouched
  *   host_rows_add     acc[rows[i]] += src[i], touched[rows[i]] = 1 (rows unique within one call)
