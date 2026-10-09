@@ -1,6 +1,7 @@
 """Step 10 (FACTK) at home (RX 9070): B-1M and D-50M on the Wikipedia data with made-up people (REPORT.md, "Step 10").
 
   python scripts/run_factk.py [--deadline 2026-10-10T11:00]   (as a systemd unit; resumable, a finished run is skipped)
+  python scripts/run_factk.py --smoke DIR                       (both runs on 2M tokens into DIR, no ntfy)
 
 Same arguments as the original runs, only --data differs: B-1M-sparse as in runs/hampter (table LR 2.4e-3, Triton
 kernels), D-50M as in runs/cloud_dense. D-100M runs on a Runpod GPU (cloud/setup_dense.sh with SMLM_DENSE_RUNS,
@@ -23,13 +24,15 @@ run_shape.RUNS = [
     ("B-1M-factk-s0", ["--model", "B-1M-sparse", "--value_lr", "2.4e-3", "--mem_impl", "triton"]),
     ("D-50M-factk-s0", ["--model", "D-50M"]),
 ]
-run_shape.EST_H = {"B-1M-factk-s0": 2.6, "D-50M-factk-s0": 3.5}  # B-1M as in step 9; D-50M from the speed probe
+run_shape.EST_H = {"B-1M-factk-s0": 2.6, "D-50M-factk-s0": 2.6}  # smoke test at home: 61.0k / 61.4k tok/s
 
 
 def main():
     argv, deadline = sys.argv[1:], None
     if len(argv) == 2 and argv[0] == "--deadline":
         deadline = datetime.fromisoformat(argv[1])
+    elif len(argv) == 2 and argv[0] == "--smoke":
+        run_shape.OUT = run_shape.SMOKE = os.path.abspath(argv[1])
     elif argv:
         sys.exit(__doc__)
     os.makedirs(run_shape.OUT, exist_ok=True)
