@@ -193,8 +193,8 @@ B-1M reads 147,456 table values per token. Two ways to read a quarter of that wi
 
 - **A quarter of the reads costs about 5%, either way:** the two curves lie on top of each other. Both keep about 70%
   of what the table brings over A.
-- **For a table on the SSD, fewer rows is the better trade:** the same quality with a quarter of the accesses. On the
-  GPU the speed hardly changes.
+- **For a table on the SSD, fewer rows should be the better trade:** the same quality with a quarter of the accesses
+  (by the number of rows read; not measured on the SSD). On the GPU the speed hardly changes.
 
 ### Running the 16.8M table on my PC
 

@@ -2573,11 +2573,12 @@ bigger tables (B-16M with 96-wide rows would have 1.6 B table parameters).
 - **On the GPU the speed hardly changes:** B-1M-k8 is 13% faster than B-1M with kernels, B-4M-v96 4% slower (it
   scores twice as many sub-keys). On the GPU the table reads aren't what limits training. They matter off the GPU:
   with the table in RAM (step 8) through the bytes moved, from the SSD through the number of rows read.
-- **What I read from it:** at this size, reading 4 times fewer values costs about 5%, and it doesn't matter whether
-  the rows get narrower or fewer. For a table on the SSD, fewer rows is the better trade: the same quality with a
-  quarter of the accesses. Named beforehand: B-4M-v96 ran with an untuned table LR (its rows start twice as large),
-  so part of its loss could come from that setting. That B-1M-k8, which doesn't have this issue, lands at the same
-  point makes a large effect unlikely, but doesn't rule it out. One seed each.
+- **What I read from it:** at this size, reading 4 times fewer values costs about 5%, and it doesn't matter whether the
+  rows get narrower or fewer. For a table on the SSD, fewer rows should be the better trade: the same quality with a
+  quarter of the accesses (by the number of rows read; not measured on the SSD). Named beforehand: B-4M-v96 ran with an
+  untuned table LR (its rows start twice as large), so part of its loss could come from that setting. That B-1M-k8,
+  which doesn't have this issue, lands at the same point makes a large effect unlikely, but doesn't rule it out. One
+  seed each.
 
 ## Second addendum to step 6: the fact test in the exact training window (criteria before measuring, 2026-10-09)
 
@@ -2640,3 +2641,21 @@ effects of more than about a nat, seen and unseen articles may differ in difficu
   most 0.03 nats per answer).
 - **Overall:** with the exact training context too, facts seen once leave no trace that this test can measure, with
   or without table. The next step remains the controlled test with repeated facts (FACTK).
+
+## Addendum to step 9: half the reads (criteria fixed before the run, 2026-10-09)
+
+**Why:** step 9 showed that a quarter of the reads costs about 5%. For a table on the SSD the interesting question is
+where between 8 and 32 lookups per head the cost starts. One more point on that curve: **B-1M-k16**, B-1M's table with
+16 instead of 32 lookups per head, 192 rows and 73,728 values per token, half of B-1M.
+
+**Run:** `scripts/run_shape.py`, the same arguments as in step 9 (the finished runs are skipped), started only if it
+can end before 11:00. Same untuned setting as B-1M-k8: the product-key search also keeps only the best 16 sub-keys per
+half.
+
+**Criterion** (the scale of step 9, Val PPL Wikipedia at the end, r = PPL / 21.794):
+- **"Better with half the reads":** r < 0.99. **"As good":** 0.99 ≤ r ≤ 1.01. **"Small cost":** 1.01 < r ≤ 1.03.
+  **"Clearly worse":** r > 1.03.
+- **Reported without a verdict:** where it lies between B-1M (k = 32) and B-1M-k8, tokens per second, WikiText-103,
+  dense equivalent, the course.
+
+**What this can't show:** one seed; how SSD reads behave in practice (not measured here).

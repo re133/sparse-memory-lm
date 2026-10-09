@@ -50,6 +50,9 @@ MODELS = {
                             mem_v_dim=96),
     "B-1M-k8-sparse": dict(mem_layers=[2, 6, 10], mem_n_keys=1024, mem_share_values=True, mem_value_grad="row_sparse",
                            mem_knn=8),
+    # addendum to step 9: half of B-1M's reads (16 lookups per head)
+    "B-1M-k16-sparse": dict(mem_layers=[2, 6, 10], mem_n_keys=1024, mem_share_values=True, mem_value_grad="row_sparse",
+                            mem_knn=16),
     # Engram-style n-gram memory instead of product keys: A plus two modules (early and middle layer, as the paper's
     # layers 2 and 15 of ~30), tables together as big as B-1M's (2 x 16 heads x 524,287 rows x 24 = 402.65M)
     "E-1M": dict(eng_layers=[1, 5]),
@@ -68,7 +71,7 @@ MODELS = {
 }
 # micro-batch (sequences) per forward pass; gradient accumulation fills up --batch_seqs
 MICRO_BS = {"A": 8, "B": 8, "C": 4, "B-v2a": 8, "B-v2b": 8, "B-1M": 4, "B-1M-sparse": 4, "B-4M-sparse": 4,
-            "B-16M-sparse": 4, "B-4M-v96-sparse": 4, "B-1M-k8-sparse": 4, "E-1M": 4, "E-1M-dense": 4, "BE-1M": 4, "D-50M": 8, "D-100M": 8, "D-200M": 8, "D-400M": 4}
+            "B-16M-sparse": 4, "B-4M-v96-sparse": 4, "B-1M-k8-sparse": 4, "B-1M-k16-sparse": 4, "E-1M": 4, "E-1M-dense": 4, "BE-1M": 4, "D-50M": 8, "D-100M": 8, "D-200M": 8, "D-400M": 4}
 
 METRIC_FIELDS = [
     "step", "tokens", "epoch", "lr_mult", "train_loss", "val_loss", "val_ppl", "val_word_ppl",

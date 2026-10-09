@@ -2698,11 +2698,11 @@ abgestimmt; nichts über größere Tabellen (B-16M mit 96 breiten Zeilen hätte 
   zählen außerhalb der GPU: mit der Tabelle im RAM (Schritt 8) über die bewegten Bytes, von der SSD über die Zahl der
   gelesenen Zeilen.
 - **Was ich daraus lese:** In dieser Größe kostet es etwa 5 %, viermal weniger Werte zu lesen, und es ist egal, ob die
-  Zeilen schmaler oder weniger werden. Für eine Tabelle auf der SSD ist „weniger Zeilen“ der bessere Tausch: dieselbe
-  Qualität mit einem Viertel der Zugriffe. Vorher benannt: B-4M-v96 lief mit einer nicht abgestimmten Tabellen-LR
-  (seine Zeilen starten doppelt so groß), ein Teil seines Verlusts könnte also von dieser Einstellung kommen. Dass
-  B-1M-k8, das dieses Problem nicht hat, am selben Punkt landet, macht einen großen Effekt unwahrscheinlich, schließt
-  ihn aber nicht aus. Je ein Seed.
+  Zeilen schmaler oder weniger werden. Für eine Tabelle auf der SSD sollte „weniger Zeilen“ der bessere Tausch sein:
+  dieselbe Qualität mit einem Viertel der Zugriffe (nach der Zahl gelesener Zeilen; auf der SSD nicht gemessen). Vorher
+  benannt: B-4M-v96 lief mit einer nicht abgestimmten Tabellen-LR (seine Zeilen starten doppelt so groß), ein Teil
+  seines Verlusts könnte also von dieser Einstellung kommen. Dass B-1M-k8, das dieses Problem nicht hat, am selben Punkt
+  landet, macht einen großen Effekt unwahrscheinlich, schließt ihn aber nicht aus. Je ein Seed.
 
 ## Zweiter Nachtrag zu Schritt 6: der Faktentest im exakten Trainingsfenster (Kriterien vor der Messung, 2026-10-09)
 
@@ -2769,3 +2769,23 @@ nur Effekte über etwa ein Nat, gesehene und ungesehene Artikel können untersch
 - **Insgesamt:** Auch mit dem exakten Trainingskontext hinterlassen einmal gesehene Fakten keine Spur, die dieser
   Test messen kann, mit oder ohne Tabelle. Der nächste Schritt bleibt der kontrollierte Test mit wiederholten Fakten
   (FACTK).
+
+## Nachtrag zu Schritt 9: die Hälfte der Lesezugriffe (Kriterien vor dem Lauf festgelegt, 2026-10-09)
+
+**Warum:** Schritt 9 hat gezeigt, dass ein Viertel der Lesezugriffe etwa 5 % kostet. Für eine Tabelle auf der SSD ist
+interessant, wo zwischen 8 und 32 Treffern pro Kopf die Kosten beginnen. Ein weiterer Punkt auf dieser Kurve:
+**B-1M-k16**, die Tabelle von B-1M mit 16 statt 32 Treffern pro Kopf, 192 Zeilen und 73.728 Werte pro Token, die
+Hälfte von B-1M.
+
+**Lauf:** `scripts/run_shape.py`, dieselben Argumente wie in Schritt 9 (die fertigen Läufe werden übersprungen),
+startet nur, wenn er vor 11:00 Uhr fertig werden kann. Dieselbe nicht abgestimmte Einstellung wie bei B-1M-k8: Die
+Product-Key-Suche behält pro Hälfte auch nur die besten 16 Teil-Schlüssel.
+
+**Kriterium** (die Skala aus Schritt 9, Val-PPL Wikipedia am Ende, r = PPL / 21,794):
+- **„Besser mit der Hälfte der Lesezugriffe“:** r < 0,99. **„Gleich gut“:** 0,99 ≤ r ≤ 1,01. **„Kleine Kosten“:**
+  1,01 < r ≤ 1,03. **„Deutlich schlechter“:** r > 1,03.
+- **Ohne Urteil berichtet:** wo der Lauf zwischen B-1M (k = 32) und B-1M-k8 liegt, Tokens pro Sekunde, WikiText-103,
+  dichtes Äquivalent, der Verlauf.
+
+**Was das nicht zeigen kann:** ein Seed; wie sich Lesezugriffe auf der SSD in der Praxis verhalten (hier nicht
+gemessen).

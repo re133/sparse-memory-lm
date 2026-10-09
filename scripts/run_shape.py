@@ -6,6 +6,7 @@
 Runs one after another, same arguments as B-1M-sparse in runs/hampter (only --model and --mem_impl differ):
   B-4M-v96-s0   2048^2 = 4M rows of 96 values (narrower rows)
   B-1M-k8-s0    B-1M's 1M rows of 384 values, 8 instead of 32 lookups per head (fewer rows)
+  B-1M-k16-s0   the same with 16 lookups per head (addendum to step 9)
 A run is only started if its estimated end (EST_H, measured in the smoke test) lies before --deadline. Output
 runs/shape/<name>/ with GPU temperature / power every 10 s. A run counts as done only with run-info.json status
 "done" and model.pt. A run whose logs don't move for STALL_MIN minutes is stopped and reported, the queue goes on.
@@ -31,8 +32,10 @@ COMMON = ["--data", "wikipedia", "--tokens", "500e6", "--extra_val", "wikitext10
 RUNS = [
     ("B-4M-v96-s0", ["--model", "B-4M-v96-sparse"]),
     ("B-1M-k8-s0", ["--model", "B-1M-k8-sparse"]),
+    ("B-1M-k16-s0", ["--model", "B-1M-k16-sparse"]),        # addendum to step 9 (criteria fixed 2026-10-09)
 ]
-EST_H = {"B-4M-v96-s0": 2.8, "B-1M-k8-s0": 2.4}     # wall hours incl. evaluations: 58.4k / 69.4k tok/s in the smoke test
+EST_H = {"B-4M-v96-s0": 2.8, "B-1M-k8-s0": 2.4,     # wall hours incl. evaluations: 58.4k / 69.4k tok/s in the smoke test
+         "B-1M-k16-s0": 2.5}                       # not smoke-tested, between the two
 SMOKE = None
 
 
