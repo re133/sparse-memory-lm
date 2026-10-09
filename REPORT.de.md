@@ -2674,6 +2674,35 @@ Von der SSD zählt die Zahl der Zugriffe, also gelesene Zeilen: B-1M-k8 liest 96
 **Was das nicht zeigen kann:** ein Seed pro Variante; nur diese Größe; die Tabellen-LR ist nicht auf 96 breite Zeilen
 abgestimmt; nichts über größere Tabellen (B-16M mit 96 breiten Zeilen hätte 1,6 Mrd. Tabellenparameter).
 
+### Ergebnis Schritt 9 (2026-10-09, RX 9070, `scripts/shape_eval.py` → `report/shape/summary.json`)
+
+- **Urteile nach den Kriterien:** beide Varianten **„deutlich schlechter“**: B-4M-v96 endet bei 22,94 (r = 1,052),
+  B-1M-k8 bei 23,00 (r = 1,055). Gegeneinander: **„kein klarer Unterschied“**, 0,3 % auseinander.
+
+| Modell | Zeilen / Werte pro Token gelesen | Val-PPL | Gegen B-1M | WikiText-103 | Dichtes Äquivalent | Tokens/s | GPU-Speicher-Spitze |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| A (keine Tabelle) | 0 / 0 | 25,71 | +18,0 % | 78,43 | – | 91.600 | 7,89 GiB |
+| B-1M (2 Seeds) | 384 / 147.456 | 21,79 | – | 65,30 | ~61 Mio. (57–64) | 59.700¹ | 10,52 GiB |
+| B-4M-v96 | 384 / 36.864 | 22,94 | +5,2 % | 68,82 | ~43 Mio. (41–46) | 57.400 | 10,59 GiB |
+| B-1M-k8 | 96 / 36.864 | 23,00 | +5,5 % | 68,51 | ~43 Mio. (40–45) | 67.400 | 10,48 GiB |
+
+¹ B-1M mit den Kerneln (Schritt 4); seine zwei Seeds hier liefen mit dem PyTorch-Pfad bei 38.500 Tokens/s.
+
+- **Beide Wege landen auf derselben Kurve:** Ab 20 M Tokens liegen die beiden nie mehr als 0,4 % auseinander. Beide
+  starten 7 bis 8 % hinter B-1M und pendeln sich ab 200 M Tokens bei etwa 5 % ein.
+- **Was ein Viertel der Lesezugriffe behält:** etwa 70 % des Gewinns von B-1M gegenüber A (B-4M-v96 71 %, B-1M-k8
+  69 %). Das liegt nahe an der n-Gramm-Tabelle aus Schritt 4 (E-1M: 66 %, 23,12), die nur 768 Werte pro Token liest.
+- **Auf der GPU ändert sich das Tempo kaum:** B-1M-k8 ist 13 % schneller als B-1M mit Kerneln, B-4M-v96 4 % langsamer
+  (es vergleicht doppelt so viele Teil-Schlüssel). Auf der GPU begrenzen die Tabellenzugriffe das Training nicht. Sie
+  zählen außerhalb der GPU: mit der Tabelle im RAM (Schritt 8) über die bewegten Bytes, von der SSD über die Zahl der
+  gelesenen Zeilen.
+- **Was ich daraus lese:** In dieser Größe kostet es etwa 5 %, viermal weniger Werte zu lesen, und es ist egal, ob die
+  Zeilen schmaler oder weniger werden. Für eine Tabelle auf der SSD ist „weniger Zeilen“ der bessere Tausch: dieselbe
+  Qualität mit einem Viertel der Zugriffe. Vorher benannt: B-4M-v96 lief mit einer nicht abgestimmten Tabellen-LR
+  (seine Zeilen starten doppelt so groß), ein Teil seines Verlusts könnte also von dieser Einstellung kommen. Dass
+  B-1M-k8, das dieses Problem nicht hat, am selben Punkt landet, macht einen großen Effekt unwahrscheinlich, schließt
+  ihn aber nicht aus. Je ein Seed.
+
 ## Zweiter Nachtrag zu Schritt 6: der Faktentest im exakten Trainingsfenster (Kriterien vor der Messung, 2026-10-09)
 
 **Warum:** Der Kontext-Prompt des Nachtrags sollte der Text sein, den das Modell im Training direkt vor dem Fakt gelesen

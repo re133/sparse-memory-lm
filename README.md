@@ -170,15 +170,31 @@ runs in the table went through the slower PyTorch path (~38,500 tok/s).
 - **Product keys win at this size:** the Engram model ends 6% higher in perplexity, the version with plain Adam 4%
   higher. The plain-Adam version was slightly ahead early on, until about 150M tokens, and then fell behind further
   and further.
-- **My reading:** a large part of what the product-key table delivers can be predicted from the last two tokens
-  alone: three quarters of its gain in perplexity, 61% measured in loss. But the rest, which depends on the context,
-  is exactly what makes B-1M better than A.
-  A model that learns with n-gram rows from the start makes up for part of that elsewhere, not for all of it.
+- **My reading:** a large part of what the product-key table delivers can be predicted from the last two tokens alone:
+  three quarters of its gain in perplexity, 61% measured in loss. But the rest, which depends on the context, is exactly
+  what makes B-1M better than A. A model that learns with n-gram rows from the start makes up for part of that
+  elsewhere, not for all of it.
 - **Where Engram is better:** it trains faster and reads 192 times fewer values per token, and which rows it needs is
   known before the layer runs. For a table on an SSD that's a big advantage.
 - **Caveat:** these are two whole architectures compared at one small size (21M model, 0.4B table, 500M tokens),
   not just two ways of picking rows. Engram is built for much bigger models, so this says nothing about Engram in
   general. Details: steps 4 and 7 in the [report](REPORT.md).
+
+### Reading a quarter of the values
+
+B-1M reads 147,456 table values per token. Two ways to read a quarter of that with the same 0.4B table parameters
+(step 9 in the [report](REPORT.md), criteria written before the runs):
+
+| Model | Rows / values read per token | Val PPL |
+|---|---:|---:|
+| B-1M | 384 / 147,456 | 21.79 |
+| B-4M-v96: 4M rows of 96 values | 384 / 36,864 | 22.94 |
+| B-1M-k8: 8 instead of 32 lookups per head | 96 / 36,864 | 23.00 |
+
+- **A quarter of the reads costs about 5%, either way:** the two curves lie on top of each other. Both keep about 70%
+  of what the table brings over A.
+- **For a table on the SSD, fewer rows is the better trade:** the same quality with a quarter of the accesses. On the
+  GPU the speed hardly changes.
 
 ### Running the 16.8M table on my PC
 

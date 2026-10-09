@@ -2551,6 +2551,33 @@ number of accesses counts, so rows read: B-1M-k8 reads 96 rows per token, B-4M-v
 **What this can't show:** one seed per variant; only this size; the table LR isn't tuned for 96-wide rows; nothing about
 bigger tables (B-16M with 96-wide rows would have 1.6 B table parameters).
 
+### Result of step 9 (2026-10-09, RX 9070, `scripts/shape_eval.py` → `report/shape/summary.json`)
+
+- **Verdicts by the criteria:** both variants **"clearly worse"**: B-4M-v96 ends at 22.94 (r = 1.052), B-1M-k8 at
+  23.00 (r = 1.055). Against each other: **"no clear difference"**, 0.3% apart.
+
+| Model | Rows / values read per token | Val PPL | Against B-1M | WikiText-103 | Dense equivalent | Tokens/s | GPU memory peak |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| A (no table) | 0 / 0 | 25.71 | +18.0% | 78.43 | – | 91,600 | 7.89 GiB |
+| B-1M (2 seeds) | 384 / 147,456 | 21.79 | – | 65.30 | ~61M (57–64) | 59,700¹ | 10.52 GiB |
+| B-4M-v96 | 384 / 36,864 | 22.94 | +5.2% | 68.82 | ~43M (41–46) | 57,400 | 10.59 GiB |
+| B-1M-k8 | 96 / 36,864 | 23.00 | +5.5% | 68.51 | ~43M (40–45) | 67,400 | 10.48 GiB |
+
+¹ B-1M with the kernels (step 4); its two seeds here ran with the PyTorch path at 38,500 tokens/s.
+
+- **Both ways land on the same curve:** from 20 M tokens on the two are never more than 0.4% apart. Both start 7 to
+  8% behind B-1M and settle at about 5% from 200 M tokens on.
+- **What a quarter of the reads keeps:** about 70% of B-1M's gain over A (B-4M-v96 71%, B-1M-k8 69%). That's close to
+  the n-gram table of step 4 (E-1M: 66%, 23.12), which reads only 768 values per token.
+- **On the GPU the speed hardly changes:** B-1M-k8 is 13% faster than B-1M with kernels, B-4M-v96 4% slower (it
+  scores twice as many sub-keys). On the GPU the table reads aren't what limits training. They matter off the GPU:
+  with the table in RAM (step 8) through the bytes moved, from the SSD through the number of rows read.
+- **What I read from it:** at this size, reading 4 times fewer values costs about 5%, and it doesn't matter whether
+  the rows get narrower or fewer. For a table on the SSD, fewer rows is the better trade: the same quality with a
+  quarter of the accesses. Named beforehand: B-4M-v96 ran with an untuned table LR (its rows start twice as large),
+  so part of its loss could come from that setting. That B-1M-k8, which doesn't have this issue, lands at the same
+  point makes a large effect unlikely, but doesn't rule it out. One seed each.
+
 ## Second addendum to step 6: the fact test in the exact training window (criteria before measuring, 2026-10-09)
 
 **Why:** the addendum's context prompt was meant to be the text the model read right before the fact in training. A
