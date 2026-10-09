@@ -2809,3 +2809,56 @@ gemessen).
   nochmal halbieren weitere 3,2 %. Für eine Tabelle auf der SSD wären 16 Treffer pro Kopf ein Mittelweg: die Hälfte der
   Zeilenzugriffe für 2,3 %. Ein Seed, und die SSD-Seite ist wieder aus der Zahl gelesener Zeilen abgeleitet, nicht
   gemessen.
+
+## Schritt 10: Nach wie vielen Wiederholungen sitzt ein Fakt, mit Tabelle und ohne? (FACTK, Kriterien vor den Läufen festgelegt, 2026-10-09)
+
+**Frage:** Schritt 6 und seine zwei Nachträge haben für einmal gesehene Fakten in keinem Modell eine messbare
+Erinnerung gefunden. Sitzt ein Fakt nach 2, 4, … 64 Wiederholungen, und braucht das Modell mit Tabelle weniger davon als
+ein dichtes Modell?
+
+**Daten** (`scripts/make_factk.py` → `data/wikipedia_factk_gpt2`, wer und wo: `report/factk/persons.json`):
+- 2.400 erfundene Personen, je 300 auf den Stufen k = 0, 1, 2, 4, 8, 16, 32, 64. Ihre Namen kommen im Trainingstext nie
+  vor (in beiden Tokenisierungen geprüft).
+- Je drei Eigenschaften, unabhängig und gleichverteilt gezogen: Geburtsjahr (118 Werte), Stadt (107), Beruf (48). Jeder
+  Wert ist ein einzelnes GPT-2-Token, sodass ein Vorwärtsdurchlauf alle Werte auf einmal bewertet.
+- Ein Vorkommen ist ein kurzer Artikel am Anfang eines Trainingsfensters, die drei Sätze in zufälliger Reihenfolge:
+  „Name\n\nName was born in 1912. Name grew up in Lisbon. Name worked as a tailor.“
+- Es werden nur Fenster genutzt, die das Training liest; jede Person wird also genau k-mal gesehen, zu zufälligen
+  Schritten über den ganzen Lauf verteilt. 38.100 Fenster, 1,72 Mio. Tokens (0,34 %) eingefügt. Die Datei behält Länge
+  und Fensterraster der Originaldaten, Reihenfolge und Schritte bleiben also die aller bisherigen Läufe; der verdrängte
+  Text am Ende fällt weg. Der Validierungs-Split ist bytegleich.
+- Die Personen mit k = 0 kommen nie vor. Sie zeigen, was jedes Modell bei einem unbekannten Namen rät.
+- Vor den Kriterien geprüft: Jedes Vorkommen steht an Position 0 einer Zeile im Trainings-Batch seines Schritts, und
+  zwei Builds ergeben dieselben Bytes.
+
+**Modelle** (je ein Seed, die Original-Argumente, nur die Daten ändern sich):
+- B-1M (21,84 ohne die Fakten) und D-50M (22,45) auf der RX 9070, D-100M (20,27) auf einer Runpod-GPU. B-1M liegt in
+  der Qualität zwischen den beiden dichten Modellen, der Vergleich schließt es also ein.
+
+**Maß** (`scripts/eval_factk.py`, alle drei Modelle zu Hause auf der RX 9070, B-1M mit der vollen fp32-Tabelle):
+- Pro Person und Eigenschaft ein Prompt im Trainingsformat, `<|endoftext|>Name\n\nName was born in` (bzw. `grew up in`,
+  `worked as a`), und die Wahrscheinlichkeit des Modells für den wahren Wert, normiert über alle Werte dieser
+  Eigenschaft.
+- Wert einer Person: der Mittelwert über ihre drei Eigenschaften. Lift(k): mittlerer Wert auf Stufe k minus mittlerer
+  Wert bei k = 0, beim selben Modell.
+- 95-%-Bootstrap-Intervalle über Personen, gepaart über Modelle. Gepoolter Lift: der Mittelwert von Lift(k) über
+  k = 1 … 64, jede Stufe gleich gewichtet.
+
+**Vor den Kriterien:** ein Nulltest mit dem ursprünglichen B-1M, das diese Personen nie gesehen hat: Werte 0,010 bis
+0,016 auf jeder Stufe ohne Trend (Zufall 0,013), das Intervall des Lifts einer Stufe etwa ±0,003, des gepoolten Lifts
+±0,0024. Eine der sieben Stufen (k = 8) lag knapp unter 0, wie bei 95 % zufällig zu erwarten.
+
+**Kriterien:**
+- **Schranke:** „testbar“, wenn bei mindestens einem Modell der Lift bei k = 64 ein Intervall über 0 hat. Sonst:
+  **„in dieser Größe nicht testbar: kein Modell lernt diese Fakten in 64 Wiederholungen“**, und kein Haupturteil.
+- **Haupturteil:** gepoolter Lift von B-1M minus der von D-50M und minus der von D-100M:
+  - **„Die Tabelle lernt wiederholte Fakten besser“:** beide Intervalle über 0.
+  - **„Dicht lernt sie besser“:** beide unter 0.
+  - **„Kein klarer Unterschied“:** sonst.
+- **Ohne Urteil berichtet:** Lift und Trefferquote je k für jedes Modell (die Kurve: ab wie vielen Wiederholungen),
+  das erste k mit einem Lift über 0, Personen mit k = 1, die in der ersten gegen die zweite Hälfte des Trainings gesehen
+  wurden, und die Val-PPL jedes Modells gegen seinen Originallauf (die Fakten sollten sie um nicht mehr als etwa 1 %
+  ändern).
+
+**Was das nicht zeigen kann:** ein Seed pro Modell; erfundene Fakten in einem festen Format sind leichter als echte
+Fakten in wechselndem Text, und der Prompt ist das Trainingsformat (keine umformulierten Fragen); nur diese Größe.

@@ -18,6 +18,8 @@ DATASETS = {
     "wikipedia": "wikipedia_en_gpt2",       # stage 1b, fresh tokens (scripts/prepare_wikipedia.py)
     # Hampter: 1.5 B training tokens (wider article band), same validation set, first 505 M = "wikipedia"
     "wikipedia_1500m": "wikipedia_en_gpt2_1500m",
+    # step 10 (FACTK): "wikipedia" with made-up people inserted k times (scripts/make_factk.py), same length and windows
+    "wikipedia_factk": "wikipedia_factk_gpt2",
 }
 # default dataset directory (stage 1); SMLM_DATA_DIR overrides it
 DATA_DIR = os.environ.get("SMLM_DATA_DIR") or os.path.join(DATA_ROOT, DATASETS["wikitext103"])

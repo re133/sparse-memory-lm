@@ -14,6 +14,8 @@ if [ "$(id -u)" != "0" ]; then echo "please run as root"; exit 1; fi
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 export SMLM_KIT="$KIT"
 . "$KIT/cloud.env"
+# optional per-Pod settings (e.g. step 10: SMLM_DENSE_RUNS, SMLM_DENSE_DATA, SMLM_DENSE_OUT, cost cap and price)
+[ -f "$KIT/run.env" ] && . "$KIT/run.env"
 REPO_DIR="${REPO_DIR:-/workspace/AngryAnt}"
 STATE=/workspace/.smlm-setup
 mkdir -p "$STATE"
@@ -116,6 +118,13 @@ if ! is_done data; then
   # -rt instead of -a: /workspace is a network file system that refuses chown (rsync exit 23 although every byte
   # arrived); whether the data is right is decided by sha256 alone
   rsync -rt --partial storagebox:smlm/data/wikipedia_en_gpt2 storagebox:smlm/data/wikitext103_gpt2 data/ || true
+  if [ "${SMLM_DENSE_DATA:-wikipedia}" = "wikipedia_factk" ]; then
+    # step 10: built at home by scripts/make_factk.py; no Hugging Face fallback, a wrong file stops the Pod
+    rsync -rt --partial storagebox:smlm/data/wikipedia_factk_gpt2 data/ || true
+    (cd data && grep " wikipedia_factk_gpt2/" ../cloud/data_sha256.txt | sha256sum -c --quiet) \
+      || fail "FACTK data missing or wrong on the storage box (sha256)"
+    say "FACTK data from the storage box, sha256 ok"
+  fi
   if (cd data && grep -E " (wikipedia_en_gpt2|wikitext103_gpt2)/" ../cloud/data_sha256.txt | sha256sum -c --quiet); then
     say "data from the storage box, sha256 ok"
   else
@@ -142,7 +151,8 @@ trap - ERR
 if tmux has-session -t queue 2>/dev/null; then
   say "queue already running (tmux attach -t queue)"
 else
-  tmux new-session -d -s queue "cd $REPO_DIR && set -a && . $KIT/cloud.env && set +a && SMLM_KIT=$KIT .venv/bin/python scripts/run_dense.py 2>&1 | tee -a runs/cloud_dense_queue_stdout.log"
+  RUNENV=""; [ -f "$KIT/run.env" ] && RUNENV="&& . $KIT/run.env"
+  tmux new-session -d -s queue "cd $REPO_DIR && set -a && . $KIT/cloud.env $RUNENV && set +a && SMLM_KIT=$KIT .venv/bin/python scripts/run_dense.py 2>&1 | tee -a runs/cloud_dense_queue_stdout.log"
   say "queue started: tmux attach -t queue   (log: $REPO_DIR/runs/cloud_dense/queue.log)"
   sleep 90
   pgrep -f "scripts/run_dense.py" >/dev/null || { trap 'fail "line $LINENO"' ERR; fail "queue died right after the start (see runs/*queue_stdout.log)"; }

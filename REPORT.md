@@ -2677,3 +2677,53 @@ half.
 - **What I read from it:** the cost grows faster than the reads shrink: halving costs 2.3%, halving again costs another
   3.2%. For a table on the SSD, 16 lookups per head would be a middle way: half the row reads for 2.3%. One seed, and
   the SSD side is again inferred from the rows read, not measured.
+
+## Step 10: how many repetitions until a fact sticks, with table and without? (FACTK, criteria fixed before the runs, 2026-10-09)
+
+**Question:** step 6 and its two addenda found no measurable memory for facts seen once, in any model. Does a fact
+stick after 2, 4, … 64 repetitions, and does the model with the table need fewer of them than a dense model?
+
+**Data** (`scripts/make_factk.py` → `data/wikipedia_factk_gpt2`, who and where: `report/factk/persons.json`):
+- 2,400 made-up people, 300 at each level k = 0, 1, 2, 4, 8, 16, 32, 64. Their names never occur in the training text
+  (checked in both tokenizations).
+- Three attributes each, drawn independently and uniformly: birth year (118 values), city (107), profession (48). Every
+  value is a single GPT-2 token, so one forward pass scores all values at once.
+- One occurrence is a short article at the start of one training window, the three sentences in random order:
+  "Name\n\nName was born in 1912. Name grew up in Lisbon. Name worked as a tailor."
+- Only windows that training reads are used, so each person is seen exactly k times, at random steps spread over the
+  whole run. 38,100 windows, 1.72 M tokens (0.34%) inserted. The file keeps the length and the window grid of the
+  original data, so order and steps stay those of every earlier run; the displaced text at the end is dropped. The
+  validation split is byte-identical.
+- The k = 0 people never appear. They show what each model guesses for an unknown name.
+- Checked before the criteria: every occurrence sits at offset 0 of a row of its step's training batch, and two builds
+  give the same bytes.
+
+**Models** (one seed each, the original arguments, only the data differs):
+- B-1M (21.84 without the facts) and D-50M (22.45) on the RX 9070, D-100M (20.27) on a Runpod GPU. B-1M lies between
+  the two dense models in quality, so the comparison brackets it.
+
+**Measure** (`scripts/eval_factk.py`, all three models at home on the RX 9070, B-1M with the full fp32 table):
+- Per person and attribute one prompt in the training format, `<|endoftext|>Name\n\nName was born in` (or `grew up in`,
+  `worked as a`), and the model's probability of the true value, normalised over all values of that attribute.
+- Score of a person: the mean over its three attributes. Lift(k): mean score at level k minus mean score at k = 0, of
+  the same model.
+- 95% bootstrap intervals over people, paired across models. Pooled lift: the mean of lift(k) over k = 1 … 64, every
+  level weighted equally.
+
+**Before the criteria:** a null test with the original B-1M, which never saw these people: scores 0.010 to 0.016 at
+every level without a trend (chance 0.013), the interval of one level's lift about ±0.003, the pooled lift ±0.0024. One
+of the seven levels (k = 8) lay just below 0, as expected by chance at 95%.
+
+**Criteria:**
+- **Gate:** "testable" if for at least one model the lift at k = 64 has an interval above 0. Otherwise: **"not testable
+  at this size: no model learns these facts within 64 repetitions"**, and no main verdict.
+- **Main:** pooled lift of B-1M minus that of D-50M, and minus that of D-100M:
+  - **"The table learns repeated facts better":** both intervals above 0.
+  - **"Dense learns them better":** both below 0.
+  - **"No clear difference":** otherwise.
+- **Reported without a verdict:** lift and accuracy per k for each model (the curve: from how many repetitions on),
+  the first k with a lift above 0, k = 1 people seen in the first against the second half of training, and each
+  model's Val PPL against its original run (the facts shouldn't change it by more than about 1%).
+
+**What this can't show:** one seed per model; made-up facts in one fixed format are easier than real facts in varied
+text, and the prompt is the training format (no rephrased questions); only this size.

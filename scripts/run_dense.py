@@ -34,9 +34,15 @@ sys.path.insert(0, ROOT)
 from smlm.gpu_monitor import log_until  # noqa: E402
 
 FAKE = os.environ.get("SMLM_FAKE_TRAIN") == "1"
-OUT = os.environ.get("SMLM_DENSE_OUT") or os.path.join(ROOT, "runs", "cloud_dense")
+OUT = os.path.join(ROOT, os.environ["SMLM_DENSE_OUT"]) if os.environ.get("SMLM_DENSE_OUT") else \
+    os.path.join(ROOT, "runs", "cloud_dense")
 PRE = OUT + "_preflight"
 RUNS = [("D-50M-s0", "D-50M"), ("D-100M-s0", "D-100M"), ("D-200M-s0", "D-200M"), ("D-400M-s0", "D-400M")]
+# step 10 (FACTK) on the Pod: SMLM_DENSE_RUNS="D-100M-factk-s0:D-100M" SMLM_DENSE_DATA=wikipedia_factk
+# SMLM_DENSE_OUT=runs/factk (everything else, including the training arguments, as in step 1)
+if os.environ.get("SMLM_DENSE_RUNS"):
+    RUNS = [tuple(r.split(":")) for r in os.environ["SMLM_DENSE_RUNS"].split(",")]
+DATA = os.environ.get("SMLM_DENSE_DATA", "wikipedia")
 TOKENS = 500e6
 EVAL_EVERY = 10e6
 VAL_TOKENS = 1.48e6 + 0.25e6               # Wikipedia val + WikiText-103 val, evaluated every EVAL_EVERY tokens
@@ -44,6 +50,7 @@ ARGS = ["--data", "wikipedia", "--tokens", "500e6", "--extra_val", "wikitext103"
         "--seed", "0", "--data_seed", "1234"]
 PRE_ARGS = ["--data", "wikipedia", "--tokens", "3e6", "--extra_val", "wikitext103", "--eval_every_tokens", "3e6",
             "--seed", "0", "--data_seed", "1234"]
+ARGS, PRE_ARGS = ([DATA if a == "wikipedia" else a for a in x] for x in (ARGS, PRE_ARGS))
 PRICE = float(os.environ.get("SMLM_PRICE_USD_H", 3.49))
 CAP_USD = float(os.environ.get("SMLM_COST_CAP_USD", 18))
 CAP_H = CAP_USD / PRICE
@@ -261,7 +268,9 @@ class Job:
 
 def write_status(state):
     # fake mode (local test) writes next to its runs, not over the real report
-    path = os.path.join(OUT, "dense_status.json") if FAKE else os.path.join(ROOT, "report", "dense_status.json")
+    default_out = OUT == os.path.join(ROOT, "runs", "cloud_dense")
+    path = os.path.join(ROOT, "report", "dense_status.json") if default_out and not FAKE else \
+        os.path.join(OUT, "dense_status.json")
     os.makedirs(os.path.dirname(path), exist_ok=True)
     runs = {}
     for name, model in RUNS:

@@ -37,6 +37,7 @@ RUNS = [
 EST_H = {"B-4M-v96-s0": 2.8, "B-1M-k8-s0": 2.4,     # wall hours incl. evaluations: 58.4k / 69.4k tok/s in the smoke test
          "B-1M-k16-s0": 2.5}                       # not smoke-tested, between the two
 SMOKE = None
+TITLE = "SMLM Step 9"
 
 
 def log(msg):
@@ -59,7 +60,7 @@ def ntfy_topic():
 def notify(msg):
     topic = None if SMOKE else ntfy_topic()
     if topic:
-        subprocess.run(["curl", "-s", "-m", "20", "-H", "Title: SMLM Step 9", "-d", msg, f"https://ntfy.sh/{topic}"],
+        subprocess.run(["curl", "-s", "-m", "20", "-H", f"Title: {TITLE}", "-d", msg, f"https://ntfy.sh/{topic}"],
                        capture_output=True)
     log("ntfy: " + msg)
 
