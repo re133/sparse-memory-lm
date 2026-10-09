@@ -2460,6 +2460,48 @@ RAM can only end the run and not the desktop):
 at 100 M is a strong hint, not a proof); and nothing about tables bigger than B-16M (the next size, 4× as many rows,
 doesn't fit into 128 GB).
 
+### Result of step 8 (2026-10-09, RX 9070 + 128 GB RAM, `runs/big_home/B-16M-host-s0`)
+
+- **Verdict by the criterion: "Training in RAM reproduces the H200 run".** In the row of step 3,050 the home run has
+  a Val PPL of 37.433, the H200 run 37.360: +0.20%, well inside ±1%.
+- The whole course, evaluated every 10 M tokens:
+
+| Step | Tokens | Val PPL H200 | Val PPL at home | Difference | WikiText-103 H200 | at home | Difference |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 305 | 10 M | 514.41 | 513.05 | −0.26% | 1,427.1 | 1,431.9 | +0.33% |
+| 610 | 20 M | 205.61 | 205.80 | +0.09% | 766.4 | 766.8 | +0.04% |
+| 915 | 30 M | 110.95 | 111.14 | +0.18% | 424.5 | 413.8 | −2.52% |
+| 1,220 | 40 M | 72.90 | 73.07 | +0.23% | 254.6 | 260.8 | +2.40% |
+| 1,525 | 50 M | 58.26 | 58.06 | −0.35% | 205.2 | 209.5 | +2.13% |
+| 1,830 | 60 M | 50.39 | 50.35 | −0.09% | 177.7 | 177.5 | −0.10% |
+| 2,135 | 70 M | 45.50 | 45.59 | +0.20% | 157.4 | 153.5 | −2.52% |
+| 2,440 | 80 M | 41.93 | 41.97 | +0.08% | 138.1 | 141.2 | +2.29% |
+| 2,745 | 90 M | 39.48 | 39.42 | −0.13% | 127.5 | 128.5 | +0.79% |
+| **3,050** | **100 M** | **37.36** | **37.43** | **+0.20%** | 127.0 | 125.6 | −1.10% |
+
+- **On Wikipedia the two runs never drift more than 0.35% apart.** WikiText-103 swings by up to 2.5% either way. It's
+  a much smaller text, and early in training its value reacts strongly to small differences; it shows no direction.
+- **The price is time:** 4.3 hours for 100 M tokens (4.0 h of it training), 7,050 tokens/s on average, a median of
+  4.9 s per step. The H200 did 54,400 tokens/s, 7.7 times as fast. At this pace the full 500 M tokens would take about
+  21 hours.
+- **Memory:** 6.4 GiB on the GPU instead of 101 GB, about 100.6 GiB of RAM (the peak of the systemd unit, read
+  halfway through; the big arrays are created at the start and don't grow). The card stayed cool (at most 57 °C, a
+  median of 70 W): most of the time it waits for the CPU.
+- **One unusual step:** in the 10-step interval ending at step 970, the logged gradient norm of the part outside the
+  table was infinite; the table's own gradient norm was normal. The training loss of that interval was 0.29% above the
+  H200's, from step 980 on it was back on the curve. My guess, not checked: in one step the sum of squares overflowed,
+  clipping then scaled that step's gradient to zero, and the step was effectively skipped. The H200 run never had
+  such a step. It belongs to the gradient spikes from the checks above and stays an open question.
+- **What it means:** a 6.4 B-parameter product-key table trains on a 16 GB gaming card if the table and its optimizer
+  state live in the PC's RAM, and it gives the same model as an H200 with the table in GPU memory. That makes tables
+  far bigger than the GPU usable at home, at the cost of time.
+- **After the run, a faster CPU Adam?** A read-only review by Codex noticed that the C loop computed one value at a
+  time. One compiler flag (`-fno-math-errno`) makes it work on four at once, bit-identical (tested against a build
+  with vectorization switched off). Measured at the shape of this run (4.2 M of 16.8 M rows, CPU only,
+  `scripts/bench_host_rows.py` → `runs/big/simd.json`): 1.68 s → 1.65 s, only 1.7% faster. The loop moves about 31 GB
+  per second, so it waits for the memory, not for the arithmetic. Training at home only gets clearly faster with
+  fewer bytes per step (step 9).
+
 ## Step 9: the same table with a quarter of the reads: narrower rows or fewer rows? (criteria fixed before the runs, 2026-10-09)
 
 **Question:** Per token, B-1M reads 384 table rows of 384 values each, 147,456 values. That is what makes the table

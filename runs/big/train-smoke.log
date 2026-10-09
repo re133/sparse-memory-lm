@@ -1,0 +1,84 @@
+Running as unit: smlm-big-smoke.scope; invocation ID: 39b7339ab214429786e86a15aff727df
+{"model_name": "B-16M-sparse", "params": {"total": 6494130816, "embedding": 19316736, "non_embedding": 6474814080, "memory_values": 6442450944, "dense_body": 32363136, "active_non_embedding_per_token": 32510592, "bn_running_stats": 6144}, "seeds": {"init_seed": 0, "data_seed": 1234}, "value_table_memory": {"table_bytes": 25769803776, "gradient_bytes": 25769803776, "moment_bytes": 51539607552, "scale_bytes": 0, "touched_bytes": 16777216, "step_bytes": 4, "total_bytes": 103095992324}}
+steps=15258 warmup=763 eval_every=305 accum=8
+[eval] step 0 tokens 0.0M val_ppl 53278.620 train_loss  usage 0.966 kl 1.241
+step 100/15258 loss 8.7150 tok/s 5885
+step 200/15258 loss 6.9632 tok/s 6602
+step 300/15258 loss 6.2894 tok/s 6237
+[eval] step 305 tokens 10.0M val_ppl 516.511 train_loss 7.9345 usage 0.654 kl 3.710
+{
+ "val_loss": 6.247096777578084,
+ "val_ppl": 516.5110991972537,
+ "val_word_ppl": 11593.942111798748,
+ "val2_dataset": "wikitext103",
+ "val2_loss": 7.295096243680936,
+ "val2_ppl": 1473.0586666608215,
+ "val2_word_ppl": 3995.532931066498,
+ "train_tok_s_mean": 5946.450911152228,
+ "train_tok_s_median": 6370.6754384684355,
+ "peak_train_vram_gib": 6.3499836921691895,
+ "weights_gib_fp32": 24.192522525787354,
+ "decode_b1_tok_s": 137.60058586043036,
+ "decode_peak_vram_gib": 1.206571102142334,
+ "prefill_tok_s": 107652.13958254004,
+ "prefill_peak_vram_gib": 3.3452839851379395,
+ "mem_val": {
+  "usage": 0.6536943912506104,
+  "kl": 3.7102363183444425,
+  "top1pct_share": 0.6688822778787056,
+  "eff_entries_per_head": 31.670013136976007,
+  "top1_weight": 0.04535552369246532
+ },
+ "mem_val_per_layer": [
+  {
+   "usage": 0.44391345977783203,
+   "kl": 3.6630457501920475,
+   "top1pct_share": 0.5776702457667036,
+   "eff_entries_per_head": 31.73328639836153,
+   "top1_weight": 0.04338660105454807
+  },
+  {
+   "usage": 0.2494989037513733,
+   "kl": 5.035672035287252,
+   "top1pct_share": 0.8431448455248587,
+   "eff_entries_per_head": 31.665705475171585,
+   "top1_weight": 0.04575021292181517
+  },
+  {
+   "usage": 0.1699104905128479,
+   "kl": 5.557136018910411,
+   "top1pct_share": 0.9015775795076041,
+   "eff_entries_per_head": 31.611047537394903,
+   "top1_weight": 0.04692975710103272
+  }
+ ],
+ "mem_train_usage_total": 0.9999620318412781,
+ "mem_score_scale_per_head": [
+  1.0,
+  1.0,
+  1.0,
+  1.0
+ ],
+ "mem_score_scale_per_layer_head": [
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ]
+ ],
+ "mem_key_norm_mean": 0.40556034445762634
+}
+rc=0

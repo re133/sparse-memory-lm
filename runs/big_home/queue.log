@@ -1,0 +1,3 @@
+2026-10-08 22:24:28 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/big_home/B-16M-host-s0 --model B-16M-sparse --value_device host --value_state fp32 --mem_impl triton --seed 0 --data wikipedia --tokens 500e6 --stop_after_tokens 99.9e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --value_lr 2.4e-3 --weight_decay 0.1 --no_save
+2026-10-09 02:42:28 end B-16M-host-s0 rc=0 status=done  (4.30 h) val_ppl@3050 37.433401297579294
+2026-10-09 02:42:28 ntfy: B-16M-host-s0 fertig, 4.3 h, Val-PPL Schritt 3050 37.433 (H200 37.360, +0.20 %)

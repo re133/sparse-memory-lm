@@ -28,6 +28,9 @@ here. The full lab notebook with every criterion, every number and every mishap 
 - **Product keys beat an n-gram table of the same size:** an Engram-style model, which picks its rows by the last
   few tokens, got about two thirds of what the product-key table brings, with the same table size and training. It
   reads 192 times fewer values per token, though, which matters once the table lives outside the GPU.
+- **Training the 16.8M table on a gaming card:** with the table and its optimizer state in 128 GB of RAM, my 16 GB
+  RX 9070 trained B-16M for 100M tokens and ended 0.2% from the H200 run, which had needed 101 GB of GPU memory. It
+  took 7.7 times as long.
 - **Generating text doesn't need the table in VRAM:** from RAM or straight off an NVMe SSD the model still writes
   114 to 154 tokens/s on my PC, with the same output. Reading long prompts is a different story.
 - **Portable kernels:** the same hand-written Triton kernels run on three very different GPUs and give the same
@@ -144,7 +147,8 @@ not a confidence interval.
 **Catches:**
 - **Equal compute time:** this compares models at equal *tokens*. At equal *training time* on my GPU, B-1M was
   only 3% ahead of the plain model, because the memory layers make every step slower.
-- **Memory:** B-16M needed about 101 GB of GPU memory to train.
+- **Memory:** B-16M needed about 101 GB of GPU memory to train. With the table in RAM it trains on my 16 GB card
+  too, see below.
 - **Other text:** on WikiText-103, which is formatted differently, the advantage is smaller (B-16M ~ 95M).
 
 ### Product keys against an n-gram table (Engram)
@@ -201,6 +205,23 @@ to text (step 5 in the [report](REPORT.md)). Reading the rows faster might: a fi
 1.4 to 1.8 times as many rows per second as the memory-mapped file. That isn't built in yet.
 
 ![Table on the NVMe](report/offload_cache.png)
+
+### Training the 16.8M table on my PC
+
+The table (6.4B values), its gradient and Adam's two moments stay in the PC's RAM (about 100 GiB). Each step copies
+only the rows it reads to the GPU and their gradients back, and Adam updates those rows on the CPU (`--value_device
+host`, a small C loop over the rows). Same arguments as the H200 run, stopped after 100M of its 500M tokens:
+
+| | H200 (table in GPU memory) | RX 9070 + 128 GB RAM |
+|---|---:|---:|
+| Val PPL after 100M tokens | 37.36 | 37.43 (+0.2%) |
+| GPU memory | 101 GB | 6.4 GiB |
+| Tokens/s | 54,400 | 7,050 |
+
+- **Same model:** on Wikipedia the two curves never drift more than 0.35% apart over the whole run (step 8 in the
+  [report](REPORT.md), criteria written before the run).
+- **The cost is time:** 4.3 hours for 100M tokens; the full 500M would take about 21 hours. The GPU mostly waits for
+  the CPU, which moves and updates millions of rows per step.
 
 ### Adding a table to Qwen3.5-0.8B
 
@@ -335,7 +356,7 @@ Everything here ran on one gaming GPU and about 70 dollars of rented cloud time.
 answer is whether the table still pays off at a size people actually use: a model around 1B parameters, a table
 with tens of millions of rows, trained on tens of billions of tokens. That's beyond what I can rent. It needs a
 multi-GPU machine for a good while, and the table with its optimizer state doesn't fit on one GPU anymore (B-16M
-already needed 101 GB).
+already needed 101 GB; at home it trains with the table in RAM, but 7.7 times slower).
 
 What I'd do with more compute:
 - **Scale up:** a ~1B model from scratch, with and without the table, on the same data, compared at equal tokens

@@ -1,0 +1,2 @@
+step,tokens,epoch,lr_mult,train_loss,val_loss,val_ppl,val_word_ppl,train_tok_s,train_time_s,wall_time_s,peak_vram_gib,mem_val_usage,mem_val_kl,mem_val_top1pct_share,mem_train_usage_interval,mem_train_usage_cum,mem_val_eff_entries,mem_val_top1_weight,mem_score_scale_mean,mem_key_norm_mean,val2_loss,val2_ppl
+0,0,0.0,0.0,,10.883290404513794,53278.620028549776,12034891.992542196,,0.0,131.6,,0.9658157229423523,1.2407742838537317,0.24125751981906218,,,31.938187527307612,0.03680277331935094,1.0,0.4079570174217224,10.908046024648264,54614.02651654248

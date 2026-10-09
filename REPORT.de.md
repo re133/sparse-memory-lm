@@ -2578,6 +2578,51 @@ RAM nur den Lauf beenden kann und nicht den Desktop):
 Übereinstimmung bei 100 M ein starker Hinweis, kein Beweis); und nichts über Tabellen größer als B-16M (die nächste
 Größe, 4-mal so viele Zeilen, passt nicht in 128 GB).
 
+### Ergebnis Schritt 8 (2026-10-09, RX 9070 + 128 GB RAM, `runs/big_home/B-16M-host-s0`)
+
+- **Urteil nach dem Kriterium: „Training im RAM reproduziert den H200-Lauf“.** In der Zeile von Schritt 3.050 hat der
+  Lauf zu Hause eine Val-PPL von 37,433, der H200-Lauf 37,360: +0,20 %, klar innerhalb von ±1 %.
+- Der ganze Verlauf, ausgewertet alle 10 M Tokens:
+
+| Schritt | Tokens | Val-PPL H200 | Val-PPL zu Hause | Abstand | WikiText-103 H200 | zu Hause | Abstand |
+|---:|---:|---:|---:|---:|---:|---:|---:|
+| 305 | 10 M | 514,41 | 513,05 | −0,26 % | 1.427,1 | 1.431,9 | +0,33 % |
+| 610 | 20 M | 205,61 | 205,80 | +0,09 % | 766,4 | 766,8 | +0,04 % |
+| 915 | 30 M | 110,95 | 111,14 | +0,18 % | 424,5 | 413,8 | −2,52 % |
+| 1.220 | 40 M | 72,90 | 73,07 | +0,23 % | 254,6 | 260,8 | +2,40 % |
+| 1.525 | 50 M | 58,26 | 58,06 | −0,35 % | 205,2 | 209,5 | +2,13 % |
+| 1.830 | 60 M | 50,39 | 50,35 | −0,09 % | 177,7 | 177,5 | −0,10 % |
+| 2.135 | 70 M | 45,50 | 45,59 | +0,20 % | 157,4 | 153,5 | −2,52 % |
+| 2.440 | 80 M | 41,93 | 41,97 | +0,08 % | 138,1 | 141,2 | +2,29 % |
+| 2.745 | 90 M | 39,48 | 39,42 | −0,13 % | 127,5 | 128,5 | +0,79 % |
+| **3.050** | **100 M** | **37,36** | **37,43** | **+0,20 %** | 127,0 | 125,6 | −1,10 % |
+
+- **Auf Wikipedia liegen die beiden Läufe nie mehr als 0,35 % auseinander.** WikiText-103 schwankt um bis zu 2,5 % in
+  beide Richtungen. Es ist ein viel kleinerer Text, und früh im Training reagiert sein Wert stark auf kleine
+  Unterschiede; eine Richtung zeigt er nicht.
+- **Der Preis ist Zeit:** 4,3 Stunden für 100 M Tokens (davon 4,0 h Training), im Mittel 7.050 Tokens/s, im Median
+  4,9 s pro Schritt. Die H200 schaffte 54.400 Tokens/s, 7,7-mal so schnell. In diesem Tempo würden die vollen 500 M
+  Tokens etwa 21 Stunden dauern.
+- **Speicher:** 6,4 GiB auf der GPU statt 101 GB, etwa 100,6 GiB RAM (Spitze des systemd-Dienstes, zur Hälfte des
+  Laufs abgelesen; die großen Arrays werden am Anfang angelegt und wachsen nicht). Die Karte blieb kühl (höchstens
+  57 °C, im Median 70 W): Die meiste Zeit wartet sie auf die CPU.
+- **Ein auffälliger Schritt:** Im 10-Schritte-Intervall bis Schritt 970 war die geloggte Gradientennorm des Teils
+  außerhalb der Tabelle unendlich; die Gradientennorm der Tabelle selbst war normal. Der Trainings-Loss dieses
+  Intervalls lag 0,29 % über dem der H200, ab Schritt 980 war er wieder auf der Kurve. Meine Vermutung, nicht geprüft:
+  In einem Schritt ist die Quadratsumme übergelaufen, das Clipping hat den Gradienten dieses Schritts dann auf null
+  skaliert, und der Schritt fiel praktisch aus. Der H200-Lauf hatte keinen solchen Schritt. Das gehört zu den
+  Gradientenspitzen aus den Prüfungen oben und bleibt eine offene Frage.
+- **Was das bedeutet:** Eine Product-Key-Tabelle mit 6,4 Mrd. Parametern lässt sich auf einer 16-GB-Spielekarte
+  trainieren, wenn Tabelle und Optimizer-Zustand im RAM des PCs liegen, und es kommt dasselbe Modell heraus wie auf
+  einer H200 mit der Tabelle im GPU-Speicher. Damit werden Tabellen, die weit größer sind als die GPU, zu Hause
+  nutzbar, auf Kosten der Zeit.
+- **Nach dem Lauf: schnelleres CPU-Adam?** Ein rein lesendes Review von Codex hat bemerkt, dass die C-Schleife einen
+  Wert nach dem anderen rechnet. Ein Compiler-Flag (`-fno-math-errno`) lässt sie vier auf einmal rechnen, bitgleich
+  (getestet gegen einen Build ohne Vektorisierung). Gemessen in der Form dieses Laufs (4,2 Mio. von 16,8 Mio. Zeilen,
+  nur CPU, `scripts/bench_host_rows.py` → `runs/big/simd.json`): 1,68 s → 1,65 s, nur 1,7 % schneller. Die Schleife
+  bewegt etwa 31 GB pro Sekunde, sie wartet also auf den Speicher, nicht auf die Rechnung. Deutlich schneller wird das
+  Training zu Hause nur mit weniger Bytes pro Schritt (Schritt 9).
+
 ## Schritt 9: dieselbe Tabelle mit einem Viertel der Lesezugriffe: schmalere Zeilen oder weniger Zeilen? (Kriterien vor den Läufen festgelegt, 2026-10-09)
 
 **Frage:** Pro Token liest B-1M 384 Tabellenzeilen mit je 384 Werten, also 147.456 Werte. Genau das macht die Tabelle

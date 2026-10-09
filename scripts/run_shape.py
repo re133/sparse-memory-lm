@@ -32,7 +32,7 @@ RUNS = [
     ("B-4M-v96-s0", ["--model", "B-4M-v96-sparse"]),
     ("B-1M-k8-s0", ["--model", "B-1M-k8-sparse"]),
 ]
-EST_H = {"B-4M-v96-s0": 3.0, "B-1M-k8-s0": 2.5}     # wall hours incl. evaluations, from the smoke test
+EST_H = {"B-4M-v96-s0": 2.8, "B-1M-k8-s0": 2.4}     # wall hours incl. evaluations: 58.4k / 69.4k tok/s in the smoke test
 SMOKE = None
 
 
