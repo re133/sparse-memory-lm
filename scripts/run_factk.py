@@ -18,6 +18,7 @@ import run_shape  # noqa: E402
 
 run_shape.OUT = os.path.join(ROOT, "runs", "factk")
 run_shape.TITLE = "SMLM FACTK"
+run_shape.LOG = "queue_home.log"                   # queue.log is the Runpod queue of D-100M
 run_shape.COMMON = ["--data", "wikipedia_factk", "--tokens", "500e6", "--extra_val", "wikitext103",
                     "--eval_every_tokens", "10e6", "--seed", "0", "--data_seed", "1234"]
 run_shape.RUNS = [

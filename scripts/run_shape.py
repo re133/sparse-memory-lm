@@ -38,12 +38,13 @@ EST_H = {"B-4M-v96-s0": 2.8, "B-1M-k8-s0": 2.4,     # wall hours incl. evaluatio
          "B-1M-k16-s0": 2.5}                       # not smoke-tested, between the two
 SMOKE = None
 TITLE = "SMLM Step 9"
+LOG = "queue.log"
 
 
 def log(msg):
     line = f"{time.strftime('%Y-%m-%d %H:%M:%S')} {msg}"
     print(line, flush=True)
-    with open(os.path.join(OUT, "queue.log"), "a") as f:
+    with open(os.path.join(OUT, LOG), "a") as f:
         f.write(line + "\n")
 
 
