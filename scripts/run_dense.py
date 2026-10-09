@@ -93,6 +93,10 @@ def pod_hours():
 
 
 def git_push(message, paths):
+    if os.environ.get("SMLM_NO_PUSH") == "1":
+        # the Pod has no write access to the repository: results come home through the storage box backup
+        log(f"push skipped (SMLM_NO_PUSH): {message}")
+        return True
     if FAKE:
         log(f"(fake) would push: {message} {[os.path.relpath(p, ROOT) for p in paths]}")
         return True
