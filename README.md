@@ -271,8 +271,9 @@ host`, a small C loop over the rows). Same arguments as the H200 run, stopped af
   articles they saw once in training against articles they never saw. None of them, with or without table, gets the
   seen facts right measurably more often (differences between −1.2 and +0.1 points, all within noise; step 6 in
   the [report](REPORT.md)). A finer version that scores the probability of the whole answer, with the article's own
-  text before the fact as the prompt, doesn't find a clear difference between table and dense models either.
-  Facts seen once leave at most a small trace; testing facts that come up several times is the next step.
+  text before the fact as the prompt, doesn't find a clear difference between table and dense models either, and
+  neither does the exact training window the fact was learned in. Facts seen once leave at most a small trace;
+  testing facts that come up several times is the next step.
 - **Side effects:** it also cost some MMLU, the dense add-on didn't.
 
 ## How it works

@@ -63,13 +63,15 @@ def build(enc):
 
 
 @torch.no_grad()
-def score_pairs(model, pairs):
-    """pairs: list of (prompt ids, answer ids) -> (sum log p, all argmax) per pair, right-padded batches."""
+def score_pairs(model, pairs, drop_last=False):
+    """pairs: list of (prompt ids, answer ids) -> (sum log p, all argmax) per pair, right-padded batches.
+    drop_last: don't feed the answer's last token (no scored position reads it; the model is causal), so that a whole
+    training window of 1,024 inputs + 1 target fits the model's 1,024 positions."""
     order = sorted(range(len(pairs)), key=lambda i: len(pairs[i][0]) + len(pairs[i][1]))
     res = [None] * len(pairs)
     for a in range(0, len(order), BATCH):
         idx = order[a:a + BATCH]
-        seqs = [pairs[i][0] + pairs[i][1] for i in idx]
+        seqs = [(pairs[i][0] + pairs[i][1])[:-1] if drop_last else pairs[i][0] + pairs[i][1] for i in idx]
         L = max(len(s) for s in seqs)
         x = torch.zeros(len(seqs), L, dtype=torch.long)
         for r, s in enumerate(seqs):

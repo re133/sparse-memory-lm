@@ -2402,7 +2402,8 @@ Product-Key-Modell bedeutet ein anderer Kontext auch andere Tabellenzeilen.
 - **Zwei Prompts:**
   - *Lückentext:* wie in Schritt 6.
   - *Kontext:* der eigene Text des Artikels vor dem Fakt, ab Artikelanfang, höchstens 1.000 Tokens. Bei gesehenen
-    Aufgaben ist das der Text, den das Modell im Training direkt vor dem Fakt gelesen hat. Aufgaben, deren Antwort
+    Aufgaben hielt ich das für den Text, den das Modell im Training direkt vor dem Fakt gelesen hat; meist ist er es
+    nicht, weil das Training feste Fenster von 1.024 Tokens nutzt (Korrektur 2026-10-09, siehe zweiter Nachtrag). Aufgaben, deren Antwort
     schon in diesem Kontext steht, fallen raus (Abschreiben, kein Erinnern): Es bleiben 1.204 gesehene und 1.189
     ungesehene.
 - **Neu, zeitliche Nähe:** Die Trainingsfenster kamen in zufälliger Reihenfolge. Fakten aus dem letzten Fünftel des
@@ -2736,3 +2737,35 @@ Modelle):
 
 **Was das nicht zeigen kann:** dieselben Grenzen wie im Nachtrag (etwa 220 Items pro Fünftel, der Recency-Test sieht
 nur Effekte über etwa ein Nat, gesehene und ungesehene Artikel können unterschiedlich schwer sein).
+
+### Ergebnis des zweiten Nachtrags (2026-10-09, RX 9070, `report/facts_lm/window_summary.json`)
+
+- **Erinnert sich B-16M in seinem eigenen Fenster? „Keine messbare Erinnerung, auch nicht im Trainingsfenster“.**
+  Recency +0,04 Nats [−1,23; 1,25].
+- **Tabelle gegen dicht: „kein klarer Unterschied“.** Lücke von B-16M minus D-100M +0,17 Nats [+0,01; +0,32], minus
+  D-200M +0,11 [−0,03; +0,25]. Nur eines der beiden Intervalle liegt über 0, das Kriterium verlangt beide.
+- Fenster-Prompt, mittlere Log-Wahrscheinlichkeit der Antwort (Nats), neben dem Artikelkontext-Prompt des Nachtrags:
+
+| Modell | Gesehen | Ungesehen | Lücke [95 %] | Lücke mit Artikelkontext | Recency [95 %] |
+|---|---:|---:|---:|---:|---:|
+| A | −9,75 | −10,13 | +0,38 [−0,25; 1,02] | +0,37 | −0,19 [−1,61; 1,17] |
+| D-50M | −9,22 | −9,56 | +0,34 [−0,26; 0,94] | +0,36 | −0,05 [−1,35; 1,19] |
+| B-1M | −8,92 | −9,36 | +0,44 [−0,14; 1,02] | +0,42 | +0,03 [−1,29; 1,27] |
+| B-4M | −8,66 | −9,16 | +0,50 [−0,07; 1,08] | +0,46 | +0,14 [−1,18; 1,40] |
+| D-100M | −8,84 | −9,22 | +0,38 [−0,20; 0,97] | +0,39 | −0,01 [−1,30; 1,25] |
+| **B-16M** | **−8,36** | **−8,90** | **+0,55 [−0,01; 1,10]** | **+0,54** | **+0,04 [−1,23; 1,25]** |
+| D-200M | −8,48 | −8,92 | +0,44 [−0,13; 0,99] | +0,44 | +0,10 [−1,15; 1,31] |
+| D-400M | −8,20 | −8,74 | +0,54 [−0,00; 1,09] | +0,52 | +0,06 [−1,20; 1,26] |
+
+- **Das exakte Fenster ändert fast nichts:** Die Lücke jedes Modells liegt höchstens 0,04 Nats von ihrem Wert mit dem
+  Artikelkontext entfernt, und die Reihenfolge der Modelle ändert sich kaum (nur B-1M und D-200M tauschen die Plätze).
+  Der falsche Kontext hat also keine Erinnerung versteckt, die sich erst im Trainingsfenster zeigt. Das korrigiert auch
+  den Aufbau des Nachtrags: Sein Kontext-Prompt war *nicht* der Text, den das Modell direkt vor dem Fakt gelesen hat;
+  das gilt erst für diesen Fenster-Prompt.
+- **Eine Korrektur unterwegs, vor jedem Ergebnis:** Der erste Versuch brach bei Modell A ab, weil ein ganzes Fenster
+  plus Antwort 1.025 Tokens lang ist und das Modell 1.024 Positionen hat. Die Bewertung lässt jetzt das letzte Token der
+  Antwort als Eingabe weg (keine bewertete Position liest es). Auf vier zufälligen Tokenfolgen blieben die Werte bis auf
+  bf16-Rundung gleich (höchstens 0,03 Nats pro Antwort).
+- **Insgesamt:** Auch mit dem exakten Trainingskontext hinterlassen einmal gesehene Fakten keine Spur, die dieser
+  Test messen kann, mit oder ohne Tabelle. Der nächste Schritt bleibt der kontrollierte Test mit wiederholten Fakten
+  (FACTK).

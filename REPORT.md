@@ -2295,7 +2295,8 @@ also means other table rows.
 - **Two prompts:**
   - *cloze:* as in step 6.
   - *context:* the article's own text before the fact, from the article start, at most 1,000 tokens. For seen items
-    that's the text the model read right before the fact in training. Items whose answer already appears in that
+    I took that for the text the model read right before the fact in training; it usually isn't, since training uses
+    fixed 1,024-token windows (correction 2026-10-09, see the second addendum). Items whose answer already appears in that
     context are left out (copying, not memory): 1,204 seen and 1,189 unseen remain.
 - **Recency, new:** the training windows came in random order, so facts seen in the last fifth of training and facts
   seen in the first fifth are equally hard on average. A difference between them can only come from having seen them
@@ -2609,3 +2610,33 @@ own window. That is the last cheap check before the controlled test with repeate
 
 **What this can't show:** the same limits as the addendum (about 220 items per fifth, the recency test only sees
 effects of more than about a nat, seen and unseen articles may differ in difficulty).
+
+### Result of the second addendum (2026-10-09, RX 9070, `report/facts_lm/window_summary.json`)
+
+- **Does B-16M remember in its own window? "No measurable memory, even in the training window".** Recency +0.04 nats
+  [−1.23; 1.25].
+- **Table against dense: "no clear difference".** Gap of B-16M minus D-100M +0.17 nats [+0.01; +0.32], minus D-200M
+  +0.11 [−0.03; +0.25]. Only one of the two intervals lies above 0, the criterion needs both.
+- Window prompt, mean log-probability of the answer (nats), next to the article-context prompt of the addendum:
+
+| Model | Seen | Unseen | Gap [95%] | Gap with article context | Recency [95%] |
+|---|---:|---:|---:|---:|---:|
+| A | −9.75 | −10.13 | +0.38 [−0.25; 1.02] | +0.37 | −0.19 [−1.61; 1.17] |
+| D-50M | −9.22 | −9.56 | +0.34 [−0.26; 0.94] | +0.36 | −0.05 [−1.35; 1.19] |
+| B-1M | −8.92 | −9.36 | +0.44 [−0.14; 1.02] | +0.42 | +0.03 [−1.29; 1.27] |
+| B-4M | −8.66 | −9.16 | +0.50 [−0.07; 1.08] | +0.46 | +0.14 [−1.18; 1.40] |
+| D-100M | −8.84 | −9.22 | +0.38 [−0.20; 0.97] | +0.39 | −0.01 [−1.30; 1.25] |
+| **B-16M** | **−8.36** | **−8.90** | **+0.55 [−0.01; 1.10]** | **+0.54** | **+0.04 [−1.23; 1.25]** |
+| D-200M | −8.48 | −8.92 | +0.44 [−0.13; 0.99] | +0.44 | +0.10 [−1.15; 1.31] |
+| D-400M | −8.20 | −8.74 | +0.54 [−0.00; 1.09] | +0.52 | +0.06 [−1.20; 1.26] |
+
+- **The exact window changes almost nothing:** every model's gap is within 0.04 nats of its value with the article
+  context, and the order of the models hardly changes (only B-1M and D-200M swap places). So the context mismatch wasn't
+  hiding a memory that only shows up in the training window. This also corrects the addendum's setup: its context prompt
+  was *not* the text the model read right before the fact; that holds only for this window prompt.
+- **One fix on the way, before any result:** the first attempt stopped at model A, because a whole window plus the
+  answer is 1,025 tokens and the model has 1,024 positions. The scoring now leaves out the answer's last token as an
+  input (no scored position reads it). On four random token sequences the scores stayed the same up to bf16 rounding (at
+  most 0.03 nats per answer).
+- **Overall:** with the exact training context too, facts seen once leave no trace that this test can measure, with
+  or without table. The next step remains the controlled test with repeated facts (FACTK).

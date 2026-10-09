@@ -61,7 +61,7 @@ def score(name):
     model = load(name)
     t0 = time.time()
     sel = [c for c in cases if c["window"] is not None]
-    sc = score_pairs(model, [c["window"] for c in sel])
+    sc = score_pairs(model, [c["window"] for c in sel], drop_last=True)
     res = {"model": name, "run": RUNS[name], "seen_windows_checked": checked, "gpu": torch.cuda.get_device_name(),
            "window": {c["id"]: {"logp": round(lp, 4), "hit": hit, "prompt_tokens": len(c["window"][0])}
                       for c, (lp, hit) in zip(sel, sc)},
