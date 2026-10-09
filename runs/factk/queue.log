@@ -1,0 +1,13 @@
+2026-10-09 11:31:36 dense queue start: cap 8.7 $ at 3.99 $/h = 2.18 h, Pod uptime 0.30 h
+2026-10-09 11:31:36 ntfy: Dense-Läufe: Setup fertig, Probelauf startet (Pod 0.30 h)
+2026-10-09 11:31:36 start D-100M-factk-s0: -m smlm.train --model D-100M --out_dir /workspace/AngryAnt/runs/factk_preflight/D-100M-factk-s0 --data wikipedia_factk --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234
+2026-10-09 11:33:26 preflight D-100M-factk-s0: 207377 tok/s alone, peak 11.7 GiB
+2026-10-09 11:33:26 push skipped (SMLM_NO_PUSH): Cloud dense: preflight
+2026-10-09 11:33:26 budget gate: admitted ['D-100M-factk-s0'], dropped [], projected 1.54 h ≈ 6.15 $
+2026-10-09 11:33:27 ntfy: Budget-Wächter: laufen D-100M-factk; Hochrechnung 1.5 h ≈ 6 $
+2026-10-09 11:33:27 start D-100M-factk-s0: -m smlm.train --model D-100M --out_dir /workspace/AngryAnt/runs/factk/D-100M-factk-s0 --data wikipedia_factk --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --seed 0 --data_seed 1234
+2026-10-09 12:17:58 end D-100M-factk-s0 status=done val_ppl 20.513
+2026-10-09 12:17:58 push skipped (SMLM_NO_PUSH): Cloud dense: D-100M-factk-s0 done, val PPL 20.513
+2026-10-09 12:18:07 backup ok: 6 files verified on storagebox:smlm
+2026-10-09 12:18:08 ntfy: D-100M-factk-s0 done, val PPL 20.513; Pod 1.07 h ≈ 4.28 $
+2026-10-09 12:18:38 push skipped (SMLM_NO_PUSH): Cloud dense: queue finished, checkpoint manifest

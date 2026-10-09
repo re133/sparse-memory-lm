@@ -1,0 +1,44 @@
+{
+ "phase": "end",
+ "peaks": {
+  "D-100M-factk-s0": 11.675775051116943
+ },
+ "runs_end": {
+  "D-100M-factk-s0": "done"
+ },
+ "cap_h": 2.18,
+ "preflight_tok_s": {
+  "D-100M-factk-s0": 207376.56338166277
+ },
+ "admitted": [
+  "D-100M-factk-s0"
+ ],
+ "dropped": [],
+ "projected_hours": 1.54,
+ "projected_cost_usd": 6.15,
+ "runs": {
+  "D-100M-factk-s0": {
+   "model": "D-100M",
+   "status": "done",
+   "val_ppl": 20.51256057835209,
+   "val2_ppl": 58.780535049132446,
+   "params": {
+    "total": 137746176,
+    "embedding": 38633472,
+    "non_embedding": 99112704,
+    "memory_values": 0,
+    "dense_body": 99112704,
+    "active_non_embedding_per_token": 99112704,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": 207064.03556561933,
+   "preflight_tok_s": 207376.56338166277,
+   "preflight_peak_vram_gib": 11.675775051116943
+  }
+ },
+ "pod_hours": 1.08,
+ "price_usd_h": 3.99,
+ "cap_usd": 8.7,
+ "est_cost_usd": 4.31,
+ "updated": "2026-10-09 12:18:38"
+}
