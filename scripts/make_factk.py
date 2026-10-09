@@ -167,11 +167,12 @@ def main():
     src_val = hashlib.sha256(open(os.path.join(DATA_ROOT, DATASETS["wikipedia"], "validation.bin"), "rb").read())
     assert sha["validation"] == src_val.hexdigest()
     n_ins = sum(len(v) for v in snippets.values())
-    meta = {"source": "wikipedia_en_gpt2 + FACTK people (scripts/make_factk.py)", "seed": SEED, "levels": LEVELS,
-            "per_level": PER_LEVEL, "inserted_windows": len(snippets), "inserted_tokens": n_ins,
-            "dropped_source_tokens": int(n - s - tail), "sha256": sha,
-            "splits": {"train": {"n_tokens": int(n)}, "validation": {"n_tokens": int(len(load_split("validation",
-                                                                                                       "wikipedia")))}}}
+    # the source's meta with the validation split unchanged (train.py reads its word count for word-level PPL)
+    meta = json.load(open(os.path.join(DATA_ROOT, DATASETS["wikipedia"], "meta.json")))
+    meta.update({"source": meta["source"] + " + FACTK people (scripts/make_factk.py)",
+                 "factk": {"seed": SEED, "levels": LEVELS, "per_level": PER_LEVEL, "inserted_windows": len(snippets),
+                           "inserted_tokens": n_ins, "dropped_source_tokens": int(n - s - tail), "sha256": sha}})
+    meta["splits"]["train"] = {"n_tokens": int(n), "n_articles": None, "n_words": None}
     json.dump(meta, open(os.path.join(OUT_DATA, "meta.json"), "w"), indent=1)
     os.makedirs(OUT_REPORT, exist_ok=True)
     json.dump({"seed": SEED, "levels": LEVELS, "per_level": PER_LEVEL, "cues": CUES,
