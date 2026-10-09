@@ -7,3 +7,11 @@
 2026-10-09 07:39:26 ntfy: B-1M-k8-s0 fertig, Val-PPL 23.000, 2.2 h
 2026-10-09 07:39:26 QUEUE DONE | B-4M-v96-s0 22.936, B-1M-k8-s0 23.000
 2026-10-09 07:39:27 ntfy: Schritt-9-Nacht fertig: B-4M-v96-s0 22.936, B-1M-k8-s0 23.000. Vergleich: B-1M 21.837 / 21.752.
+2026-10-09 07:50:05 step 9 queue start: ['B-4M-v96-s0', 'B-1M-k8-s0', 'B-1M-k16-s0'], deadline 2026-10-09 11:00
+2026-10-09 07:50:05 skip B-4M-v96-s0 (done)
+2026-10-09 07:50:05 skip B-1M-k8-s0 (done)
+2026-10-09 07:50:05 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/shape/B-1M-k16-s0 --model B-1M-k16-sparse --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --weight_decay 0.1 --value_lr 2.4e-3 --seed 0 --mem_impl triton
+2026-10-09 10:12:05 end B-1M-k16-s0 rc=0  (2.37 h) val_ppl 22.291
+2026-10-09 10:12:05 ntfy: B-1M-k16-s0 fertig, Val-PPL 22.291, 2.4 h
+2026-10-09 10:12:05 QUEUE DONE | B-4M-v96-s0 22.936, B-1M-k8-s0 23.000, B-1M-k16-s0 22.291
+2026-10-09 10:12:06 ntfy: Schritt-9-Nacht fertig: B-4M-v96-s0 22.936, B-1M-k8-s0 23.000, B-1M-k16-s0 22.291. Vergleich: B-1M 21.837 / 21.752.

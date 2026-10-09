@@ -2789,3 +2789,23 @@ Product-Key-Suche behält pro Hälfte auch nur die besten 16 Teil-Schlüssel.
 
 **Was das nicht zeigen kann:** ein Seed; wie sich Lesezugriffe auf der SSD in der Praxis verhalten (hier nicht
 gemessen).
+
+### Ergebnis des Nachtrags (2026-10-09, RX 9070, `report/shape/summary.json`)
+
+- **Urteil nach dem Kriterium: „kleine Kosten“.** B-1M-k16 endet bei 22,29, r = 1,023 (+2,3 %).
+- **Halbieren kostet deutlich weniger als die Hälfte dessen, was Vierteln kostet:** 41 % der Kosten von B-1M-k8. Es
+  behält 87 % des Gewinns von B-1M gegenüber A (dichtes Äquivalent ~52 Mio., Bereich 49–55 Mio.; B-1M ~61 Mio., B-1M-k8
+  ~43 Mio.).
+
+| Treffer pro Kopf | Zeilen / Werte pro Token gelesen | Val-PPL | Gegen B-1M | WikiText-103 | Tokens/s |
+|---:|---:|---:|---:|---:|---:|
+| 32 (B-1M, 2 Seeds) | 384 / 147.456 | 21,79 | – | 65,30 | 59.700¹ |
+| **16 (B-1M-k16)** | **192 / 73.728** | **22,29** | **+2,3 %** | **67,20** | **62.800** |
+| 8 (B-1M-k8) | 96 / 36.864 | 23,00 | +5,5 % | 68,51 | 67.400 |
+
+¹ mit den Kerneln (Schritt 4).
+
+- **Was ich daraus lese:** Die Kosten wachsen schneller, als die Lesezugriffe schrumpfen: Halbieren kostet 2,3 %,
+  nochmal halbieren weitere 3,2 %. Für eine Tabelle auf der SSD wären 16 Treffer pro Kopf ein Mittelweg: die Hälfte der
+  Zeilenzugriffe für 2,3 %. Ein Seed, und die SSD-Seite ist wieder aus der Zahl gelesener Zeilen abgeleitet, nicht
+  gemessen.

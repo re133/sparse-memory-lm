@@ -190,11 +190,13 @@ B-1M reads 147,456 table values per token. Two ways to read a quarter of that wi
 | B-1M | 384 / 147,456 | 21.79 |
 | B-4M-v96: 4M rows of 96 values | 384 / 36,864 | 22.94 |
 | B-1M-k8: 8 instead of 32 lookups per head | 96 / 36,864 | 23.00 |
+| B-1M-k16: 16 lookups per head (half the reads) | 192 / 73,728 | 22.29 |
 
 - **A quarter of the reads costs about 5%, either way:** the two curves lie on top of each other. Both keep about 70%
   of what the table brings over A.
 - **For a table on the SSD, fewer rows should be the better trade:** the same quality with a quarter of the accesses
   (by the number of rows read; not measured on the SSD). On the GPU the speed hardly changes.
+- **Half the reads cost only 2.3%:** with 16 lookups per head the model keeps 87% of what the table brings over A.
 
 ### Running the 16.8M table on my PC
 

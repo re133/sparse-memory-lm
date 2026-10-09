@@ -2659,3 +2659,21 @@ half.
   dense equivalent, the course.
 
 **What this can't show:** one seed; how SSD reads behave in practice (not measured here).
+
+### Result of the addendum (2026-10-09, RX 9070, `report/shape/summary.json`)
+
+- **Verdict by the criterion: "small cost".** B-1M-k16 ends at 22.29, r = 1.023 (+2.3%).
+- **Halving the reads costs well under half of what quartering them costs:** 41% of the cost of B-1M-k8. It keeps 87% of
+  B-1M's gain over A (dense equivalent ~52M, range 49–55M; B-1M ~61M, B-1M-k8 ~43M).
+
+| Lookups per head | Rows / values read per token | Val PPL | Against B-1M | WikiText-103 | Tokens/s |
+|---:|---:|---:|---:|---:|---:|
+| 32 (B-1M, 2 seeds) | 384 / 147,456 | 21.79 | – | 65.30 | 59,700¹ |
+| **16 (B-1M-k16)** | **192 / 73,728** | **22.29** | **+2.3%** | **67.20** | **62,800** |
+| 8 (B-1M-k8) | 96 / 36,864 | 23.00 | +5.5% | 68.51 | 67,400 |
+
+¹ with the kernels (step 4).
+
+- **What I read from it:** the cost grows faster than the reads shrink: halving costs 2.3%, halving again costs another
+  3.2%. For a table on the SSD, 16 lookups per head would be a middle way: half the row reads for 2.3%. One seed, and
+  the SSD side is again inferred from the rows read, not measured.

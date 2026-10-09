@@ -7,6 +7,7 @@ per token, as narrower rows (B-4M-v96) or fewer rows (B-1M-k8), against B-1M-spa
     1.01 < r <= 1.03, "clearly worse" r > 1.03
   * the two against each other: "narrower rows beat fewer rows" PPL(v96) <= 0.99 PPL(k8), "fewer rows beat narrower
     rows" the other way round, otherwise "no clear difference"
+  * addendum (B-1M-k16): the same scale; its share of the k8 cost (k16 - B) / (k8 - B) without a verdict
   * reported without a verdict: tokens/s, peak GPU memory, WikiText-103, equivalent dense size
     (scripts/dense_equiv.py), rows and values read per token, the course over training
 """
@@ -23,7 +24,8 @@ from dense_equiv import DENSE, fit, load  # noqa: E402
 from engram_eval import n_eq  # noqa: E402
 from smlm.atomic import write_json  # noqa: E402
 
-VARIANTS = {"B-4M-v96-s0": "runs/shape/B-4M-v96-s0", "B-1M-k8-s0": "runs/shape/B-1M-k8-s0"}
+VARIANTS = {"B-4M-v96-s0": "runs/shape/B-4M-v96-s0", "B-1M-k8-s0": "runs/shape/B-1M-k8-s0",
+            "B-1M-k16-s0": "runs/shape/B-1M-k16-s0"}                 # addendum to step 9
 B = {"B-1M-sparse-s0": "runs/hampter/B-1M-sparse-s0", "B-1M-sparse-s1": "runs/hampter/B-1M-sparse-s1"}
 OUT = os.path.join(ROOT, "report", "shape")
 
@@ -62,7 +64,9 @@ def main():
         r = res[name]["val_ppl"] / b
         out["per_variant"][name] = {"ratio_over_B": r, "verdict": verdict(r), "n_eq": n_eq(res[name]["val_ppl"], pts, f)}
     out["B_1M_mean_n_eq"] = n_eq(b, pts, f)
-    if all(k in res for k in VARIANTS):
+    if "B-1M-k16-s0" in res and "B-1M-k8-s0" in res:          # addendum: share of the k8 cost, no verdict
+        out["k16_share_of_k8_cost"] = (res["B-1M-k16-s0"]["val_ppl"] - b) / (res["B-1M-k8-s0"]["val_ppl"] - b)
+    if "B-4M-v96-s0" in res and "B-1M-k8-s0" in res:
         v, k = res["B-4M-v96-s0"]["val_ppl"], res["B-1M-k8-s0"]["val_ppl"]
         out["head_to_head"] = {"ratio_v96_over_k8": v / k, "verdict": (
             "narrower rows beat fewer rows" if v <= 0.99 * k else
@@ -90,6 +94,7 @@ def main():
     for n, x in out["per_variant"].items():
         print(n, f"r = {x['ratio_over_B']:.4f} -> {x['verdict']}", "n_eq", x["n_eq"])
     print("head to head:", out.get("head_to_head"))
+    print("k16 share of the k8 cost:", out.get("k16_share_of_k8_cost"))
     print("\n| Tokens | " + " | ".join(res) + " |\n|---|" + "---:|" * len(res))
     for t, row in out["course"].items():
         print(f"| {t} | " + " | ".join(f"{v:.2f}" for v in row.values()) + " |")
