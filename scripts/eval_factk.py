@@ -94,12 +94,14 @@ def summary():
     ids = {k: [p["id"] for p in P["people"] if p["k"] == k] for k in levels}
     rng = np.random.default_rng(0)
     draws = {k: rng.integers(0, len(ids[k]), (BOOT, len(ids[k]))) for k in levels}
-    score, hit, boot = {}, {}, {}
+    score, hit, boot, hboot = {}, {}, {}, {}
     for n, d in data.items():
         score[n] = {k: np.array([np.mean([d["people"][str(i)][a]["p"] for a in ATTRS]) for i in ids[k]])
                     for k in levels}
         hit[n] = {k: float(np.mean([d["people"][str(i)][a]["hit"] for i in ids[k] for a in ATTRS])) for k in levels}
         boot[n] = {k: score[n][k][draws[k]].mean(1) for k in levels}
+        hits = {k: np.array([np.mean([d["people"][str(i)][a]["hit"] for a in ATTRS]) for i in ids[k]]) for k in levels}
+        hboot[n] = {k: hits[k][draws[k]].mean(1) for k in levels}
     out = {"bootstrap": BOOT, "levels": levels, "models": {}}
     pooled = {}
     for n in data:
@@ -129,6 +131,11 @@ def summary():
             if ref in data:
                 d = pooled["B-1M"] - pooled[ref]
                 out[f"B-1M_minus_{ref}"] = {"pooled_lift": round(float(d.mean()), 5), "ci95": ci(d)}
+                # per level, paired (reported without a verdict): lift difference and accuracy difference
+                out[f"B-1M_minus_{ref}_per_k"] = {
+                    k: {"lift": ci((boot["B-1M"][k] - boot["B-1M"][0]) - (boot[ref][k] - boot[ref][0])),
+                        "accuracy_pp": [round(100 * x, 2) for x in ci(hboot["B-1M"][k] - hboot[ref][k])]}
+                    for k in levels if k}
         diffs = [out.get(f"B-1M_minus_{r}") for r in ("D-50M", "D-100M")]
         if all(diffs) and out.get("gate_testable"):
             lo = [x["ci95"][0] for x in diffs]

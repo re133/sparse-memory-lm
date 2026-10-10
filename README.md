@@ -28,6 +28,9 @@ here. The full lab notebook with every criterion, every number and every mishap 
 - **Product keys beat an n-gram table of the same size:** an Engram-style model, which picks its rows by the last
   few tokens, got about two thirds of what the product-key table brings, with the same table size and training. It
   reads 192 times fewer values per token, though, which matters once the table lives outside the GPU.
+- **The table helps to remember repeated facts:** in a controlled test with made-up people seen 1 to 64 times in
+  training, the model with the table learned their facts clearly better than a dense model with twice its compute per
+  token, and about as well as one with three times its compute (one seed each).
 - **Training the 16.8M table on a gaming card:** with the table and its optimizer state in 128 GB of RAM, my 16 GB
   RX 9070 trained B-16M for 100M tokens and ended 0.2% from the H200 run, which had needed 101 GB of GPU memory. It
   took 7.7 times as long.
@@ -198,6 +201,28 @@ B-1M reads 147,456 table values per token. Two ways to read a quarter of that wi
   (by the number of rows read; not measured on the SSD). On the GPU the speed hardly changes.
 - **Half the reads cost only 2.3%:** with 16 lookups per head the model keeps 87% of what the table brings over A.
 
+### Remembering repeated facts
+
+I put 2,400 made-up people into the training data ("Name was born in 1912. Name grew up in Lisbon. Name worked as a
+tailor."), each one 0, 1, 2, 4, … 64 times, and asked the trained models for their year, city and profession. Share of
+values right (step 10 in the [report](REPORT.md), criteria written before the runs):
+
+| Seen | B-1M (table) | D-50M (dense, 2× the compute per token) | D-100M (dense, 3×) |
+|---:|---:|---:|---:|
+| 4 times | 11% | 4% | 12% |
+| 8 times | 34% | 10% | 35% |
+| 16 times | 80% | 41% | 77% |
+| 32 times | 99% | 87% | 99% |
+
+- **Verdict by my criteria: the table learns repeated facts better.** Against D-50M by a wide margin, against the
+  bigger D-100M only in how sure it is (it gives the right value more probability from 8 repetitions on), not in how
+  many it gets right.
+- **Why it's interesting:** B-1M is clearly worse than D-100M at general text and computes a third as much per token,
+  but it memorizes as well. The table is cheap storage that only gets read where it's needed. It is not more
+  knowledge per parameter: the table alone has 403M parameters.
+- **Caveats:** one seed per model, so the small margin to D-100M is not settled; the facts come in one fixed format,
+  and the questions use the same wording.
+
 ### Running the 16.8M table on my PC
 
 B-16M with the table in VRAM, in RAM, or as a 4-bit file on an NVMe SSD (Samsung 990 PRO, memory-mapped, with a
@@ -274,8 +299,8 @@ host`, a small C loop over the rows). Same arguments as the H200 run, stopped af
   seen facts right measurably more often (differences between −1.2 and +0.1 points, all within noise; step 6 in
   the [report](REPORT.md)). A finer version that scores the probability of the whole answer, with the article's own
   text before the fact as the prompt, doesn't find a clear difference between table and dense models either, and
-  neither does the exact training window the fact was learned in. Facts seen once leave at most a small trace;
-  testing facts that come up several times is the next step.
+  neither does the exact training window the fact was learned in. Real facts seen once leave at most a small trace.
+  With facts that come up several times the table does help (see "Remembering repeated facts" above).
 - **Side effects:** it also cost some MMLU, the dense add-on didn't.
 
 ## How it works

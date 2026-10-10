@@ -2862,3 +2862,52 @@ ein dichtes Modell?
 
 **Was das nicht zeigen kann:** ein Seed pro Modell; erfundene Fakten in einem festen Format sind leichter als echte
 Fakten in wechselndem Text, und der Prompt ist das Trainingsformat (keine umformulierten Fragen); nur diese Größe.
+
+### Ergebnis Schritt 10 (2026-10-10, `scripts/eval_factk.py` → `report/factk/summary.json`)
+
+- **Schranke: „testbar“.** Jedes Modell lernt diese Fakten: Bei k = 64 haben B-1M und D-100M jeden Wert richtig (der
+  wahrscheinlichste aller Werte der Eigenschaft), D-50M 99,7 %.
+- **Urteil nach den Kriterien: „Die Tabelle lernt wiederholte Fakten besser“.** Gepoolter Lift von B-1M minus D-50M
+  +0,127 [+0,121; +0,133], minus D-100M +0,023 [+0,018; +0,028]. Beide Intervalle liegen über 0.
+- Wahrscheinlichkeit des wahren Werts (normiert über alle Werte der Eigenschaft), in Klammern der Anteil der Werte, die
+  das Modell richtig hat:
+
+| k-mal gesehen | B-1M | D-50M | D-100M |
+|---:|---:|---:|---:|
+| 0 (nie) | 0,014 (2,0 %) | 0,014 (1,9 %) | 0,013 (1,2 %) |
+| 1 | 0,021 (2,6 %) | 0,015 (1,6 %) | 0,023 (3,1 %) |
+| 2 | 0,031 (5,2 %) | 0,019 (2,0 %) | 0,027 (3,8 %) |
+| 4 | 0,055 (10,6 %) | 0,031 (4,4 %) | 0,057 (12,4 %) |
+| 8 | 0,159 (34,2 %) | 0,052 (10,4 %) | 0,142 (34,6 %) |
+| 16 | **0,427 (80,1 %)** | 0,160 (40,8 %) | 0,375 (77,4 %) |
+| 32 | **0,746 (99,2 %)** | 0,435 (87,3 %) | 0,682 (98,9 %) |
+| 64 | **0,899 (100 %)** | 0,743 (99,7 %) | 0,861 (100 %) |
+
+- **Gegen D-50M liegt die Tabelle klar vorne:** Das gepaarte Intervall des Lifts liegt auf jeder Stufe über 0, das
+  des Anteils richtiger Werte von k = 2 bis 32. Bei k = 8 hat sie 34 % richtig gegen 10 %, bei k = 16 80 % gegen 41 %. D-50M braucht für denselben
+  Anteil etwa doppelt so viele Wiederholungen.
+- **Gegen D-100M ist der Vorsprung klein, und er zeigt sich in der Wahrscheinlichkeit, nicht im Anteil richtiger
+  Werte.** Ab k = 8 gibt B-1M dem wahren Wert mehr Wahrscheinlichkeit (bei k = 16 um 0,03 bis 0,07, bei k = 32 um 0,05
+  bis 0,08), hat aber nicht mehr davon richtig: Der gepaarte Unterschied im Anteil richtiger Werte schließt auf jeder
+  Stufe 0 ein. Bei k = 1 bis 4 liegt D-100M leicht vorne, ebenfalls im Rauschen. Ein großer Teil des gepoolten
+  Vorsprungs kommt von k = 32 und 64, wo beide Modelle schon fast alles richtig haben: Das Tabellenmodell ist dort
+  sicherer, nicht öfter richtig. Dass jede Stufe gleich gewichtet wird, war vorher festgelegt; es gibt diesen Stufen ihr
+  Gewicht.
+- **Wie ich es lese:** Pro Token rechnet B-1M ein Drittel dessen, was D-100M rechnet (47 Mio. gegen 149 Mio.
+  Multiplikationen und Additionen pro Token), und bei allgemeinem Text ist es klar schlechter (Val-PPL 21,92 gegen 20,51;
+  etwa 61 Mio. dichte Parameter wert). Beim Einprägen wiederholter Fakten hält es trotzdem mit D-100M mit und liegt
+  klar vor D-50M, das pro Token fast doppelt so viel rechnet. Bei den Parametern ist es umgekehrt: 403 Mio. der 445 Mio.
+  Parameter von B-1M stecken in der Tabelle, D-100M hat insgesamt 138 Mio. Es ist also nicht „mehr Wissen pro
+  Parameter“, sondern „mehr Gedächtnis pro Rechenaufwand“: Die Tabelle ist billiger Speicher, der nur dort gelesen
+  wird, wo er gebraucht wird.
+- **Einmal gesehene Fakten:** B-1M und D-100M zeigen schon bei k = 1 einen kleinen Lift (+0,007 und +0,011), fast ganz
+  von Personen, die in der zweiten Hälfte des Trainings vorkamen (spät +0,011 / +0,018, früh +0,001 / +0,002). Das
+  widerspricht Schritt 6 nicht: Dort ging es um echte Fakten in natürlichem Text, hier um ein kurzes festes Format, direkt
+  an seinem Stichwort gemessen.
+- **Prüfungen:** Val-PPL gegen die Originalläufe ohne die Fakten: B-1M +0,37 %, D-50M +0,20 %, D-100M +1,2 % (knapp
+  über dem „etwa 1 %“, das ich genannt hatte; D-100M lief auf einer Runpod-H100, die anderen beiden auf der RX 9070, mit
+  identischem Trainingscode).
+- **Was das nicht zeigen kann, das Wichtigste zuerst:** ein Seed pro Modell, und die Intervalle laufen über Personen,
+  nicht über Trainingsläufe. Wie stark das Einprägen von Seed zu Seed schwankt, steckt nicht darin, und der Abstand zu
+  D-100M ist klein. Zweite Seeds von B-1M und D-100M sind der nächste Schritt. Außerdem: Das ist Einprägen im
+  Trainingsformat, kein Beantworten umformulierter Fragen, und nur in dieser Größe.

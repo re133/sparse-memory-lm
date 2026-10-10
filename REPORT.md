@@ -2727,3 +2727,48 @@ of the seven levels (k = 8) lay just below 0, as expected by chance at 95%.
 
 **What this can't show:** one seed per model; made-up facts in one fixed format are easier than real facts in varied
 text, and the prompt is the training format (no rephrased questions); only this size.
+
+### Result of step 10 (2026-10-10, `scripts/eval_factk.py` → `report/factk/summary.json`)
+
+- **Gate: "testable".** Every model learns these facts: at k = 64, B-1M and D-100M get every value right (the most
+  likely of all values of the attribute), D-50M 99.7%.
+- **Verdict by the criteria: "the table learns repeated facts better".** Pooled lift of B-1M minus D-50M +0.127
+  [+0.121; +0.133], minus D-100M +0.023 [+0.018; +0.028]. Both intervals lie above 0.
+- Probability of the true value (normalised over all values of the attribute), and in brackets the share of values the
+  model gets right:
+
+| Seen k times | B-1M | D-50M | D-100M |
+|---:|---:|---:|---:|
+| 0 (never) | 0.014 (2.0%) | 0.014 (1.9%) | 0.013 (1.2%) |
+| 1 | 0.021 (2.6%) | 0.015 (1.6%) | 0.023 (3.1%) |
+| 2 | 0.031 (5.2%) | 0.019 (2.0%) | 0.027 (3.8%) |
+| 4 | 0.055 (10.6%) | 0.031 (4.4%) | 0.057 (12.4%) |
+| 8 | 0.159 (34.2%) | 0.052 (10.4%) | 0.142 (34.6%) |
+| 16 | **0.427 (80.1%)** | 0.160 (40.8%) | 0.375 (77.4%) |
+| 32 | **0.746 (99.2%)** | 0.435 (87.3%) | 0.682 (98.9%) |
+| 64 | **0.899 (100%)** | 0.743 (99.7%) | 0.861 (100%) |
+
+- **Against D-50M the table is clearly ahead:** the paired interval of the lift lies above 0 at every level, that of
+  the share right from k = 2 to 32. At k = 8 it gets 34% right against 10%, at k = 16 80% against 41%. D-50M needs about twice the repetitions
+  for the same share.
+- **Against D-100M the lead is small, and it shows in probability, not in the share right.** From k = 8 on B-1M gives
+  the true value more probability (at k = 16 by 0.03 to 0.07, at k = 32 by 0.05 to 0.08), but it doesn't get more of
+  them right: the paired difference in the share right includes 0 at every level. At k = 1 to 4 D-100M is slightly
+  ahead, also inside the noise. Much of the pooled lead comes from k = 32 and 64, where both models already get nearly
+  everything right: the table model is more certain there, not right more often. Pooling every level with equal weight
+  was fixed beforehand; it gives these levels their weight.
+- **How I read it:** per token B-1M computes a third of what D-100M computes (47 M against 149 M multiply-adds per
+  token), and on general text it is clearly worse (Val PPL 21.92 against 20.51; worth ~61 M dense parameters). At
+  memorizing repeated facts it still keeps up with D-100M and is clearly ahead of D-50M, which computes almost twice as
+  much per token. In parameters it's the other way round: 403 M of B-1M's 445 M parameters sit in the table, D-100M has
+  138 M in all. So this isn't "more knowledge per parameter", it's "more memory per unit of compute": the table is cheap
+  storage that is only read where it's needed.
+- **Facts seen once:** B-1M and D-100M already show a small lift at k = 1 (+0.007 and +0.011), almost all of it from
+  people seen in the second half of training (late +0.011 / +0.018, early +0.001 / +0.002). That doesn't contradict
+  step 6: there it was real facts in natural text, here a short fixed format measured right at its cue.
+- **Checks:** Val PPL against the original runs without the facts: B-1M +0.37%, D-50M +0.20%, D-100M +1.2% (just over
+  the "about 1%" I named; D-100M ran on a Runpod H100, the other two on the RX 9070, with identical training code).
+- **What this can't show, most important first:** one seed per model, and the intervals cover people, not training
+  runs. How much memorization varies from one seed to the next isn't in them, and the margin against D-100M is small.
+  Second seeds of B-1M and D-100M are the next step. Also: this is memorization in the training format, not answering
+  rephrased questions, and only at this size.
