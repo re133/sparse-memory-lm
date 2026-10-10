@@ -2804,3 +2804,73 @@ the data order stays):
 
 **What this can't show:** two seeds are a first look at the spread, not a distribution; B-16M runs with one seed, so a
 small difference to B-1M stays within what a seed can move.
+
+## Step 11: can a model chain two facts it learned separately? (HOP2, criteria fixed before the runs, 2026-10-11)
+
+**Question:** step 10 showed that the table model learns repeated made-up facts better than a dense model of the same
+compute. Can a model also combine two such facts without writing out a step in between? It learns "A's mother was B"
+in one article and "B was born in 1912" in another, and is asked "A's mother was born in". B-1M reads one shared table
+in three layers (2, 6 and 10), so in principle it could look up B in one layer and B's birth year in a later one.
+
+**What is known:** language models largely fail at exactly this when both facts are synthetic and were learned in
+separate documents; with both facts in the same document it works (Balesni, Korbak, Evans: "The Two-Hop Curse",
+https://arxiv.org/abs/2411.16353). Product-key memories (Lample et al. 2019, Berges et al. 2024) help most with
+factual knowledge. In two searches on 2026-10-11 I found no test of chaining separately learned facts with a
+product-key table trained from scratch; that search wasn't exhaustive.
+
+**Data** (`scripts/make_hop2.py` → `data/wikipedia_hop2_gpt2`, who and where: `report/hop2/pairs.json`):
+- 800 pairs of made-up people: a subject A and a bridge person B ("A's mother was B"). B has the three FACTK attributes
+  (birth year, city, profession; the same value lists, every value one GPT-2 token), drawn independently of A. All
+  names are new (not in the training text in either tokenization, not FACTK names), A and B have different last names.
+- Four conditions, 200 pairs each, every article 64 times (in step 10 every model knew facts seen 64 times):
+  - **H2** (the question): A's article "A\n\nA's mother was B." and B's article "B\n\nB was born in 1912. B grew up in
+    Lisbon. B worked as a tailor." in separate windows. They never meet in one context.
+  - **SAME** (control): one article with both, "A\n\nA's mother was B. B was born in 1912. …"
+  - **DIRECT** (control): the composed sentences themselves, "A\n\nA's mother was born in 1912. A's mother grew up in
+    …". Shows that the question format can be learned at all (plain memorization).
+  - **NULL** (baseline): never in training. What a model answers about a mother it knows nothing about.
+- As in step 10: each article at the start of one training window that training reads, one article per window,
+  attribute sentences in random order, at random steps over the whole run. 51,200 windows (10.5% of the windows read),
+  2.40 M tokens (0.48%) inserted. Length and window grid of the original data stay, the validation split is
+  byte-identical.
+- Checked before the criteria: every article sits at offset 0 of a row of its step's training batch, A's name never
+  appears in a window with B's article, and two builds give the same bytes.
+
+**Models** (one seed each, the arguments of step 10, only the data differs):
+- B-1M (21.84 without the pairs) and D-50M (22.45) on the RX 9070 (`scripts/run_hop2.py`).
+- D-100M (20.27) and B-16M (19.96) on a rented GPU, when I start one (IONOS H200, as in the addendum to step 10).
+
+**Measure** (`scripts/eval_hop2.py`, one forward pass per prompt in the training format, bf16 on the GPU, product-key
+models with the full fp32 table):
+- Two-hop question for every pair, `<|endoftext|>A\n\nA's mother was born in` (or `grew up in`, `worked as a`): the
+  probability of B's true value, normalised over all values of the attribute. Score of a pair: mean over the three.
+  Lift of a condition: its mean score minus that of NULL, 95% bootstrap over pairs, paired across models.
+- Single steps: B's attributes asked directly (`B\n\nB was born in`, as in step 10), and the relation: does greedy
+  decoding after `A\n\nA's mother was` write exactly B's name?
+
+**Before the criteria:** a null test with the original B-1M, which never saw these pairs: two-hop scores 0.011 to
+0.014 in every condition (chance 0.013), lifts −0.003 to +0.000 with intervals of about ±0.005, all including 0; B's
+attributes right 0.8% of the time, the relation never.
+
+**Criteria** (per model):
+- **Gate 1, the single facts sit:** in H2, B's attributes right in at least 90% and B's name written correctly after
+  "A's mother was" in at least 90% of the pairs. Otherwise **"not testable: the single facts don't sit"**.
+- **Gate 2, the format can be learned:** the DIRECT lift has an interval above 0. Otherwise **"not testable: the
+  question format doesn't work"**.
+- **Per model:** **"chains"** if the H2 lift has an interval above 0, otherwise **"does not chain"**.
+- **Main comparison** (once B-1M, D-50M and D-100M are all done and testable): H2 lift of B-1M minus D-50M, and minus
+  D-100M, paired:
+  - **"The table chains better":** both intervals above 0.
+  - **"Dense chains better":** both below 0.
+  - **"No clear difference":** otherwise.
+- **Bigger table** (once B-16M is done): H2 lift of B-16M minus B-1M: **"the bigger table chains better"** (interval
+  above 0), **"worse"** (below 0), **"no clear difference"** otherwise.
+- **Reported without a verdict:** the SAME lift (chaining within one document) and SAME minus H2, the share right per
+  condition, the false bridge (the probability the two-hop question gives to the values of another pair's B), the
+  single steps, B-16M against D-100M, and each model's Val PPL against its run without the pairs (about 1% at most).
+- **Afterwards, without training** (criteria before measuring): which table rows the models read at "A's mother was"
+  and at the end of the two-hop question, compared with the rows read for B itself.
+
+**What this can't show:** one seed per model (the addendum to step 10 measures how far a second seed moves such a
+result); one relation ("mother") in one fixed format; only this size. If every model fails, that matches the
+literature and doesn't prove that a table can't chain facts in principle.

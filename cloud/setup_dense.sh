@@ -118,13 +118,16 @@ if ! is_done data; then
   # -rt instead of -a: /workspace is a network file system that refuses chown (rsync exit 23 although every byte
   # arrived); whether the data is right is decided by sha256 alone
   rsync -rt --partial storagebox:smlm/data/wikipedia_en_gpt2 storagebox:smlm/data/wikitext103_gpt2 data/ || true
-  if [ "${SMLM_DENSE_DATA:-wikipedia}" = "wikipedia_factk" ]; then
-    # step 10: built at home by scripts/make_factk.py; no Hugging Face fallback, a wrong file stops the Pod
-    rsync -rt --partial storagebox:smlm/data/wikipedia_factk_gpt2 data/ || true
-    (cd data && grep " wikipedia_factk_gpt2/" ../cloud/data_sha256.txt | sha256sum -c --quiet) \
-      || fail "FACTK data missing or wrong on the storage box (sha256)"
-    say "FACTK data from the storage box, sha256 ok"
-  fi
+  case "${SMLM_DENSE_DATA:-wikipedia}" in
+    wikipedia_factk|wikipedia_hop2)
+      # steps 10 and 11: built at home by scripts/make_factk.py / make_hop2.py; no Hugging Face fallback, a wrong
+      # file stops the Pod
+      D="${SMLM_DENSE_DATA}_gpt2"
+      rsync -rt --partial "storagebox:smlm/data/$D" data/ || true
+      (cd data && grep " $D/" ../cloud/data_sha256.txt | sha256sum -c --quiet) \
+        || fail "$D missing or wrong on the storage box (sha256)"
+      say "$D from the storage box, sha256 ok" ;;
+  esac
   if (cd data && grep -E " (wikipedia_en_gpt2|wikitext103_gpt2)/" ../cloud/data_sha256.txt | sha256sum -c --quiet); then
     say "data from the storage box, sha256 ok"
   else

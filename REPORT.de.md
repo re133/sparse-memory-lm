@@ -2943,3 +2943,77 @@ Initialisierung, die Datenreihenfolge bleibt):
 
 **Was das nicht zeigen kann:** Zwei Seeds sind ein erster Blick auf die Streuung, keine Verteilung; B-16M läuft mit
 einem Seed, ein kleiner Unterschied zu B-1M bleibt also innerhalb dessen, was ein Seed verschieben kann.
+
+## Schritt 11: Kann ein Modell zwei getrennt gelernte Fakten verketten? (HOP2, Kriterien vor den Läufen festgelegt, 2026-10-11)
+
+**Frage:** Schritt 10 hat gezeigt, dass das Modell mit Tabelle wiederholte erfundene Fakten besser lernt als ein
+dichtes Modell mit gleichem Rechenaufwand. Kann ein Modell zwei solche Fakten auch kombinieren, ohne einen
+Zwischenschritt hinzuschreiben? Es lernt „A's mother was B“ in einem Artikel und „B was born in 1912“ in einem anderen
+und wird gefragt „A's mother was born in“. B-1M liest eine gemeinsame Tabelle in drei Schichten (2, 6 und 10), könnte
+also im Prinzip in einer Schicht B nachschlagen und in einer späteren B's Geburtsjahr.
+
+**Was bekannt ist:** Sprachmodelle scheitern genau daran weitgehend, wenn beide Fakten synthetisch sind und in
+getrennten Dokumenten gelernt wurden; stehen beide im selben Dokument, klappt es (Balesni, Korbak, Evans: „The Two-Hop
+Curse“, https://arxiv.org/abs/2411.16353). Product-Key-Speicher (Lample et al. 2019, Berges et al. 2024) helfen vor
+allem bei Faktenwissen. In zwei Suchen am 2026-10-11 habe ich keinen Test gefunden, ob eine von Grund auf trainierte
+Product-Key-Tabelle getrennt gelernte Fakten verkettet; die Suche war nicht vollständig.
+
+**Daten** (`scripts/make_hop2.py` → `data/wikipedia_hop2_gpt2`, wer und wo: `report/hop2/pairs.json`):
+- 800 Paare erfundener Personen: ein Subjekt A und eine Brückenperson B („A's mother was B“). B hat die drei
+  FACTK-Attribute (Geburtsjahr, Stadt, Beruf; dieselben Wertelisten, jeder Wert ein GPT-2-Token), unabhängig von A
+  gezogen. Alle Namen sind neu (in keiner der beiden Tokenisierungen im Trainingstext, keine FACTK-Namen), A und B haben
+  verschiedene Nachnamen.
+- Vier Bedingungen, je 200 Paare, jeder Artikel 64-mal (in Schritt 10 kannte jedes Modell 64-mal gesehene Fakten):
+  - **H2** (die Frage): A's Artikel „A\n\nA's mother was B.“ und B's Artikel „B\n\nB was born in 1912. B grew up in
+    Lisbon. B worked as a tailor.“ in getrennten Fenstern. Sie treffen nie in einem Kontext zusammen.
+  - **SAME** (Kontrolle): ein Artikel mit beidem, „A\n\nA's mother was B. B was born in 1912. …“
+  - **DIRECT** (Kontrolle): die zusammengesetzten Sätze selbst, „A\n\nA's mother was born in 1912. A's mother grew up
+    in …“. Zeigt, dass das Frageformat überhaupt lernbar ist (reines Auswendiglernen).
+  - **NULL** (Basis): nie im Training. Was ein Modell über eine Mutter antwortet, von der es nichts weiß.
+- Wie in Schritt 10: jeder Artikel am Anfang eines Trainingsfensters, das das Training liest, ein Artikel pro Fenster,
+  Attributsätze in zufälliger Reihenfolge, zu zufälligen Schritten über den ganzen Lauf. 51.200 Fenster (10,5 % der
+  gelesenen Fenster), 2,40 Mio. Tokens (0,48 %) eingefügt. Länge und Fensterraster der Originaldaten bleiben, der
+  Validierungsteil ist bytegleich.
+- Vor den Kriterien geprüft: Jeder Artikel liegt an Offset 0 einer Zeile im Trainingsbatch seines Schritts, A's Name
+  steht nie in einem Fenster mit B's Artikel, und zwei Builds ergeben dieselben Bytes.
+
+**Modelle** (je ein Seed, die Argumente aus Schritt 10, nur die Daten sind anders):
+- B-1M (21,84 ohne die Paare) und D-50M (22,45) auf der RX 9070 (`scripts/run_hop2.py`).
+- D-100M (20,27) und B-16M (19,96) auf einer gemieteten GPU, wenn ich eine starte (IONOS H200, wie im Nachtrag zu
+  Schritt 10).
+
+**Maß** (`scripts/eval_hop2.py`, ein Vorwärtslauf pro Prompt im Trainingsformat, bf16 auf der GPU, Product-Key-Modelle
+mit der vollen fp32-Tabelle):
+- Zwei-Schritt-Frage für jedes Paar, `<|endoftext|>A\n\nA's mother was born in` (bzw. `grew up in`, `worked as a`): die
+  Wahrscheinlichkeit von B's wahrem Wert, normiert über alle Werte des Attributs. Wert eines Paars: Mittel über die
+  drei. Lift einer Bedingung: ihr mittlerer Wert minus der von NULL, 95-%-Bootstrap über Paare, gepaart über Modelle.
+- Einzelschritte: B's Attribute direkt gefragt (`B\n\nB was born in`, wie in Schritt 10), und die Beziehung: Schreibt
+  gieriges Dekodieren nach `A\n\nA's mother was` genau B's Namen?
+
+**Vor den Kriterien:** ein Nulltest mit dem ursprünglichen B-1M, das diese Paare nie gesehen hat: Zwei-Schritt-Werte
+0,011 bis 0,014 in jeder Bedingung (Zufall 0,013), Lifts −0,003 bis +0,000 mit Intervallen von etwa ±0,005, alle
+schließen 0 ein; B's Attribute in 0,8 % der Fälle richtig, die Beziehung nie.
+
+**Kriterien** (je Modell):
+- **Tor 1, die Einzelfakten sitzen:** in H2 B's Attribute in mindestens 90 % richtig und B's Name nach „A's mother
+  was“ in mindestens 90 % der Paare richtig geschrieben. Sonst **„nicht testbar: die Einzelfakten sitzen nicht“**.
+- **Tor 2, das Format ist lernbar:** der DIRECT-Lift hat ein Intervall über 0. Sonst **„nicht testbar: das Frageformat
+  funktioniert nicht“**.
+- **Je Modell:** **„verkettet“**, wenn der H2-Lift ein Intervall über 0 hat, sonst **„verkettet nicht“**.
+- **Hauptvergleich** (wenn B-1M, D-50M und D-100M alle fertig und testbar sind): H2-Lift von B-1M minus D-50M und minus
+  D-100M, gepaart:
+  - **„Die Tabelle verkettet besser“:** beide Intervalle über 0.
+  - **„Dicht verkettet besser“:** beide unter 0.
+  - **„Kein klarer Unterschied“:** sonst.
+- **Größere Tabelle** (wenn B-16M fertig ist): H2-Lift von B-16M minus B-1M: **„die größere Tabelle verkettet
+  besser“** (Intervall über 0), **„schlechter“** (unter 0), sonst **„kein klarer Unterschied“**.
+- **Ohne Urteil berichtet:** der SAME-Lift (Verketten innerhalb eines Dokuments) und SAME minus H2, der Anteil richtiger
+  Antworten je Bedingung, die falsche Brücke (die Wahrscheinlichkeit, die die Zwei-Schritt-Frage den Werten des B eines
+  anderen Paars gibt), die Einzelschritte, B-16M gegen D-100M und die Val-PPL jedes Modells gegen seinen Lauf ohne die
+  Paare (höchstens etwa 1 %).
+- **Danach, ohne Training** (Kriterien vor der Messung): welche Tabellenzeilen die Modelle bei „A's mother was“ und am
+  Ende der Zwei-Schritt-Frage lesen, verglichen mit den Zeilen, die sie für B selbst lesen.
+
+**Was das nicht zeigen kann:** ein Seed pro Modell (der Nachtrag zu Schritt 10 misst, wie weit ein zweiter Seed so ein
+Ergebnis verschiebt); eine Beziehung („mother“) in einem festen Format; nur diese Größe. Scheitern alle
+Modelle, passt das zur Literatur und beweist nicht, dass eine Tabelle Fakten grundsätzlich nicht verketten kann.
