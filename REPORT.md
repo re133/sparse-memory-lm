@@ -2772,3 +2772,35 @@ text, and the prompt is the training format (no rephrased questions); only this 
   runs. How much memorization varies from one seed to the next isn't in them, and the margin against D-100M is small.
   Second seeds of B-1M and D-100M are the next step. Also: this is memorization in the training format, not answering
   rephrased questions, and only at this size.
+
+## Addendum to step 10: a second seed, and the big table (criteria fixed before the runs, 2026-10-10)
+
+**Why:** step 10's verdict rests on one seed per model, its intervals cover people, not training runs, and the margin
+to D-100M is small. And: does a table with 16 times the rows (B-16M, about the same compute per token as B-1M)
+remember repeated facts better still?
+
+**Runs** (the same FACTK data and arguments as in step 10; for the second seed only the initialisation seed changes,
+the data order stays):
+- B-1M-s1 and D-50M-s1 on the RX 9070 (`scripts/run_factk.py --seed 1`).
+- D-100M-s1 and B-16M-s0 on a rented H200 NVL (IONOS; `cloud/setup_dense.sh` with the runs set in the kit's
+  `run.env`). B-16M with the arguments of its H200 run in step 1.
+- Measure and statistics exactly as in step 10. B-16M's fp32 table (25.8 GB) doesn't fit the RX 9070, so it is
+  evaluated with the table in RAM (step 8), the same math; checked beforehand on the original B-16M, which never saw
+  these people: no lift at any level.
+
+**Criteria:**
+- **Second seed:** step 10's main criterion on the seed-1 models alone (pooled lift of B-1M-s1 minus D-50M-s1 and
+  minus D-100M-s1):
+  - **"Replicated":** both intervals above 0.
+  - **"Reversed":** both below 0.
+  - **"Not replicated":** otherwise.
+- **Bigger table:** pooled lift of B-16M minus B-1M (both seed 0):
+  - **"The bigger table remembers repeated facts better":** interval above 0.
+  - **"It remembers them worse":** interval below 0.
+  - **"No clear difference":** otherwise.
+- **Reported without a verdict:** both seeds' pooled lift for each model (how much a seed moves it, which is what the
+  intervals of step 10 leave out), B-16M against D-100M, the curves per k, and each model's Val PPL against its run
+  without the facts (B-16M: 19.96).
+
+**What this can't show:** two seeds are a first look at the spread, not a distribution; B-16M runs with one seed, so a
+small difference to B-1M stays within what a seed can move.

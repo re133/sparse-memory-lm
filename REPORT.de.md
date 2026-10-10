@@ -2911,3 +2911,35 @@ Fakten in wechselndem Text, und der Prompt ist das Trainingsformat (keine umform
   nicht über Trainingsläufe. Wie stark das Einprägen von Seed zu Seed schwankt, steckt nicht darin, und der Abstand zu
   D-100M ist klein. Zweite Seeds von B-1M und D-100M sind der nächste Schritt. Außerdem: Das ist Einprägen im
   Trainingsformat, kein Beantworten umformulierter Fragen, und nur in dieser Größe.
+
+## Nachtrag zu Schritt 10: ein zweiter Seed und die große Tabelle (Kriterien vor den Läufen festgelegt, 2026-10-10)
+
+**Warum:** Das Urteil von Schritt 10 beruht auf einem Seed pro Modell, seine Intervalle laufen über Personen, nicht
+über Trainingsläufe, und der Abstand zu D-100M ist klein. Und: Merkt sich eine Tabelle mit 16-mal so vielen Zeilen
+(B-16M, etwa derselbe Rechenaufwand pro Token wie B-1M) wiederholte Fakten noch besser?
+
+**Läufe** (dieselben FACTK-Daten und Argumente wie in Schritt 10; beim zweiten Seed ändert sich nur der Seed der
+Initialisierung, die Datenreihenfolge bleibt):
+- B-1M-s1 und D-50M-s1 auf der RX 9070 (`scripts/run_factk.py --seed 1`).
+- D-100M-s1 und B-16M-s0 auf einer gemieteten H200 NVL (IONOS; `cloud/setup_dense.sh` mit den Läufen in der `run.env`
+  des Kits). B-16M mit den Argumenten seines H200-Laufs aus Schritt 1.
+- Maß und Statistik genau wie in Schritt 10. Die fp32-Tabelle von B-16M (25,8 GB) passt nicht auf die RX 9070, sie wird
+  deshalb mit der Tabelle im RAM bewertet (Schritt 8), dieselbe Rechnung; vorher am ursprünglichen B-16M geprüft, das
+  diese Personen nie gesehen hat: kein Lift auf irgendeiner Stufe.
+
+**Kriterien:**
+- **Zweiter Seed:** das Hauptkriterium aus Schritt 10, nur auf den Seed-1-Modellen (gepoolter Lift von B-1M-s1 minus
+  D-50M-s1 und minus D-100M-s1):
+  - **„Wiederholt“:** beide Intervalle über 0.
+  - **„Umgekehrt“:** beide unter 0.
+  - **„Nicht wiederholt“:** sonst.
+- **Größere Tabelle:** gepoolter Lift von B-16M minus B-1M (beide Seed 0):
+  - **„Die größere Tabelle merkt sich wiederholte Fakten besser“:** Intervall über 0.
+  - **„Sie merkt sie sich schlechter“:** Intervall unter 0.
+  - **„Kein klarer Unterschied“:** sonst.
+- **Ohne Urteil berichtet:** der gepoolte Lift beider Seeds für jedes Modell (wie weit ein Seed ihn verschiebt, genau
+  das, was die Intervalle aus Schritt 10 auslassen), B-16M gegen D-100M, die Kurven je k und die Val-PPL jedes Modells
+  gegen seinen Lauf ohne die Fakten (B-16M: 19,96).
+
+**Was das nicht zeigen kann:** Zwei Seeds sind ein erster Blick auf die Streuung, keine Verteilung; B-16M läuft mit
+einem Seed, ein kleiner Unterschied zu B-1M bleibt also innerhalb dessen, was ein Seed verschieben kann.

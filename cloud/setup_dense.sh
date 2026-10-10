@@ -136,7 +136,7 @@ fi
 
 # ---- 6 tests for the dense models (GPU)
 if ! is_done tests; then
-  if ! .venv/bin/python -m pytest -q tests/test_dense.py tests/test_stage1b.py > "$STATE/tests_gpu.log" 2>&1; then
+  if ! .venv/bin/python -m pytest -q ${SMLM_SETUP_TESTS:-tests/test_dense.py tests/test_stage1b.py} > "$STATE/tests_gpu.log" 2>&1; then
     tail -40 "$STATE/tests_gpu.log"; fail "tests (see $STATE/tests_gpu.log)"
   fi
   tail -2 "$STATE/tests_gpu.log"

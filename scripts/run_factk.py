@@ -2,6 +2,7 @@
 
   python scripts/run_factk.py [--deadline 2026-10-10T11:00]   (as a systemd unit; resumable, a finished run is skipped)
   python scripts/run_factk.py --smoke DIR                       (both runs on 2M tokens into DIR, no ntfy)
+  python scripts/run_factk.py --seed 1 [--deadline ...]         (second seed: runs B-1M-factk-s1, D-50M-factk-s1)
 
 Same arguments as the original runs, only --data differs: B-1M-sparse as in runs/hampter (table LR 2.4e-3, Triton
 kernels), D-50M as in runs/cloud_dense. D-100M runs on a Runpod GPU (cloud/setup_dense.sh with SMLM_DENSE_RUNS,
@@ -30,6 +31,12 @@ run_shape.EST_H = {"B-1M-factk-s0": 2.6, "D-50M-factk-s0": 2.6}  # smoke test at
 
 def main():
     argv, deadline = sys.argv[1:], None
+    if len(argv) >= 2 and argv[0] == "--seed":             # init seed only; the data order (data seed 1234) stays
+        seed, argv = argv[1], argv[2:]
+        run_shape.COMMON = [seed if prev == "--seed" else a for prev, a in zip([None] + run_shape.COMMON,
+                                                                                run_shape.COMMON)]
+        run_shape.RUNS = [(n.replace("-s0", f"-s{seed}"), a) for n, a in run_shape.RUNS]
+        run_shape.EST_H = {n.replace("-s0", f"-s{seed}"): h for n, h in run_shape.EST_H.items()}
     if len(argv) == 2 and argv[0] == "--deadline":
         deadline = datetime.fromisoformat(argv[1])
     elif len(argv) == 2 and argv[0] == "--smoke":

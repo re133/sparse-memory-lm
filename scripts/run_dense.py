@@ -40,8 +40,14 @@ PRE = OUT + "_preflight"
 RUNS = [("D-50M-s0", "D-50M"), ("D-100M-s0", "D-100M"), ("D-200M-s0", "D-200M"), ("D-400M-s0", "D-400M")]
 # step 10 (FACTK) on the Pod: SMLM_DENSE_RUNS="D-100M-factk-s0:D-100M" SMLM_DENSE_DATA=wikipedia_factk
 # SMLM_DENSE_OUT=runs/factk (everything else, including the training arguments, as in step 1)
+# optional third field: extra training arguments of that run, e.g. "B-16M-factk-s0:B-16M-sparse:--mem_impl triton"
+EXTRA = {}
 if os.environ.get("SMLM_DENSE_RUNS"):
-    RUNS = [tuple(r.split(":")) for r in os.environ["SMLM_DENSE_RUNS"].split(",")]
+    RUNS = []
+    for r in os.environ["SMLM_DENSE_RUNS"].split(","):
+        name, model, *extra = r.split(":", 2)
+        RUNS.append((name, model))
+        EXTRA[name] = extra[0].split() if extra else []
 DATA = os.environ.get("SMLM_DENSE_DATA", "wikipedia")
 TOKENS = 500e6
 EVAL_EVERY = 10e6
@@ -195,7 +201,8 @@ def admit(speeds, elapsed_h, cap_h=None, order=None):
 
 def train_cmd(model, out, args):
     if FAKE:
-        sp = float(os.environ.get("SMLM_FAKE_TOK_S", 4e5)) * {"D-50M": 4, "D-100M": 2, "D-200M": 1, "D-400M": 0.5}[model]
+        sp = float(os.environ.get("SMLM_FAKE_TOK_S", 4e5)) * {"D-50M": 4, "D-100M": 2, "D-200M": 1,
+                                                                "D-400M": 0.5}.get(model, 1)
         dur = float(os.environ.get("FAKE_S", 6)) * (1 if "3e6" in args else 3)
         code = ("import json,os,time; time.sleep(%r); open(os.path.join(%r,'model.pt'),'wb').write(os.urandom(4096));"
                 "json.dump({'status':'done','results':{'val_ppl':20.0,'train_tok_s_median':%r,"
@@ -315,7 +322,7 @@ def finish(job, state, backup_ok):
 def preflight(state):
     speeds = {}
     for name, model in RUNS:
-        job = Job(name, model, PRE, PRE_ARGS)
+        job = Job(name, model, PRE, PRE_ARGS + EXTRA.get(name, []))      # extra last: argparse keeps the last value
         if job.status() != "done":
             job.start()
             while job.alive():
@@ -383,7 +390,7 @@ def main():
            + (f"; weggelassen {', '.join(d[0].split('-s0')[0] + ' (' + d[1] + ')' for d in dropped)}" if dropped else "")
            + f"; Hochrechnung {proj:.1f} h ≈ {proj * PRICE:.0f} $")
     write_status(state)
-    jobs = [Job(n, m, OUT, ARGS) for n, m in RUNS if n in admitted]
+    jobs = [Job(n, m, OUT, ARGS + EXTRA.get(n, [])) for n, m in RUNS if n in admitted]
     jobs.sort(key=lambda j: -[n for n, _ in RUNS].index(j.name))           # largest first
     for j in jobs:
         has_ckpt = os.path.exists(os.path.join(j.out, "model.pt"))

@@ -16,6 +16,11 @@ envget() {
 POD=$(envget RUNPOD_POD_ID)
 KEY=$(envget RUNPOD_API_KEY)
 if [ -z "$POD" ] || [ -z "$KEY" ]; then
+  # not a Runpod Pod: SMLM_STOP_CMD (e.g. "shutdown -h now" on a plain VM) if the kit's run.env sets it
+  if [ -n "${SMLM_STOP_CMD:-}" ]; then
+    [ "${1:-}" = "--check" ] && { echo "no Runpod API; would run: $SMLM_STOP_CMD"; exit 0; }
+    sync; eval "$SMLM_STOP_CMD"; exit $?
+  fi
   echo "RUNPOD_POD_ID / RUNPOD_API_KEY not found - not running on a Runpod Pod? Cannot stop automatically."
   exit 2
 fi
