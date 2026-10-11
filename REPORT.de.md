@@ -3282,7 +3282,7 @@ der schiefen Verteilung des Modells, ohne RAM-Cache für die häufigen Zeilen); 
 990 PRO, btrfs; O_DIRECT verhält sich je nach Dateisystem anders); Ausreißer (30 Lesevorgänge je Einstellung reichen
 nicht für ein belastbares p99); mehr als einen Prozess und einen Ring.
 
-## Schritt 12: Hilft ein zweiter Lesezugriff auf die Tabelle beim Verketten? (LOOP, Kriterien zur Freigabe, Entwurf 2026-10-11)
+## Schritt 12: Hilft ein zweiter Lesezugriff auf die Tabelle beim Verketten? (LOOP, Kriterien vor den Läufen festgelegt, 2026-10-11)
 
 **Frage:** In Schritt 11 kennt B-1M beide Einzelfakten, verkettet sie aber nicht. Teil B zeigt, wo es hängt: Die Werte
 werden in Schicht 10 nachgeschlagen, und an der Antwortstelle findet dieser Nachschlag nichts von B. Hilft es, wenn
@@ -3311,7 +3311,8 @@ die Memory-Schicht in Schicht 10 ein zweites Mal liest und die zweite Abfrage au
   zweite Runde dazugeben kann, ist also kein anderer Speicher, sondern eine zweite Adresse, berechnet nach dem ersten
   Lesen.
 
-**Variante B-1M-r2** (gebaut auf einem eigenen Branch, nach `main` erst, wenn die Tests bestehen):
+**Variante B-1M-r2** (Preset `B-1M-r2-sparse`, Schalter `mem_round_layers` in `smlm/model.py`; ohne ihn ändert sich
+nichts):
 - Wie B-1M, aber in Schicht 10 liest die Memory-Schicht zweimal hintereinander, ohne Attention dazwischen:
   `x = x + mem(norm(x))`, dann `x = x + mem_r2(norm_r2(x))`.
 - Runde 2 liest dieselbe Tabelle, hat aber wie jede Memory-Schicht heute eigene Abfrage, Schlüssel, BatchNorm und
@@ -3319,23 +3320,30 @@ die Memory-Schicht in Schicht 10 ein zweites Mal liest und die zweite Abfrage au
   statt 384 gelesene Zeilen pro Token (+33 %).
 - Warum Schicht 10 und nicht Schicht 6, wie ursprünglich notiert: Teil B zeigt, dass die Werte in Schicht 10
   nachgeschlagen werden. Eine zweite Runde direkt dort kann auf dem aufbauen, was die erste gefunden hat.
-- Tests vor dem ersten Lauf: ohne den neuen Schalter bitgleich zu heute; alte Checkpoints laden; Torch- gegen
-  Triton-Weg; zeilen-sparsamer Gradient der Tabelle mit vier Lesern gegen den dichten; Speichern und Laden;
-  Decode-Graphen; der Rekorder von Teil B erfasst auch Runde 2 und paart nach Lesestelle statt nach
-  Schichtnummer.
+- Der Rekorder von Teil B erfasst auch Runde 2; `scripts/hop2_reads.py` bekommt vor der Messung eine Paarung nach
+  Lesestelle statt nach Schichtnummer.
 
 **Daten** (`scripts/make_hop2.py`, erweitert):
 - Die 800 Paare aus Schritt 11 mit denselben Bedingungen H2, SAME, DIRECT und NULL, dazu **DEMO**: 200 neue Paare.
   A's Artikel und B's Artikel stehen getrennt wie in H2, dazu kommt ein dritter Artikel mit den verketteten Sätzen
   („A\n\nA's mother was born in 1912. …“, wie DIRECT). Jeder Artikel 64-mal, nach denselben Regeln platziert wie
-  in Schritt 11. Das ergibt 89.600 statt 51.200 Fenster.
+  in Schritt 11 (`scripts/make_hop2.py --demo` → `data/wikipedia_hop2d_gpt2`, `report/hop2d/pairs.json`).
+- 1.000 Paare, 89.600 Fenster mit einem Artikel (18,4 % der gelesenen Fenster), 3,99 M Tokens eingefügt (0,79 %).
+- Vor den Kriterien geprüft: Die 800 Paare aus Schritt 11 stehen mit denselben Namen, Werten und Artikeln in genau
+  denselben Fenstern und Schritten (die DEMO-Paare kommen aus einem eigenen Zufallsstrom). Jeder Artikel steht am
+  Anfang einer Zeile im Batch seines Schritts. A und B stehen nie zusammen in einem Fenster (bei DEMO steht B auch
+  nie im Fenster des verketteten Artikels). Zwei Bauten geben dieselben Bytes.
 - Warum DEMO: Alle Arbeiten, in denen Schleifen beim Verketten helfen, führen Verkettungen im Training vor. In
   Schritt 11 hat das Modell nie gesehen, dass die Zwei-Schritt-Frage mit B's Wert zu beantworten ist; eine zweite
   Runde hätte keinen Grund, das zu lernen. H2 bleibt die Prüfung: Paare, deren Verkettung nie vorgeführt wurde.
 
-**Modelle** (ein Seed, Argumente wie Schritt 11, beide auf den neuen Daten, RX 9070):
-- **B-1M-hop2d** (wie B-1M, ohne Schleife) und **B-1M-r2-hop2d**. B-1M brauchte in Schritt 11 2,6 h, r2 etwas mehr
-  (im Kurztest messen).
+**Modelle** (ein Seed, Argumente wie Schritt 11, beide auf den neuen Daten):
+- **B-1M-hop2d** (wie B-1M, ohne Schleife) und **B-1M-r2-hop2d**.
+- Beide gleichzeitig auf einer gemieteten H200 NVL (IONOS, `cloud/setup_dense.sh`, wie im Nachtrag zu Schritt 10).
+  Das B-1M aus Schritt 11 lief auf der RX 9070; der Vergleich mit ihm (ohne Urteil, unten) unterscheidet sich also
+  auch in der GPU.
+- Kurztest zu Hause (2 M Tokens je Modell): B-1M 60.400 tok/s, B-1M-r2 54.700 tok/s (−9 %), Spitze 10,5 und
+  10,6 GiB.
 
 **Messung:** wie Schritt 11 (`scripts/eval_hop2.py`), dazu DEMO.
 
@@ -3377,8 +3385,13 @@ für wahrscheinlicher.
 - Ein Seed, eine Beziehung, eine Größe, eine Zahl vorgeführter Paare (200).
 - Ein „verkettet nicht“ schließt Schleifen nicht allgemein aus (mehr Runden, geteilte Gewichte, längeres Training).
 
-**Vor dem Push der endgültigen Kriterien:**
-- Bau und Tests.
-- Daten bauen und prüfen wie in Schritt 11.
-- Nulltest mit dem Original-B-1M auf den neuen Prompts.
-- Ein Kurztest auf der GPU (nur nach Rückfrage).
+**Vor den Läufen geprüft:**
+- **Tests** (`tests/test_loop.py`, dazu alle übrigen; 508 bestanden, 7 übersprungen auf der RX 9070): ohne den
+  Schalter keine zusätzlichen Gewichte; alte Checkpoints laden; mit Runde 2 vier Lesestellen an einer Tabelle;
+  Runde 2 fügt genau ihren eigenen Lesezugriff hinzu; der zeilen-sparsame Gradient der Tabelle mit vier Lesern gleich
+  dem dichten; Triton gleich PyTorch; Speichern und Laden; Decode-Graphen bitgleich.
+- **Bitgleich zu vorher:** Initialisierung von B-1M, Logits und Gradienten des B-1M aus Schritt 11 sind mit dem neuen
+  Code bitgleich zum alten (sha256).
+- **Nulltest** mit dem Original-B-1M, das keine dieser Paare gesehen hat: Zwei-Schritt-Werte 0,011 bis 0,014 in jeder
+  Bedingung, Lifts −0,003 bis +0,001 mit Intervallen von etwa ±0,005, alle schließen 0 ein; B's Eigenschaften zu
+  0,5–1,0 % richtig, das wahre B unter den 200 Namen in 0–0,5 % auf Platz 1 (Zufall 0,5 %), gierig nie.

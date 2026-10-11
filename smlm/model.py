@@ -37,6 +37,10 @@ class ModelConfig:
     mem_score_scale_init: float = 1.0
     # stage 1b: one value table shared by all memory layers (keys / query / BN / swilu stay per layer)
     mem_share_values: bool = False
+    # step 12 (LOOP): memory layers that read a second time right after the first read, with no attention in between
+    # (x = x + mem(norm(x)); x = x + mem_r2(norm_r2(x))). Round 2 reads the same value table (needs mem_share_values)
+    # with its own query / keys / BN / swilu. Empty = no second read (the model is then exactly as before).
+    mem_round_layers: list = field(default_factory=list)
     # Hampter: "row_sparse" = gradients only for read rows + lazy Adam on the table (smlm/sparse_values.py)
     mem_value_grad: str = "dense"
     # "torch": PyTorch reference; "triton": kernels of smlm/kernels.py (same results up to rounding / ties)
@@ -131,6 +135,17 @@ class Block(nn.Module):
                 value_grad=cfg.mem_value_grad, impl=cfg.mem_impl)
         else:
             self.ffn = SwiGLU(cfg.d_model, cfg.ffn_hidden)
+        self.ffn_r2 = None
+        if layer_id in cfg.mem_round_layers:
+            assert self.is_memory and shared_values is not None, "a second read needs a shared value table"
+            self.ffn_norm_r2 = nn.RMSNorm(cfg.d_model, eps=cfg.norm_eps)
+            self.ffn_r2 = ProductKeyMemory(
+                cfg.d_model, cfg.d_model, n_keys=cfg.mem_n_keys, heads=cfg.mem_heads,
+                knn=cfg.mem_knn, k_dim=cfg.mem_k_dim, v_dim=cfg.mem_v_dim,
+                query_norm=cfg.mem_query_norm, swilu=cfg.mem_swilu, value_impl=cfg.mem_value_impl,
+                keys_weight_decay=cfg.mem_keys_weight_decay, score_scale=cfg.mem_score_scale,
+                score_scale_init=cfg.mem_score_scale_init, shared_values=shared_values,
+                value_grad=cfg.mem_value_grad, impl=cfg.mem_impl)
         self.engram = None
         if layer_id in cfg.eng_layers:
             self.engram = EngramMemory(cfg.d_model, len(cfg.eng_orders) * cfg.eng_heads, cfg.eng_head_dim,
@@ -141,7 +156,10 @@ class Block(nn.Module):
         if self.engram is not None:
             x = x + self.engram(x, eng_rows, kv_cache)
         x = x + self.attn(self.attn_norm(x), kv_cache, pos0)
-        return x + self.ffn(self.ffn_norm(x))
+        x = x + self.ffn(self.ffn_norm(x))
+        if self.ffn_r2 is not None:
+            x = x + self.ffn_r2(self.ffn_norm_r2(x))
+        return x
 
 
 class Transformer(nn.Module):
@@ -174,7 +192,24 @@ class Transformer(nn.Module):
             # memory layers keep the initialisation of the Meta reference (ProductKeyMemory.reset_parameters)
 
     def memory_layers(self):
-        return [b.ffn for b in self.layers if b.is_memory]
+        """All product-key reads in forward order; a second read (mem_round_layers) follows its layer's first."""
+        out = []
+        for b in self.layers:
+            if b.is_memory:
+                out.append(b.ffn)
+                if b.ffn_r2 is not None:
+                    out.append(b.ffn_r2)
+        return out
+
+    def memory_sites(self):
+        """Names of the reads in memory_layers() order: "L10" for layer 10, "L10r2" for its second read."""
+        out = []
+        for i, b in enumerate(self.layers):
+            if b.is_memory:
+                out.append(f"L{i}")
+                if b.ffn_r2 is not None:
+                    out.append(f"L{i}r2")
+        return out
 
     def engram_layers(self):
         return [b.engram for b in self.layers if b.engram is not None]
@@ -271,6 +306,8 @@ class Transformer(nn.Module):
             out["attn_scores"] += 2 * d * (T / 2)
             if blk.is_memory:
                 out["memory"] += blk.ffn.macs_per_token()
+                if blk.ffn_r2 is not None:
+                    out["memory"] += blk.ffn_r2.macs_per_token()
             else:
                 out["ffn"] += 3 * d * c.ffn_hidden
         out["total"] = sum(out.values())

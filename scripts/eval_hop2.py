@@ -3,6 +3,7 @@ learned separately ("A's mother was B", "B was born in 1912") when asked "A's mo
 
   python scripts/eval_hop2.py B-1M [--run DIR] [--device cpu] [--host_table]   -> report/hop2/eval_B-1M.json
   python scripts/eval_hop2.py --summary                                          -> report/hop2/summary.json
+  python scripts/eval_hop2.py --step12 B-1M-r2 | --step12 --summary              -> report/hop2d/ (step 12, LOOP)
 
 Pairs and conditions: scripts/make_hop2.py (report/hop2/pairs.json). One forward pass per prompt, in the training
 format, bf16 autocast on the GPU as in validation, product-key models with the full fp32 table:
@@ -18,6 +19,10 @@ format, bf16 autocast on the GPU as in validation, product-key models with the f
 
 Summary: lift(condition) = mean score of the condition minus mean score of NULL, 95% bootstrap over pairs (each
 condition resampled on its own, paired across models: the same resampled pairs for every model).
+
+--step12 (REPORT.md, "Step 12"): pairs from report/hop2d/pairs.json (step 11's 800 pairs plus DEMO), models B-1M and
+B-1M-r2 trained on wikipedia_hop2d. DEMO gets the single steps as well. Gates as in step 11 plus a DEMO lift above 0;
+comparison B-1M-r2 minus B-1M with a verdict only if the better model chains itself.
 """
 import argparse
 import json
@@ -39,6 +44,17 @@ OUT = os.path.join(ROOT, "report", "hop2")
 RUNS = {"B-1M": "runs/hop2/B-1M-hop2-s0", "D-50M": "runs/hop2/D-50M-hop2-s0", "D-100M": "runs/hop2/D-100M-hop2-s0",
         "B-16M": "runs/hop2/B-16M-hop2-s0"}
 ORIG_PPL = {"B-1M": 21.837, "D-50M": 22.452, "D-100M": 20.270, "B-16M": 19.960}   # the same runs without the pairs
+STEP12 = False
+SINGLE = ("H2", "NULL")                   # conditions with the single steps (B's attributes)
+REL_CONDS = ("H2", "SAME", "NULL")        # conditions with the relation question
+
+
+def step12():
+    global OUT, RUNS, ORIG_PPL, STEP12, SINGLE, REL_CONDS
+    OUT = os.path.join(ROOT, "report", "hop2d")
+    RUNS = {"B-1M": "runs/hop2d/B-1M-hop2d-s0", "B-1M-r2": "runs/hop2d/B-1M-r2-hop2d-s0"}
+    ORIG_PPL = {"B-1M": 21.837, "B-1M-r2": 21.837}     # both against B-1M without any pairs
+    STEP12, SINGLE, REL_CONDS = True, ("H2", "DEMO", "NULL"), ("H2", "SAME", "DEMO", "NULL")
 ATTRS = ("year", "city", "job")
 EOT, BATCH, CBATCH, BOOT, GATE_ACC = 50256, 64, 256, 10000, 0.90
 
@@ -112,7 +128,7 @@ def score(name, run, device, host_table=False):
     for p in pairs:
         for a in ATTRS:
             items.append(("two_hop", p, a, [EOT] + enc.encode(f"{p['A']}\n\n{p['A']}{P['cues2'][a]}")))
-            if p["cond"] in ("H2", "NULL"):
+            if p["cond"] in SINGLE:
                 items.append(("b", p, a, [EOT] + enc.encode(f"{p['B']}\n\n{p['B']}{P['cues'][a]}")))
     logits = forward(model, [it[3] for it in items], device)
     for (kind, p, a, ids), lg in zip(items, logits):
@@ -123,7 +139,7 @@ def score(name, run, device, host_table=False):
             r["p_false"] = round(float(lp[vals[a].index(by_id[partner[p["id"]]][a])].exp()), 6)
         res[str(p["id"])][kind][a] = r
     # relation: B's full name after "A's mother was", against the other B names of the same condition
-    for cond in ("H2", "SAME", "NULL"):
+    for cond in REL_CONDS:
         group = [p for p in pairs if p["cond"] == cond]
         names = [enc.encode(" " + p["B"]) for p in group]
         for k, p in enumerate(group):
@@ -140,9 +156,9 @@ def score(name, run, device, host_table=False):
         s = np.mean([np.mean([res[i]["two_hop"][a]["p"] for a in ATTRS]) for i in ids])
         acc = np.mean([res[i]["two_hop"][a]["hit"] for i in ids for a in ATTRS])
         extra = ""
-        if cond in ("H2", "NULL"):
+        if cond in SINGLE:
             extra += f"  B single step acc {np.mean([res[i]['b'][a]['hit'] for i in ids for a in ATTRS]):.3f}"
-        if cond in ("H2", "SAME", "NULL"):
+        if cond in REL_CONDS:
             extra += (f"  relation top1 {np.mean([res[i]['rel']['top1'] for i in ids]):.3f}"
                       f" greedy {np.mean([res[i]['rel']['greedy'] for i in ids]):.3f}")
         print(f"{name} {cond:6s} two-hop score {s:.4f} acc {acc:.3f}{extra}", flush=True)
@@ -150,6 +166,49 @@ def score(name, run, device, host_table=False):
 
 def ci(d):
     return [round(float(np.percentile(d, q)), 5) for q in (2.5, 97.5)]
+
+
+def step12_summary(out, data, boot, h2, ids):
+    """Step 12: the second read against B-1M on the same data, and B-1M on these data against step 11's B-1M."""
+    if "B-1M" in data and "B-1M-r2" in data:
+        d = h2["B-1M-r2"] - h2["B-1M"]
+        c = ci(d)
+        r = {"lift": round(float(d.mean()), 5), "ci95": c,
+             "same_lift_ci95": ci((boot["B-1M-r2"]["SAME"] - boot["B-1M-r2"]["NULL"])
+                                  - (boot["B-1M"]["SAME"] - boot["B-1M"]["NULL"])),
+             "demo_lift_ci95": ci((boot["B-1M-r2"]["DEMO"] - boot["B-1M-r2"]["NULL"])
+                                  - (boot["B-1M"]["DEMO"] - boot["B-1M"]["NULL"]))}
+        out["H2_B-1M-r2_minus_B-1M"] = r
+        m1, m2 = out["models"]["B-1M"], out["models"]["B-1M-r2"]
+        if not (m1["testable"] and m2["testable"]):
+            out["verdict"] = "not testable (a gate failed for at least one model)"
+        elif c[0] > 0 and m2["verdict"] == "chains":
+            out["verdict"] = "the second round chains better"
+        elif c[1] < 0 and m1["verdict"] == "chains":
+            out["verdict"] = "the second round chains worse"
+        else:
+            out["verdict"] = "no clear difference"
+            if c[0] > 0 or c[1] < 0:
+                out["verdict_note"] = "interval excludes 0, but the better model doesn't chain itself: no verdict"
+    # B-1M on the step 12 data against step 11's B-1M (same H2 / NULL pairs, ids 0..799): does demonstrating alone
+    # change H2? Reported without a verdict; same resampled pairs for both
+    old = os.path.join(ROOT, "report", "hop2", "eval_B-1M.json")
+    if "B-1M" in data and os.path.exists(old):
+        R0 = json.load(open(old))["pairs"]
+        rng = np.random.default_rng(0)
+        draws = {c: rng.integers(0, len(ids[c]), (BOOT, len(ids[c]))) for c in out["conditions"]}
+        sc0 = {c: np.array([np.mean([R0[i]["two_hop"][a]["p"] for a in ATTRS]) for i in ids[c]])
+               for c in ("H2", "NULL")}
+        lift0 = sc0["H2"][draws["H2"]].mean(1) - sc0["NULL"][draws["NULL"]].mean(1)
+        d = h2["B-1M"] - lift0
+        out["H2_B-1M_step12_minus_step11"] = {"lift_step11": round(float(sc0["H2"].mean() - sc0["NULL"].mean()), 5),
+                                              "difference": round(float(d.mean()), 5), "ci95": ci(d)}
+    write_json(os.path.join(OUT, "summary.json"), out)
+    print(json.dumps({k: v for k, v in out.items() if k != "models"}, indent=1))
+    for n, m in out["models"].items():
+        print(n, m["verdict"], "| lift", m["lift"], "| ci", m["lift_ci95"], "| acc", m["accuracy"])
+        print("   B single", m["b_single_step_acc"], "relation top1", m["relation_top1"], "false bridge",
+              m["false_bridge_h2"], "PPL", m.get("val_ppl"), m.get("val_ppl_vs_original"))
 
 
 def summary():
@@ -176,21 +235,25 @@ def summary():
                                                                 for a in ATTRS])), 5),
                                  "p_false": round(float(np.mean([R[i]["two_hop"][a]["p_false"] for i in ids["H2"]
                                                                  for a in ATTRS])), 5)},
-             "b_single_step_acc": {c: round(acc(c, "b"), 4) for c in ("H2", "NULL")},
+             "b_single_step_acc": {c: round(acc(c, "b"), 4) for c in SINGLE},
              "relation_top1": {c: round(float(np.mean([R[i]["rel"]["top1"] for i in ids[c]])), 4)
-                               for c in ("H2", "SAME", "NULL")},
+                               for c in REL_CONDS},
              "relation_p_choice": {c: round(float(np.mean([R[i]["rel"]["p_choice"] for i in ids[c]])), 5)
-                                   for c in ("H2", "SAME", "NULL")},
+                                   for c in REL_CONDS},
              "relation_greedy": {c: round(float(np.mean([R[i]["rel"]["greedy"] for i in ids[c]])), 4)
-                                 for c in ("H2", "SAME", "NULL")},
+                                 for c in REL_CONDS},
              "relation_logp": {c: round(float(np.mean([R[i]["rel"]["logp"] for i in ids[c]])), 3)
-                               for c in ("H2", "SAME", "NULL")}}
+                               for c in REL_CONDS}}
         m["gate_single_steps"] = (m["b_single_step_acc"]["H2"] >= GATE_ACC and m["relation_top1"]["H2"] >= GATE_ACC)
         m["gate_format"] = m["lift_ci95"]["DIRECT"][0] > 0
-        m["testable"] = m["gate_single_steps"] and m["gate_format"]
+        if STEP12:
+            m["gate_demo"] = m["lift_ci95"]["DEMO"][0] > 0
+            m["demo_lift_minus_direct_ci95"] = ci(boot[n]["DEMO"] - boot[n]["DIRECT"])
+        m["testable"] = m["gate_single_steps"] and m["gate_format"] and m.get("gate_demo", True)
         m["verdict"] = (("chains" if m["lift_ci95"]["H2"][0] > 0 else "does not chain") if m["testable"] else
                         "not testable: " + ("the single facts don't sit" if not m["gate_single_steps"] else
-                                            "the question format doesn't work"))
+                                            "the question format doesn't work" if not m["gate_format"] else
+                                            "the demonstrated chains don't sit"))
         try:
             ppl = json.load(open(os.path.join(ROOT, d["run"], "run-info.json")))["results"]["val_ppl"]
             m["val_ppl"] = round(ppl, 3)
@@ -199,6 +262,9 @@ def summary():
             pass
         out["models"][n] = m
     h2 = {n: boot[n]["H2"] - boot[n]["NULL"] for n in data}
+    if STEP12:
+        step12_summary(out, data, boot, h2, ids)
+        return
     for a, b in (("B-1M", "D-50M"), ("B-1M", "D-100M"), ("B-16M", "B-1M"), ("B-16M", "D-100M")):
         if a in data and b in data:
             out[f"H2_{a}_minus_{b}"] = {"lift": round(float((h2[a] - h2[b]).mean()), 5), "ci95": ci(h2[a] - h2[b]),
@@ -235,5 +301,8 @@ if __name__ == "__main__":
     ap.add_argument("--device", default="cuda")
     ap.add_argument("--summary", action="store_true")
     ap.add_argument("--host_table", action="store_true", help="keep the fp32 table in RAM (B-16M on a 16 GB card)")
+    ap.add_argument("--step12", action="store_true", help="step 12 (LOOP): report/hop2d, runs/hop2d")
     a = ap.parse_args()
+    if a.step12:
+        step12()
     summary() if a.summary else score(a.model, a.run or RUNS[a.model], a.device, a.host_table)

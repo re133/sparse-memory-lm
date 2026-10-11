@@ -3123,7 +3123,7 @@ skewed distribution, no RAM cache for the frequent rows); other SSDs and file sy
 behaves differently depending on the file system); outliers (30 batches per setting aren't enough for a solid p99);
 more than one process and one ring.
 
-## Step 12: does a second read of the table help to chain facts? (LOOP, criteria for approval, draft 2026-10-11)
+## Step 12: does a second read of the table help to chain facts? (LOOP, criteria fixed before the runs, 2026-10-11)
 
 **Question:** in step 11, B-1M knows both single facts but doesn't chain them. Part B shows where it gets stuck: the
 values are looked up in layer 10, and at the answer position that lookup finds nothing of B. Does it help if the
@@ -3149,7 +3149,8 @@ memory layer in layer 10 reads a second time, with the second query built on the
   table, the three memory layers read the same rows. So what a second round can add
   isn't other storage, but a second address, computed after the first read.
 
-**Variant B-1M-r2** (built on its own branch, into `main` only when the tests pass):
+**Variant B-1M-r2** (preset `B-1M-r2-sparse`, switch `mem_round_layers` in `smlm/model.py`; without it nothing
+changes):
 - Like B-1M, but in layer 10 the memory layer reads twice in a row, with no attention in between:
   `x = x + mem(norm(x))`, then `x = x + mem_r2(norm_r2(x))`.
 - Round 2 reads the same table but, like every memory layer today, has its own query, keys, BatchNorm and swilu path:
@@ -3157,22 +3158,28 @@ memory layer in layer 10 reads a second time, with the second query built on the
   384 rows read per token (+33%).
 - Why layer 10 and not layer 6, as first noted: part B shows that the values are looked up in layer 10. A second round
   right there can build on what the first one found.
-- Tests before the first run: bit-identical to today without the new switch; old checkpoints load; torch against
-  Triton path; row-sparse gradient of the table with four readers against the dense one; saving and loading; decode
-  graphs; part B's recorder also captures round 2 and pairs by read site instead of layer number.
+- Part B's recorder also captures round 2; before measuring, `scripts/hop2_reads.py` gets pairing by read site
+  instead of layer number.
 
 **Data** (`scripts/make_hop2.py`, extended):
 - The 800 pairs of step 11 with the same conditions H2, SAME, DIRECT and NULL, plus **DEMO**: 200 new pairs. A's
   article and B's article are separate as in H2, plus a third article with the chained sentences ("A\n\nA's mother was
-  born in 1912. …", as in DIRECT). Every article 64 times, placed by the same rules as in step 11. That makes 89,600
-  windows instead of 51,200.
+  born in 1912. …", as in DIRECT). Every article 64 times, placed by the same rules as in step 11
+  (`scripts/make_hop2.py --demo` → `data/wikipedia_hop2d_gpt2`, `report/hop2d/pairs.json`).
+- 1,000 pairs, 89,600 windows with an article (18.4% of the windows read), 3.99 M tokens inserted (0.79%).
+- Checked before the criteria: step 11's 800 pairs sit with the same names, values and articles in exactly the same
+  windows and steps (the DEMO pairs come from their own random stream). Every article starts a row of its step's
+  batch. A and B never share a window (for DEMO, B is also never in the window of the chained article). Two builds give
+  the same bytes.
 - Why DEMO: every paper in which loops help with chaining demonstrates chaining in training. In step 11 the model never
   saw that the two-hop question is answered with B's value; a second round would have no reason to learn it. H2 stays
   the test: pairs whose chaining was never demonstrated.
 
-**Models** (one seed, the arguments of step 11, both on the new data, RX 9070):
-- **B-1M-hop2d** (like B-1M, without a loop) and **B-1M-r2-hop2d**. B-1M took 2.6 h in step 11, r2 a bit more
-  (measured in the smoke test).
+**Models** (one seed, the arguments of step 11, both on the new data):
+- **B-1M-hop2d** (like B-1M, without a loop) and **B-1M-r2-hop2d**.
+- Both at the same time on a rented H200 NVL (IONOS, `cloud/setup_dense.sh`, as in the addendum to step 10). Step 11's
+  B-1M ran on the RX 9070, so the comparison with it (without a verdict, below) also differs in the GPU.
+- Smoke test at home (2 M tokens per model): B-1M 60,400 tok/s, B-1M-r2 54,700 tok/s (−9%), peak 10.5 and 10.6 GiB.
 
 **Measure:** as in step 11 (`scripts/eval_hop2.py`), plus DEMO.
 
@@ -3211,8 +3218,13 @@ training; here the model sees every fact 64 times. I think "does not chain" is m
 - One seed, one relation, one size, one number of demonstrated pairs (200).
 - A "does not chain" doesn't rule out loops in general (more rounds, shared weights, longer training).
 
-**Before the final criteria are pushed:**
-- Build and tests.
-- Build and check the data as in step 11.
-- A null test with the original B-1M on the new prompts.
-- A smoke test on the GPU (only after asking).
+**Checked before the runs:**
+- **Tests** (`tests/test_loop.py`, plus all the others; 508 passed, 7 skipped on the RX 9070): without the switch no
+  extra weights; old checkpoints load; with round 2 four read sites on one table; round 2 adds exactly its own read;
+  the row-sparse gradient of the table with four readers equals the dense one; Triton equals PyTorch; saving and
+  loading; decode graphs bit-identical.
+- **Bit-identical to before:** B-1M's initialisation, and the logits and gradients of step 11's B-1M, are
+  bit-identical between the new and the old code (sha256).
+- **Null test** with the original B-1M, which never saw these pairs: two-hop scores 0.011 to 0.014 in every condition,
+  lifts −0.003 to +0.001 with intervals of about ±0.005, all including 0; B's attributes right 0.5–1.0% of the time,
+  the true B ranked first among the 200 names in 0–0.5% (chance 0.5%), greedy never.

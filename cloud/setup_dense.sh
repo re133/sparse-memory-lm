@@ -119,8 +119,8 @@ if ! is_done data; then
   # arrived); whether the data is right is decided by sha256 alone
   rsync -rt --partial storagebox:smlm/data/wikipedia_en_gpt2 storagebox:smlm/data/wikitext103_gpt2 data/ || true
   case "${SMLM_DENSE_DATA:-wikipedia}" in
-    wikipedia_factk|wikipedia_hop2)
-      # steps 10 and 11: built at home by scripts/make_factk.py / make_hop2.py; no Hugging Face fallback, a wrong
+    wikipedia_factk|wikipedia_hop2|wikipedia_hop2d)
+      # steps 10-12: built at home by scripts/make_factk.py / make_hop2.py; no Hugging Face fallback, a wrong
       # file stops the Pod
       D="${SMLM_DENSE_DATA}_gpt2"
       rsync -rt --partial "storagebox:smlm/data/$D" data/ || true

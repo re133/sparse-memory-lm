@@ -21,6 +21,9 @@ DATASETS = {
     # step 10 (FACTK): "wikipedia" with made-up people inserted k times (scripts/make_factk.py), same length and windows
     "wikipedia_factk": "wikipedia_factk_gpt2",
     "wikipedia_hop2": "wikipedia_hop2_gpt2",
+    # step 12 (LOOP): wikipedia_hop2 plus 200 demonstrated pairs (scripts/make_hop2.py --demo), step 11's articles in
+    # the same windows
+    "wikipedia_hop2d": "wikipedia_hop2d_gpt2",
 }
 # default dataset directory (stage 1); SMLM_DATA_DIR overrides it
 DATA_DIR = os.environ.get("SMLM_DATA_DIR") or os.path.join(DATA_ROOT, DATASETS["wikitext103"])

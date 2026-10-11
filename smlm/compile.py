@@ -38,7 +38,10 @@ def _forward(block, x, kv_cache=None, pos0=0, eng_rows=None):
             return state["body"](block, x, pos0, eng_out)
         x, normed = state["body"](block, x, pos0, eng_out)
         # No compiled graph includes PKM/Engram, their custom autograd, or row-store mutation.
-        return state["residual"](x, block.ffn(normed))
+        x = state["residual"](x, block.ffn(normed))
+        if block.ffn_r2 is not None:                     # second read (step 12), eager like the first
+            x = x + block.ffn_r2(block.ffn_norm_r2(x))
+        return x
 
 
 def compile_dense(model, enabled=True, *, backend="inductor"):

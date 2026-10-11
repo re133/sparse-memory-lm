@@ -41,6 +41,9 @@ MODELS = {
     "B-1M": dict(mem_layers=[2, 6, 10], mem_n_keys=1024, mem_share_values=True),
     # Hampter: B-1M with row-sparse table gradients and lazy Adam on the table
     "B-1M-sparse": dict(mem_layers=[2, 6, 10], mem_n_keys=1024, mem_share_values=True, mem_value_grad="row_sparse"),
+    # step 12 (LOOP): B-1M-sparse whose memory layer 10 reads the shared table a second time right after the first
+    "B-1M-r2-sparse": dict(mem_layers=[2, 6, 10], mem_round_layers=[10], mem_n_keys=1024, mem_share_values=True,
+                           mem_value_grad="row_sparse"),
     # cloud: same as B-1M-sparse with 2048^2 = 4M and 4096^2 = 16M table entries
     "B-4M-sparse": dict(mem_layers=[2, 6, 10], mem_n_keys=2048, mem_share_values=True, mem_value_grad="row_sparse"),
     "B-16M-sparse": dict(mem_layers=[2, 6, 10], mem_n_keys=4096, mem_share_values=True, mem_value_grad="row_sparse"),
@@ -70,8 +73,8 @@ MODELS = {
     "D-400M": dict(d_model=1280, n_layers=20, n_heads=20, ffn_hidden=3456),
 }
 # micro-batch (sequences) per forward pass; gradient accumulation fills up --batch_seqs
-MICRO_BS = {"A": 8, "B": 8, "C": 4, "B-v2a": 8, "B-v2b": 8, "B-1M": 4, "B-1M-sparse": 4, "B-4M-sparse": 4,
-            "B-16M-sparse": 4, "B-4M-v96-sparse": 4, "B-1M-k8-sparse": 4, "B-1M-k16-sparse": 4, "E-1M": 4, "E-1M-dense": 4, "BE-1M": 4, "D-50M": 8, "D-100M": 8, "D-200M": 8, "D-400M": 4}
+MICRO_BS = {"A": 8, "B": 8, "C": 4, "B-v2a": 8, "B-v2b": 8, "B-1M": 4, "B-1M-sparse": 4, "B-1M-r2-sparse": 4,
+            "B-4M-sparse": 4, "B-16M-sparse": 4, "B-4M-v96-sparse": 4, "B-1M-k8-sparse": 4, "B-1M-k16-sparse": 4, "E-1M": 4, "E-1M-dense": 4, "BE-1M": 4, "D-50M": 8, "D-100M": 8, "D-200M": 8, "D-400M": 4}
 
 METRIC_FIELDS = [
     "step", "tokens", "epoch", "lr_mult", "train_loss", "val_loss", "val_ppl", "val_word_ppl",
@@ -548,10 +551,12 @@ def main():
     if mems and "sample" in final_val:
         s = final_val["sample"]
         np.savez(os.path.join(args.out_dir, "mem_index_sample.npz"), indices=s["indices"], scores=s["scores"],
-                 layer_ids=np.array(mcfg.mem_layers),
+                 layer_ids=np.array([int(x[1:].split("r")[0]) for x in model.memory_sites()]),
+                 sites=np.array(model.memory_sites()),
                  tokens=s["tokens"], note="indices[t, (layer,) head, j] read for val token t (text order, first "
                  f"{args.sample_windows} windows of {args.seq_len}); layer axis only with several memory "
-                 "layers (order = layer_ids); scores = raw key scores before softmax")
+                 "layers (order = layer_ids, names in sites; a repeated id is that layer's second read); scores = "
+                 "raw key scores before softmax")
 
     del opt
     for p in model.parameters():
