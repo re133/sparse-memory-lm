@@ -10,6 +10,12 @@ runs/**/model.pt
 runs/**/*.npy
 runs/**/*.npz
 runs/**/*.pt
+# stdout copies of the home queues (systemd units); each queue writes its own log into its run directory
+/runs/*-queue.log
+/runs/ft2x.log
+# intermediate files of steps 5 and 7 next to their large arrays; the results are in report/rs and report/lex
+/runs/rs/
+/runs/lex/
 
 # personal summary, not part of the public repo
 /final.md

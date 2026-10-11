@@ -1,0 +1,9 @@
+2026-10-09 13:37:02 FACTK queue start: ['B-1M-factk-s0', 'D-50M-factk-s0']
+2026-10-09 13:37:02 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/factk-smoke/B-1M-factk-s0 --model B-1M-sparse --value_lr 2.4e-3 --mem_impl triton --data wikipedia_factk --tokens 2e6 --extra_val wikitext103 --eval_every_tokens 1e6 --seed 0 --data_seed 1234
+2026-10-09 13:39:02 end B-1M-factk-s0 rc=0  (0.03 h) val_ppl 1492.740
+2026-10-09 13:39:02 ntfy: B-1M-factk-s0 fertig, Val-PPL 1492.740, 0.0 h
+2026-10-09 13:39:02 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/factk-smoke/D-50M-factk-s0 --model D-50M --data wikipedia_factk --tokens 2e6 --extra_val wikitext103 --eval_every_tokens 1e6 --seed 0 --data_seed 1234
+2026-10-09 13:40:32 end D-50M-factk-s0 rc=0  (0.03 h) val_ppl 1420.142
+2026-10-09 13:40:32 ntfy: D-50M-factk-s0 fertig, Val-PPL 1420.142, 0.0 h
+2026-10-09 13:40:32 QUEUE DONE | B-1M-factk-s0 1492.740, D-50M-factk-s0 1420.142
+2026-10-09 13:40:32 ntfy: FACTK-Nacht fertig: B-1M-factk-s0 1492.740, D-50M-factk-s0 1420.142. Vergleich ohne Fakten: B-1M 21.837, D-50M 22.452.
