@@ -238,6 +238,11 @@ article it works, and there the table model is clearly ahead (57% right against 
 D-100M can't change the comparison anymore, and I don't expect B-16M to chain. Looking at the table reads: B-1M looks
 up values in its last memory layer, and at the end of the two-hop question that lookup finds nothing of B.
 
+A second read of the table in that layer, built on the result of the first, doesn't change this (step 12, criteria
+written before the runs). I also showed the chain in training for 200 other pairs. Both models learn those chains,
+but only for those pairs: with and without the second read they still don't chain the pairs whose chain they never
+saw, and the second read finds nothing of B at the end of the question either.
+
 ### Running the 16.8M table on my PC
 
 B-16M with the table in VRAM, in RAM, or as a 4-bit file on an NVMe SSD (Samsung 990 PRO, memory-mapped, with a

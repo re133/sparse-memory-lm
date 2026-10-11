@@ -3228,3 +3228,73 @@ training; here the model sees every fact 64 times. I think "does not chain" is m
 - **Null test** with the original B-1M, which never saw these pairs: two-hop scores 0.011 to 0.014 in every condition,
   lifts −0.003 to +0.001 with intervals of about ±0.005, all including 0; B's attributes right 0.5–1.0% of the time,
   the true B ranked first among the 200 names in 0–0.5% (chance 0.5%), greedy never.
+
+### Result of step 12 (2026-10-11, training on a rented H200 NVL, evaluation on the RX 9070, `scripts/eval_hop2.py --step12` → `report/hop2d/summary.json`)
+
+- **All gates passed, both models: "does not chain".** H2 lift B-1M-hop2d −0.001 [−0.006; +0.004], B-1M-r2-hop2d
+  +0.001 [−0.005; +0.007]. Both know the single facts completely (B's attributes right in 100% of the H2 pairs, the
+  true B first among the 200 names in 100%), and both learned the chains that were demonstrated: DEMO lift +0.95 for
+  both, every value right. Asked about the 200 pairs whose chain they never saw, they still give B's values no more
+  than the values of a mother they never saw (NULL).
+
+| | B-1M-hop2d | B-1M-r2-hop2d |
+|---|---:|---:|
+| H2 (two facts in separate articles, chain never shown) | 0.010 (0.8%) | 0.013 (1.2%) |
+| SAME (both in one article) | 0.478 (59.2%) | 0.421 (53.0%) |
+| DIRECT (the composed sentences trained) | 0.964 (100%) | 0.962 (100%) |
+| DEMO (separate articles plus the composed one) | 0.961 (100%) | 0.963 (100%) |
+| NULL (never seen) | 0.011 (1.0%) | 0.013 (1.2%) |
+
+  (Probability of B's true value, normalised over all values of the attribute, and in brackets the share of values
+  right.)
+- **Comparison: "no clear difference".** H2 lift of B-1M-r2-hop2d minus B-1M-hop2d +0.002 [−0.006; +0.009].
+- **Without a verdict:**
+  - **Demonstrating alone doesn't help:** B-1M-hop2d against step 11's B-1M (same model, same 800 pairs, plus the 200
+    demonstrated ones) +0.003 [−0.005; +0.010] in the H2 lift.
+  - **SAME:** here the second read is behind, lift +0.41 [+0.37; +0.45] against +0.47 [+0.43; +0.50], difference
+    −0.06 [−0.11; −0.01]. Step 11's B-1M lay in between (+0.43 [+0.39; +0.46]); with one seed per model I don't read
+    more into it than that.
+  - **DEMO:** the same for both (difference [−0.006; +0.007]).
+  - **False bridge:** the values of another pair's B get 0.012 against 0.010 for the true ones (B-1M-hop2d) and 0.007
+    against 0.013 (B-1M-r2-hop2d). I didn't compute an interval; with H2 at chance this isn't a trace of the bridge.
+  - **Greedy decoding** writes B's full name after "A's mother was" in every H2 and SAME pair, in DEMO in 90.5%
+    (B-1M-hop2d) and 92.0% (B-1M-r2-hop2d).
+  - **Val PPL:** 21.891 and 21.883, against 21.837 for B-1M without any pairs (+0.25% and +0.21%) and 21.920 for step
+    11's B-1M. On WikiText-103 66.61 and 64.69; step 11's B-1M (RX 9070) had 64.54, so the two B-1M runs lie as far
+    apart as the two models here.
+  - **Speed:** alone on the H200 (the short preflight on 3 M tokens) 213,539 against 189,267 tok/s, −11% for the second read
+    (at home in the smoke test −9%). The numbers from the runs themselves don't compare: both shared one GPU, the second
+    read ran alone for its last minutes, and the decode and prefill measurements at the end ran under different load.
+    Peak 10.4 and 10.5 GiB. Both runs took about 2 h together, about 7 € on IONOS.
+- **How I read it:** as expected beforehand. Demonstrated chains are learned, but only for the pairs they were
+  demonstrated on; this is the result of "The Two-Hop Curse" again, now also with a table. The second read doesn't
+  change that. The fourth ordinary memory layer as a control (noted in the criteria) doesn't run, since B-1M-r2-hop2d
+  doesn't chain.
+
+### Result of part B for step 12 (2026-10-11, RX 9070, `scripts/hop2_reads.py --step12` → `report/hop2d/reads_*.json`)
+
+- **Gate passed, in layer 10 and in round 2.** Against the original B-1M, the value control is +0.152 [+0.142; +0.160]
+  in B-1M-hop2d's layer 10. In B-1M-r2-hop2d it is +0.111 [+0.103; +0.120] in layer 10 and +0.156 [+0.146; +0.165] in
+  round 2 (Bonferroni over the read sites, as everywhere in this section). Layers 2 and 6 show nothing, as in step 11.
+- **Round 2: "round 2 reads no B values".** At the answer position of the two-hop question round 2 reads B's rows no
+  more than another B's: +0.001 [−0.006; +0.008], its own B first in 1% (chance 0.5%). The upper bound is about a
+  twentieth of the value control.
+- **Answer position, both models: "no trace of B at the answer position".** Layers 2, 6, 10: B-1M-hop2d +0.0005,
+  +0.0005, −0.0002, B-1M-r2-hop2d +0.0001, +0.0004, +0.005 [−0.002; +0.012]; every interval includes 0.
+- **Bridge, both models: "no B rows at the bridge".** Signal −0.0001 to +0.0012, every interval includes 0.
+- **Without a verdict:**
+  - **SAME**, where the question works: round 2 reads B's value rows at the answer position, +0.021 [+0.013; +0.029],
+    and layer 10 +0.016 [+0.008; +0.024] (B-1M-hop2d +0.017 [+0.010; +0.025]). So the measurement sees round 2 read
+    values when there is one to find.
+  - **The lookup moves partly into round 2:** the value control in layer 10 drops from 0.149 (B-1M-hop2d) to 0.108,
+    and round 2 carries 0.153.
+  - **Round 2 of the question against layer 10 of B's own question:** +0.00002 [−0.00005; +0.0001]. The two read
+    sites hardly share rows at all (0.0002), so this comparison shows nothing either way.
+  - **Profile:** along the question no position has an interval above 0, in either model; the closest is layer 10
+    at the second-to-last word, +0.005 [−0.000; +0.011] in both.
+- **How I read it:** the second read takes over part of the value lookup and finds B's values when they stand next to
+  A in training. At the end of the two-hop question it finds nothing of B, just like the first. My guess, not
+  measured: round 2 builds its address on what round 1 found, and round 1 found nothing of B, so there is nothing to
+  continue from.
+- **What this can't show:** one seed per model, one relation, one size, 200 demonstrated pairs; one round more with
+  its own weights, not a loop with shared weights or several rounds. Whether those would chain stays open.

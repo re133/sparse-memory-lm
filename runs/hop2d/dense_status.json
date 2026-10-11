@@ -1,0 +1,66 @@
+{
+ "phase": "end",
+ "peaks": {
+  "B-1M-hop2d-s0": 10.389630317687988,
+  "B-1M-r2-hop2d-s0": 10.478413105010986
+ },
+ "runs_end": {
+  "B-1M-hop2d-s0": "done",
+  "B-1M-r2-hop2d-s0": "done"
+ },
+ "cap_h": 7.003,
+ "preflight_tok_s": {
+  "B-1M-hop2d-s0": 213538.89468183307,
+  "B-1M-r2-hop2d-s0": 189266.7968258249
+ },
+ "admitted": [
+  "B-1M-hop2d-s0",
+  "B-1M-r2-hop2d-s0"
+ ],
+ "dropped": [],
+ "projected_hours": 2.3,
+ "projected_cost_usd": 8.21,
+ "runs": {
+  "B-1M-hop2d-s0": {
+   "model": "B-1M-sparse",
+   "status": "done",
+   "val_ppl": 21.890545043421543,
+   "val2_ppl": 66.60631724760607,
+   "params": {
+    "total": 444895872,
+    "embedding": 19316736,
+    "non_embedding": 425579136,
+    "memory_values": 402653184,
+    "dense_body": 22925952,
+    "active_non_embedding_per_token": 23073408,
+    "bn_running_stats": 6144
+   },
+   "train_tok_s_median": 93817.56522310682,
+   "preflight_tok_s": 213538.89468183307,
+   "preflight_peak_vram_gib": 10.389630317687988
+  },
+  "B-1M-r2-hop2d-s0": {
+   "model": "B-1M-r2-sparse",
+   "status": "done",
+   "val_ppl": 21.883241389881384,
+   "val2_ppl": 64.6882594244402,
+   "params": {
+    "total": 446636800,
+    "embedding": 19316736,
+    "non_embedding": 427320064,
+    "memory_values": 402653184,
+    "dense_body": 24666880,
+    "active_non_embedding_per_token": 24863488,
+    "bn_running_stats": 8192
+   },
+   "train_tok_s_median": 79699.50818771926,
+   "preflight_tok_s": 189266.7968258249,
+   "preflight_peak_vram_gib": 10.478413105010986
+  }
+ },
+ "pod_hours": 2.029,
+ "price_usd_h": 3.57,
+ "cap_usd": 25.0,
+ "est_cost_usd": 7.24,
+ "updated": "2026-10-11 19:24:10"
+}

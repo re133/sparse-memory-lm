@@ -3395,3 +3395,78 @@ für wahrscheinlicher.
 - **Nulltest** mit dem Original-B-1M, das keine dieser Paare gesehen hat: Zwei-Schritt-Werte 0,011 bis 0,014 in jeder
   Bedingung, Lifts −0,003 bis +0,001 mit Intervallen von etwa ±0,005, alle schließen 0 ein; B's Eigenschaften zu
   0,5–1,0 % richtig, das wahre B unter den 200 Namen in 0–0,5 % auf Platz 1 (Zufall 0,5 %), gierig nie.
+
+### Ergebnis Schritt 12 (2026-10-11, Training auf einer gemieteten H200 NVL, Auswertung auf der RX 9070, `scripts/eval_hop2.py --step12` → `report/hop2d/summary.json`)
+
+- **Alle Schranken bestanden, beide Modelle: „verkettet nicht“.** H2-Lift B-1M-hop2d −0,001 [−0,006; +0,004],
+  B-1M-r2-hop2d +0,001 [−0,005; +0,007]. Beide kennen die Einzelfakten vollständig (B's Eigenschaften in 100 % der
+  H2-Paare richtig, das wahre B unter den 200 Namen in 100 % auf Platz eins), und beide haben die vorgeführten Ketten
+  gelernt: DEMO-Lift +0,95 bei beiden, jeder Wert richtig. Gefragt nach den 200 Paaren, deren Kette sie nie gesehen
+  haben, geben sie den Werten von B trotzdem nicht mehr als den Werten einer Mutter, die sie nie gesehen haben (NULL).
+
+| | B-1M-hop2d | B-1M-r2-hop2d |
+|---|---:|---:|
+| H2 (zwei Fakten in getrennten Artikeln, Kette nie gezeigt) | 0,010 (0,8 %) | 0,013 (1,2 %) |
+| SAME (beide in einem Artikel) | 0,478 (59,2 %) | 0,421 (53,0 %) |
+| DIRECT (die zusammengesetzten Sätze trainiert) | 0,964 (100 %) | 0,962 (100 %) |
+| DEMO (getrennte Artikel plus der zusammengesetzte) | 0,961 (100 %) | 0,963 (100 %) |
+| NULL (nie gesehen) | 0,011 (1,0 %) | 0,013 (1,2 %) |
+
+  (Wahrscheinlichkeit des wahren Werts von B, normiert über alle Werte der Eigenschaft, in Klammern der Anteil
+  richtiger Werte.)
+- **Vergleich: „kein klarer Unterschied“.** H2-Lift von B-1M-r2-hop2d minus B-1M-hop2d +0,002 [−0,006; +0,009].
+- **Ohne Urteil:**
+  - **Vorführen allein hilft nicht:** B-1M-hop2d gegen das B-1M aus Schritt 11 (dasselbe Modell, dieselben 800 Paare,
+    dazu die 200 vorgeführten) +0,003 [−0,005; +0,010] im H2-Lift.
+  - **SAME:** Hier liegt der zweite Lesezugriff hinten, Lift +0,41 [+0,37; +0,45] gegen +0,47 [+0,43; +0,50],
+    Unterschied −0,06 [−0,11; −0,01]. Das B-1M aus Schritt 11 lag dazwischen (+0,43 [+0,39; +0,46]); bei einem Seed
+    pro Modell lese ich nicht mehr hinein.
+  - **DEMO:** bei beiden gleich (Unterschied [−0,006; +0,007]).
+  - **Falsche Brücke:** Die Werte des B eines anderen Paars bekommen 0,012 gegen 0,010 für die wahren (B-1M-hop2d)
+    und 0,007 gegen 0,013 (B-1M-r2-hop2d). Ein Intervall habe ich nicht gerechnet; bei H2 auf Zufallsniveau ist das
+    keine Spur der Brücke.
+  - **Gierig dekodiert** steht nach „A's mother was“ in jedem H2- und SAME-Paar der volle Name von B, bei DEMO in
+    90,5 % (B-1M-hop2d) und 92,0 % (B-1M-r2-hop2d).
+  - **Val-PPL:** 21,891 und 21,883, gegen 21,837 für B-1M ohne Paare (+0,25 % und +0,21 %) und 21,920 für das B-1M
+    aus Schritt 11. Auf WikiText-103 66,61 und 64,69; das B-1M aus Schritt 11 (RX 9070) hatte 64,54, die beiden
+    B-1M-Läufe liegen also so weit auseinander wie die beiden Modelle hier.
+  - **Tempo:** allein auf der H200 (der kurze Vorlauf über 3 M Tokens) 213.539 gegen 189.267 tok/s, −11 % für den
+    zweiten Lesezugriff (zu Hause im Kurztest −9 %). Die Zahlen aus den Läufen selbst taugen nicht zum Vergleich:
+    Beide teilten sich eine GPU, der zweite Lesezugriff lief seine letzten Minuten allein, und die Decode- und
+    Prefill-Messungen am Ende liefen unter verschiedener Last. Spitze 10,4 und 10,5 GiB. Beide Läufe brauchten zusammen
+    etwa 2 h, etwa 7 € bei IONOS.
+- **Wie ich es lese:** wie vorher erwartet. Vorgeführte Ketten werden gelernt, aber nur für die Paare, an denen sie
+  vorgeführt wurden; das ist wieder das Ergebnis von „The Two-Hop Curse“, jetzt auch mit Tabelle. Der zweite
+  Lesezugriff ändert daran nichts. Die vierte gewöhnliche Speicherschicht als Kontrolle (in den Kriterien notiert)
+  läuft nicht, weil B-1M-r2-hop2d nicht verkettet.
+
+### Ergebnis von Teil B zu Schritt 12 (2026-10-11, RX 9070, `scripts/hop2_reads.py --step12` → `report/hop2d/reads_*.json`)
+
+- **Schranke bestanden, in Schicht 10 und in Runde 2.** Gegen das ursprüngliche B-1M ist die Wert-Kontrolle in
+  Schicht 10 von B-1M-hop2d +0,152 [+0,142; +0,160]. Bei B-1M-r2-hop2d ist sie +0,111 [+0,103; +0,120] in Schicht 10
+  und +0,156 [+0,146; +0,165] in Runde 2 (Bonferroni über die Lesestellen, wie überall in diesem Abschnitt). Die
+  Schichten 2 und 6 zeigen nichts, wie in Schritt 11.
+- **Runde 2: „Runde 2 liest keine Werte von B“.** An der Antwortstelle der Zwei-Schritt-Frage liest Runde 2 von B's
+  Zeilen nicht mehr als von denen eines anderen B: +0,001 [−0,006; +0,008], das eigene B auf Rang 1 in 1 % (Zufall
+  0,5 %). Die obere Grenze ist etwa ein Zwanzigstel der Wert-Kontrolle.
+- **Antwortstelle, beide Modelle: „keine Spur von B an der Antwortstelle“.** Schichten 2, 6, 10: B-1M-hop2d +0,0005,
+  +0,0005, −0,0002, B-1M-r2-hop2d +0,0001, +0,0004, +0,005 [−0,002; +0,012]; jedes Intervall schließt 0 ein.
+- **Brücke, beide Modelle: „keine Zeilen von B an der Brücke“.** Signal −0,0001 bis +0,0012, jedes Intervall
+  schließt 0 ein.
+- **Ohne Urteil:**
+  - **SAME**, wo die Frage klappt: Runde 2 liest an der Antwortstelle B's Wert-Zeilen, +0,021 [+0,013; +0,029], und
+    Schicht 10 +0,016 [+0,008; +0,024] (B-1M-hop2d +0,017 [+0,010; +0,025]). Die Messung sieht Runde 2 also Werte
+    lesen, wenn es einen zu finden gibt.
+  - **Der Nachschlag wandert teilweise in Runde 2:** Die Wert-Kontrolle in Schicht 10 fällt von 0,149 (B-1M-hop2d) auf
+    0,108, und Runde 2 trägt 0,153.
+  - **Runde 2 der Frage gegen Schicht 10 von B's eigener Frage:** +0,00002 [−0,00005; +0,0001]. Die beiden Lesestellen
+    teilen kaum Zeilen (0,0002), dieser Vergleich zeigt also in keine Richtung etwas.
+  - **Profil:** Entlang der Frage hat keine Position ein Intervall über 0, in keinem der beiden Modelle; am nächsten
+    kommt Schicht 10 beim vorletzten Wort, +0,005 [−0,000; +0,011] bei beiden.
+- **Wie ich es lese:** Der zweite Lesezugriff übernimmt einen Teil des Wert-Nachschlags und findet B's Werte, wenn sie
+  im Training neben A stehen. Am Ende der Zwei-Schritt-Frage findet er wie der erste nichts von B. Meine Vermutung,
+  nicht gemessen: Runde 2 baut ihre Adresse auf dem auf, was Runde 1 gefunden hat, und Runde 1 hat nichts von B
+  gefunden, also gibt es nichts, woran sie anknüpfen kann.
+- **Was das nicht zeigen kann:** ein Seed pro Modell, eine Beziehung, eine Größe, 200 vorgeführte Paare; eine Runde
+  mehr mit eigenen Gewichten, keine Schleife mit geteilten Gewichten oder mehreren Runden. Ob die verketten würden,
+  bleibt offen.

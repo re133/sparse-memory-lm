@@ -1,0 +1,29 @@
+2026-10-11 17:32:27 dense queue start: cap 25.0 $ at 3.57 $/h = 7.00 h, Pod uptime 0.17 h
+2026-10-11 17:32:28 ntfy: Dense-Läufe: Setup fertig, Probelauf startet (Pod 0.17 h)
+2026-10-11 17:32:28 start B-1M-hop2d-s0: -m smlm.train --model B-1M-sparse --out_dir /workspace/AngryAnt/runs/hop2d_preflight/B-1M-hop2d-s0 --data wikipedia_hop2d --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --value_lr 2.4e-3 --mem_impl triton
+2026-10-11 17:33:58 preflight B-1M-hop2d-s0: 213539 tok/s alone, peak 10.4 GiB
+2026-10-11 17:33:58 start B-1M-r2-hop2d-s0: -m smlm.train --model B-1M-r2-sparse --out_dir /workspace/AngryAnt/runs/hop2d_preflight/B-1M-r2-hop2d-s0 --data wikipedia_hop2d --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --value_lr 2.4e-3 --mem_impl triton
+2026-10-11 17:35:28 preflight B-1M-r2-hop2d-s0: 189267 tok/s alone, peak 10.5 GiB
+2026-10-11 17:35:28 push skipped (SMLM_NO_PUSH): Cloud dense: preflight
+2026-10-11 17:35:28 budget gate: admitted ['B-1M-hop2d-s0', 'B-1M-r2-hop2d-s0'], dropped [], projected 2.30 h ≈ 8.21 $
+2026-10-11 17:35:28 ntfy: Budget-Wächter: laufen B-1M-hop2d, B-1M-r2-hop2d; Hochrechnung 2.3 h ≈ 8 $
+2026-10-11 17:35:28 start B-1M-r2-hop2d-s0: -m smlm.train --model B-1M-r2-sparse --out_dir /workspace/AngryAnt/runs/hop2d/B-1M-r2-hop2d-s0 --data wikipedia_hop2d --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --seed 0 --data_seed 1234 --value_lr 2.4e-3 --mem_impl triton
+2026-10-11 17:35:28 start B-1M-hop2d-s0: -m smlm.train --model B-1M-sparse --out_dir /workspace/AngryAnt/runs/hop2d/B-1M-hop2d-s0 --data wikipedia_hop2d --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --seed 0 --data_seed 1234 --value_lr 2.4e-3 --mem_impl triton
+2026-10-11 19:14:59 end B-1M-hop2d-s0 status=done val_ppl 21.891
+2026-10-11 19:14:59 push skipped (SMLM_NO_PUSH): Cloud dense: B-1M-hop2d-s0 done, val PPL 21.891
+2026-10-11 19:15:32 backup ok: 9 files verified on storagebox:smlm
+2026-10-11 19:15:33 ntfy: B-1M-hop2d-s0 done, val PPL 21.891; Pod 1.89 h ≈ 6.73 $
+2026-10-11 19:23:03 end B-1M-r2-hop2d-s0 status=done val_ppl 21.883
+2026-10-11 19:23:03 push skipped (SMLM_NO_PUSH): Cloud dense: B-1M-r2-hop2d-s0 done, val PPL 21.883
+2026-10-11 19:23:38 backup ok: 9 files verified on storagebox:smlm
+2026-10-11 19:23:38 ntfy: B-1M-r2-hop2d-s0 done, val PPL 21.883; Pod 2.02 h ≈ 7.21 $
+2026-10-11 19:24:10 push skipped (SMLM_NO_PUSH): Cloud dense: queue finished, checkpoint manifest
+# note added at home: the copy of this log on the Storage Box was made before its last lines were written; the
+# next four lines are copied from the instance's log as I read it over ssh at 19:24 UTC
+2026-10-11 19:24:23 backup ok: 37 files verified on storagebox:smlm
+2026-10-11 19:24:23 backup ok: 1 files verified on storagebox:smlm
+2026-10-11 19:24:23 QUEUE DONE, backup verified
+2026-10-11 19:24:24 ntfy: Fertig: Ergebnisse gepusht, Checkpoints auf der Storage Box geprüft. Claude stoppt und löscht jetzt den Pod (Pod 2.03 h ≈ 7.26 $). Falls nicht: Selbst-Stopp in 20 min.
+# note added at home: this was IONOS, not Runpod. Nothing was pushed from the instance (SMLM_NO_PUSH), despite the
+# message above. The waiting fallback stop was ended from home; the checkpoints' sha256 were recomputed on the Storage
+# Box from home before the instance was released for deletion (Leon deletes IONOS instances himself).
