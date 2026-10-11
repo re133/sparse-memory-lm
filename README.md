@@ -234,8 +234,8 @@ Can a model combine two made-up facts it learned in separate articles, "A's moth
 and answer "A's mother was born in" without writing out the step in between (step 11 in the [report](REPORT.md),
 criteria written before the runs)? B-1M and D-50M both know each fact perfectly, and neither chains them: they do no
 better than for a mother they never saw. That matches what's known for much larger models. With both facts in the same
-article it works, and there the table model is clearly ahead (57% right against 39%). D-100M and B-16M haven't run
-yet.
+article it works, and there the table model is clearly ahead (57% right against 39%). I left out the bigger models:
+D-100M can't change the comparison anymore, and I don't expect B-16M to chain.
 
 ### Running the 16.8M table on my PC
 

@@ -3086,7 +3086,9 @@ Modelle, passt das zur Literatur und beweist nicht, dass eine Tabelle Fakten gru
 
 ### Ergebnis Schritt 11, die Läufe zu Hause (2026-10-11, RX 9070, `scripts/eval_hop2.py` → `report/hop2/summary.json`)
 
-B-1M und D-50M sind fertig; D-100M und B-16M (gemietete GPU) sind noch nicht gelaufen.
+B-1M und D-50M liefen zu Hause. D-100M und B-16M (gemietete GPU) laufen nicht (nach diesem Ergebnis entschieden):
+D-100M kann den Hauptvergleich nicht mehr ändern (unten), und dass B-16M verkettet, erwarte ich nicht, weil die
+Einzelfakten schon bei B-1M sitzen und das Verbinden scheitert. Die Zeit geht stattdessen in Teil B.
 
 - **Beide Schranken bestanden, beide Modelle: „verkettet nicht“.** H2-Lift B-1M −0,004 [−0,009; +0,002], D-50M
   −0,002 [−0,007; +0,002]. Beide kennen die Einzelfakten vollständig: B's Eigenschaften in 100 % der H2-Paare richtig,
@@ -3104,9 +3106,9 @@ B-1M und D-50M sind fertig; D-100M und B-16M (gemietete GPU) sind noch nicht gel
 
   (Wahrscheinlichkeit des wahren Werts von B, normiert über alle Werte der Eigenschaft, in Klammern der Anteil
   richtiger Werte.)
-- **Hauptvergleich:** Nach den Kriterien wartet er auf D-100M, sein Ausgang steht aber schon fest. B-1M minus D-50M ist
-  −0,002 [−0,009; +0,005] und schließt 0 ein, also kann weder „die Tabelle verkettet besser“ noch „dicht verkettet
-  besser“ herauskommen; ist D-100M testbar, lautet er „kein klarer Unterschied“.
+- **Hauptvergleich:** Ohne D-100M bleibt er formal offen, sein Ausgang stand aber schon fest. B-1M minus D-50M ist
+  −0,002 [−0,009; +0,005] und schließt 0 ein, also konnte weder „die Tabelle verkettet besser“ noch „dicht verkettet
+  besser“ herauskommen; mit einem testbaren D-100M wäre es „kein klarer Unterschied“ gewesen.
 - **Ohne Urteil:**
   - **SAME:** Stehen beide Fakten in einem Artikel, klappt die Frage, und das Tabellenmodell liegt klar vorne: Lift
     +0,43 [+0,39; +0,46] gegen +0,20 [+0,17; +0,23], Unterschied +0,19 bis +0,27. Das zeigt kein Verketten: A und die
@@ -3124,4 +3126,58 @@ B-1M und D-50M sind fertig; D-100M und B-16M (gemietete GPU) sind noch nicht gel
   Tabelle, die in drei Schichten gelesen wird, im Prinzip zwei Nachschläge hintereinander machen könnte, reicht nicht;
   B-1M tut es nicht.
 - **Was das nicht zeigen kann:** ein Seed pro Modell; eine Beziehung in einem festen Format; nur diese Größe. Ob
-  B-16M, das sich Fakten viel schneller merkt, verkettet, ist offen, bis es gelaufen ist.
+  B-16M, das sich Fakten viel schneller merkt, verketten würde, bleibt offen: Ich habe es nicht laufen lassen.
+
+### Schritt 11, Teil B: Welche Tabellenzeilen liest B-1M auf dem Weg? (ohne Training, Kriterien vor dem Messen festgelegt, 2026-10-11)
+
+**Warum:** B-1M kennt beide Fakten und verkettet sie trotzdem nicht. Liest es wenigstens irgendwo auf dem Weg die
+Tabellenzeilen von B: an der Brücke („A's mother was“, wo es B nennen kann) oder am Ende der Frage, wo es B's Wert
+nachschlagen müsste? Nur B-1M: D-50M hat keine Tabelle.
+
+**Maß** (`scripts/hop2_reads.py`, das B-1M aus Schritt 11 auf der GPU in bf16, wie in der Auswertung):
+- Zeilen eines Lesezugriffs: Jede der drei Memory-Schichten (2, 6, 10) liest an jeder Position 4 × 32 Zeilen der
+  geteilten Tabelle, mit Softmax-Gewichten. Das Gewicht einer Zeile ist ihre Summe über die Köpfe geteilt durch 4,
+  ein Lesezugriff summiert sich also zu 1. Überlappung zweier Lesezugriffe: die Summe über die Zeilen des kleineren
+  der beiden Gewichte, von 0 (keine gemeinsame Zeile) bis 1 (dieselben Zeilen mit denselben Gewichten).
+- Drei Prompts pro Paar, im Trainingsformat: die Zwei-Schritt-Frage T („A\n\nA's mother was born in“ und die beiden
+  anderen Eigenschaften), die Beziehung R („A\n\nA's mother was“, danach schreibt das Modell B's Namen) und B's eigene
+  Frage S („B\n\nB was born in“, die B-1M für jedes H2-Paar richtig beantwortet).
+- Jedes Paar gegen alle 200 B seiner Bedingung: Signal = Überlappung mit dem eigenen B minus die mittlere Überlappung
+  mit den anderen 199, dazu der Rang des eigenen B unter den 200 (Zufall: Rang 1 in 0,5 %). Bootstrap über Paare; die
+  Urteile nutzen ein Bonferroni-Intervall über die drei Schichten (98,3 %).
+- **Antwortstelle:** das letzte Token von T gegen das letzte Token von S für dieselbe Eigenschaft. Beide Prompts
+  enden mit denselben drei Wörtern; nur das Subjekt unterscheidet sich.
+- **Brücke:** das letzte Token von R gegen das letzte Token von B's Namen in S.
+- **Wert-Kontrolle:** Tragen die Zeilen, die einen Wert erzeugen, überhaupt von einem Kontext in einen anderen? Das
+  letzte Token einer DIRECT-Frage (mit ihrer Antwort trainiert; B-1M hat jede richtig) gegen das letzte Token von S
+  für die H2-B: gleicher Wert gegen anderen Wert. Tun sie das nicht, hieße eine Antwortstelle ohne B's Zeilen nichts.
+
+**Vor den Kriterien:** der Nulltest mit dem ursprünglichen B-1M, das diese Paare nie gesehen hat (dasselbe Skript,
+GPU):
+- Antwortstelle: Signal −0,002 bis +0,000 in den drei Schichten, Bonferroni-Intervalle von etwa ±0,004 (Schicht 2)
+  bis ±0,012 (Schicht 10), alle schließen 0 ein; das eigene B auf Rang 1 in 0,3 bis 0,5 % (Zufall 0,5 %). Das Niveau,
+  auf dem das Signal sitzt, ist hoch: Überlappung mit der Frage eines anderen B 0,81, 0,65 und 0,45 (Schichten 2, 6,
+  10), weil beide Prompts mit denselben Wörtern enden.
+- Brücke: Die Lesezugriffe bei „was“ und bei B's Namen teilen fast nichts (Überlappung 0,0001 bis 0,0002), Signal
+  innerhalb ±0,0003, schließt 0 ein.
+- Wert-Kontrolle: +0,001, +0,003 und −0,003. In Schicht 6 liegt das Bonferroni-Intervall knapp über 0 (+0,0001 bis
+  +0,0052), obwohl dieses Modell diese Werte für diese Personen nie gelernt hat. Eine von zwanzig solchen Prüfungen
+  tut das zufällig; deshalb vergleicht die Schranke unten mit diesem Nullmodell statt mit 0.
+
+**Kriterien** (das B-1M aus Schritt 11):
+- **Schranke für die Antwortstelle:** Die Wert-Kontrolle minus die des ursprünglichen B-1M, gepaart über dieselben
+  DIRECT-Paare, hat in mindestens einer Schicht ein Bonferroni-Intervall über 0. Sonst **„an der Antwortstelle nicht
+  testbar“**.
+- **Antwortstelle:** **„B's Zeilen werden an der Antwortstelle gelesen“**, wenn das Bonferroni-Intervall des Signals
+  in mindestens einer Schicht über 0 liegt, sonst **„keine Spur von B an der Antwortstelle“**.
+- **Brücke:** **„B's Zeilen werden an der Brücke gelesen“**, wenn das Bonferroni-Intervall des Signals in mindestens
+  einer Schicht über 0 liegt, sonst **„keine Zeilen von B an der Brücke“**.
+- **Ohne Urteil berichtet:** das Profil entlang der Frage (das Subjekt „ mother“ gegen B's Namen, dann jedes der drei
+  Stichwort-Wörter, vom Ende her ausgerichtet), die Ränge, die Überlappungs-Niveaus, dieselben Maße für SAME (wo die
+  Frage klappt) und die Zahlen des Nullmodells.
+
+**Was ich erwarte und was das nicht zeigen kann:** B-1M beantwortet die Zwei-Schritt-Frage auf Zufallsniveau; läse es
+am Ende viel von den Zeilen, die B's Wert erzeugen, gäbe es diesen Wert. „Keine Spur an der Antwortstelle“ ist also
+fast sicher. Aufschlussreich sind die Brücke und das Profil: Gibt es eine Spur von B dort, wo das Modell B nennen
+kann, und wo endet sie? „Keine Zeilen von B an der Brücke“ hieße nicht, dass das Modell B dort nicht kennt (es nennt B
+in jedem Paar), nur dass es B nicht über die Zeilen findet, die B's Name liest. Ein Modell, ein Seed, eine Beziehung.

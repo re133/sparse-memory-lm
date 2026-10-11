@@ -2940,7 +2940,9 @@ literature and doesn't prove that a table can't chain facts in principle.
 
 ### Result of step 11, the runs at home (2026-10-11, RX 9070, `scripts/eval_hop2.py` → `report/hop2/summary.json`)
 
-B-1M and D-50M are done; D-100M and B-16M (rented GPU) haven't run yet.
+B-1M and D-50M ran at home. D-100M and B-16M (rented GPU) won't run (decided after this result): D-100M can no
+longer change the main comparison (below), and I don't expect B-16M to chain, because the single facts already sit
+in B-1M and what fails is combining them. I'm putting the time into part B instead.
 
 - **Both gates passed, both models: "does not chain".** H2 lift B-1M −0.004 [−0.009; +0.002], D-50M −0.002 [−0.007;
   +0.002]. Both know the single facts completely: B's attributes right in 100% of the H2 pairs, and the true B ranked
@@ -2957,9 +2959,9 @@ B-1M and D-50M are done; D-100M and B-16M (rented GPU) haven't run yet.
 
   (Probability of B's true value, normalised over all values of the attribute, and in brackets the share of values
   right.)
-- **Main comparison:** it waits for D-100M by the criteria, but its outcome is already fixed. B-1M minus D-50M is
-  −0.002 [−0.009; +0.005] and includes 0, so neither "the table chains better" nor "dense chains better" can come out;
-  if D-100M is testable, it is "no clear difference".
+- **Main comparison:** without D-100M it stays formally open, but its outcome was already fixed. B-1M minus D-50M is
+  −0.002 [−0.009; +0.005] and includes 0, so neither "the table chains better" nor "dense chains better" could come
+  out; with a testable D-100M it would have been "no clear difference".
 - **Without a verdict:**
   - **SAME:** with both facts in one article the question works, and the table model is clearly ahead: lift +0.43
     [+0.39; +0.46] against +0.20 [+0.17; +0.23], difference +0.19 to +0.27. This doesn't show chaining: A and B's
@@ -2974,4 +2976,56 @@ B-1M and D-50M are done; D-100M and B-16M (rented GPU) haven't run yet.
   both facts and the question format, but the second lookup doesn't use the result of the first. That a table read in
   three layers could in principle do two lookups in a row isn't enough; B-1M doesn't do it.
 - **What this can't show:** one seed per model; one relation in one fixed format; only this size. Whether B-16M, which
-  memorizes much faster, chains is open until it has run.
+  memorizes much faster, would chain stays open: I didn't run it.
+
+### Step 11, part B: which table rows does B-1M read on the way? (no training, criteria fixed before measuring, 2026-10-11)
+
+**Why:** B-1M knows both facts and still doesn't chain them. Does it at least read B's table rows somewhere on the way:
+at the bridge ("A's mother was", where it can name B), or at the end of the question, where it would have to look up
+B's value? Only B-1M: D-50M has no table.
+
+**Measure** (`scripts/hop2_reads.py`, the B-1M of step 11 on the GPU in bf16, as in the evaluation):
+- Rows of one read: each of the three memory layers (2, 6, 10) reads 4 × 32 rows of the shared table at every
+  position, with softmax weights. A row's weight is its sum over the heads divided by 4, so one read sums to 1.
+  Overlap of two reads: the sum over rows of the smaller of the two weights, from 0 (no row in common) to 1 (the same
+  rows with the same weights).
+- Three prompts per pair, in the training format: the two-hop question T ("A\n\nA's mother was born in", and the
+  other two attributes), the relation R ("A\n\nA's mother was", after which the model writes B's name), and B's own
+  question S ("B\n\nB was born in", which B-1M gets right for every H2 pair).
+- Every pair against all 200 B of its condition: signal = overlap with its own B minus the mean overlap with the
+  other 199, and the rank of its own B among the 200 (chance: rank 1 in 0.5%). Bootstrap over pairs; the verdicts use
+  a Bonferroni interval over the three layers (98.3%).
+- **Answer position:** the last token of T against the last token of S for the same attribute. Both prompts end in
+  the same three words; only the subject differs.
+- **Bridge:** the last token of R against the last token of B's name in S.
+- **Value control:** do the rows that produce a value carry over from one context to another at all? The last token
+  of a DIRECT question (trained with its answer; B-1M gets every one right) against the last token of S for the H2
+  B: same value against a different value. If they don't, an answer position without B's rows would mean nothing.
+
+**Before the criteria:** the null test with the original B-1M, which never saw these pairs (same script, GPU):
+- Answer position: signal −0.002 to +0.000 in the three layers, Bonferroni intervals of about ±0.004 (layer 2) to
+  ±0.012 (layer 10), all including 0; its own B ranked first in 0.3 to 0.5% (chance 0.5%). The level the signal sits
+  on is high: overlap with another B's question 0.81, 0.65 and 0.45 (layers 2, 6, 10), because both prompts end in the
+  same words.
+- Bridge: the reads at "was" and at B's name share almost nothing (overlap 0.0001 to 0.0002), signal within ±0.0003,
+  including 0.
+- Value control: +0.001, +0.003 and −0.003. In layer 6 the Bonferroni interval lies just above 0 (+0.0001 to
+  +0.0052), although this model never learned these values for these people. One check in twenty does that by
+  chance; it's why the gate below compares against this null model instead of against 0.
+
+**Criteria** (the B-1M of step 11):
+- **Gate for the answer position:** the value control minus that of the original B-1M, paired over the same DIRECT
+  pairs, has a Bonferroni interval above 0 in at least one layer. Otherwise **"not testable at the answer position"**.
+- **Answer position:** **"B's rows are read at the answer position"** if the signal's Bonferroni interval lies above
+  0 in at least one layer, otherwise **"no trace of B at the answer position"**.
+- **Bridge:** **"B's rows are read at the bridge"** if the signal's Bonferroni interval lies above 0 in at least one
+  layer, otherwise **"no B rows at the bridge"**.
+- **Reported without a verdict:** the profile along the question (the subject " mother" against B's name, then each
+  of the three cue words, aligned from the end), the ranks, the overlap levels, the same measures for SAME (where the
+  question works), and the null model's numbers.
+
+**What I expect, and what this can't show:** B-1M answers the two-hop question at chance, so if it read much of the
+rows that produce B's value at the end, it would give that value. "No trace at the answer position" is close to
+certain. The informative parts are the bridge and the profile: is there a trace of B where the model can name B, and
+where does it end? "No B rows at the bridge" wouldn't mean the model doesn't know B there (it names B in every pair),
+only that it doesn't find B through the rows that B's name reads. One model, one seed, one relation.
