@@ -1,4 +1,5 @@
-"""Step 1 "Gegenwert der Tabelle": dense models D-50M ... D-400M on one Runpod GPU, side by side.
+"""Step 1 "Gegenwert der Tabelle": dense models D-50M ... D-400M side by side on one rented GPU (Runpod Pod or a
+plain VM such as IONOS); since step 10 also any other runs (SMLM_DENSE_RUNS).
 
   python scripts/run_dense.py      (started by cloud/setup_dense.sh in tmux session "queue"; resumable)
 
@@ -12,12 +13,17 @@
    still fits next to the reservations of the runs already started.
 4. After every run: small files pushed to GitHub; the run directory (checkpoint included) copied to the storage box
    (rsync over ssh, host alias "storagebox") and verified there with sha256; phone notification (ntfy).
-5. End: sha256 manifest of the checkpoints (pushed), final copy + verification. Backup ok -> ntfy, then Claude stops
-   and deletes the Pod from home; if that has not happened after FALLBACK_MIN minutes the Pod stops itself.
-   Backup failed -> ntfy and the Pod stops itself at once (stopped, not deleted: /workspace keeps everything).
+5. End: sha256 manifest of the checkpoints (pushed), final copy + verification, then the end message, then queue.log
+   once more, so the copy on the box ends with the same lines as here.
+   On a Runpod Pod: backup ok -> Claude stops and deletes the Pod from home; if that has not happened after
+   FALLBACK_MIN minutes the Pod stops itself. Backup failed -> the Pod stops itself at once (stopped, not deleted:
+   /workspace keeps everything).
+   On a plain VM (IONOS, SMLM_PLATFORM=vm or no Runpod variables): nothing stops by itself. Claude checks the backup
+   on the box from home, then the instance is deleted by hand; backup failed -> ntfy, the instance must not be deleted.
 Safety: a run whose logs do not change for STALL_MIN minutes is terminated (not restarted: train.py writes no mid-run
 checkpoints); when the Pod uptime reaches the cap minus HARD_MARGIN_H, everything still running is terminated, the
-results are backed up and the Pod is stopped. cloud/setup_dense.sh additionally arms an independent watchdog.
+results are backed up and the Pod is stopped (a VM is not). cloud/setup_dense.sh additionally arms an independent
+watchdog.
 
 Test the scheduling locally without a GPU:  SMLM_FAKE_TRAIN=1 SMLM_BOX=/tmp/box python scripts/run_dense.py
 """
@@ -69,9 +75,25 @@ FALLBACK_MIN = float(os.environ.get("SMLM_FALLBACK_MIN", 20))
 BOX = os.environ.get("SMLM_BOX", "storagebox:smlm")       # "host:dir" (ssh) or a local directory (tests)
 BASE = os.environ.get("SMLM_BACKUP_BASE", ROOT)           # paths on the box are relative to this directory
 POLL_S = 2 if FAKE else 30
+NO_PUSH = os.environ.get("SMLM_NO_PUSH") == "1"
 TRAILER = ("\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n"
            "Claude-Session: https://claude.ai/code/session_019qFk4hJ98tAkLc3kBY5njm")
 T0 = time.time()
+
+
+def on_runpod():
+    """Runpod puts RUNPOD_POD_ID into every Pod; ssh sessions may not inherit it, so PID 1's environment counts too
+    (as in cloud/stop_pod.sh)."""
+    if os.environ.get("RUNPOD_POD_ID"):
+        return True
+    try:
+        with open("/proc/1/environ", "rb") as f:
+            return any(v.startswith(b"RUNPOD_POD_ID=") for v in f.read().split(b"\0"))
+    except OSError:
+        return False
+
+
+PLATFORM = os.environ.get("SMLM_PLATFORM") or ("runpod" if on_runpod() else "vm")
 
 
 def log(msg):
@@ -89,17 +111,30 @@ def notify(msg):
     log("ntfy: " + msg)
 
 
+def machine():
+    return "Pod" if PLATFORM == "runpod" else "Instanz"
+
+
 def pod_hours():
-    """Hours since the container started (PID 1), plus a margin for billing before that."""
+    """Hours since the container started (PID 1), plus a margin for billing before that. On a VM cloud-init reboots
+    once after installing the driver, so the first boot counts (birth time of /var/lib/cloud/instances, if the file
+    system records it, and only if it lies less than an hour before the current boot: a directory that came with the
+    image would otherwise make the budget gate drop every run)."""
     if FAKE:
         return float(os.environ.get("SMLM_FAKE_UPTIME_H", 0.5)) + (time.time() - T0) / 3600 * float(
             os.environ.get("SMLM_FAKE_SPEEDUP", 60))
     r = subprocess.run(["ps", "-o", "etimes=", "-p", "1"], capture_output=True, text=True)
-    return int(r.stdout.strip()) / 3600 + UPTIME_MARGIN_H
+    up_s = int(r.stdout.strip())
+    if PLATFORM == "vm":
+        b = subprocess.run(["stat", "-c", "%W", "/var/lib/cloud/instances"], capture_output=True, text=True)
+        born = int(b.stdout.strip()) if b.returncode == 0 and b.stdout.strip().isdigit() else 0
+        if born > 0 and 0 <= int(time.time()) - born - up_s < 3600:
+            up_s = int(time.time()) - born
+    return up_s / 3600 + UPTIME_MARGIN_H
 
 
 def git_push(message, paths):
-    if os.environ.get("SMLM_NO_PUSH") == "1":
+    if NO_PUSH:
         # the Pod has no write access to the repository: results come home through the storage box backup
         log(f"push skipped (SMLM_NO_PUSH): {message}")
         return True
@@ -128,8 +163,9 @@ def sha256(path):
     return h.hexdigest()
 
 
-def backup(paths):
-    """Copy files to BOX keeping their path relative to BASE (the repository), then compare sha256 there."""
+def backup(paths, quiet=False):
+    """Copy files to BOX keeping their path relative to BASE (the repository), then compare sha256 there.
+    quiet: no log line on success (for queue.log itself, so the copy on the box ends with the same line as here)."""
     paths = [os.path.relpath(p, BASE) for p in paths if os.path.exists(p)]
     if not paths:
         return True
@@ -156,7 +192,8 @@ def backup(paths):
             got = {p: sha256(os.path.join(BOX, p)) for p in paths if os.path.exists(os.path.join(BOX, p))}
         bad = [p for p in paths if got.get(p) != want[p]]
         if not bad:
-            log(f"backup ok: {len(paths)} files verified on {BOX}")
+            if not quiet:
+                log(f"backup ok: {len(paths)} files verified on {BOX}")
             return True
         log(f"backup verification failed (attempt {attempt + 1}): {bad[:5]}")
         time.sleep(60)
@@ -315,7 +352,8 @@ def finish(job, state, backup_ok):
     ok = backup([os.path.join(job.out, f) for f in sorted(os.listdir(job.out))])
     backup_ok[job.name] = ok
     notify(f"{job.name} {st or 'FAILED (not restarted)'}" + (f", val PPL {ppl:.3f}" if ppl else "")
-           + f"; Pod {pod_hours():.2f} h ≈ {pod_hours() * PRICE:.2f} $" + ("" if pushed else "; git push FAILED")
+           + f"; {machine()} {pod_hours():.2f} h ≈ {pod_hours() * PRICE:.2f} $"
+           + ("" if pushed else "; git push FAILED")
            + ("" if ok else "; Backup FAILED"))
 
 
@@ -369,18 +407,22 @@ def stop_pod(reason):
     if FAKE:
         log(f"(fake) would stop the Pod: {reason}")
         return
+    if PLATFORM != "runpod" and not os.environ.get("SMLM_STOP_CMD"):
+        log(f"no self-stop ({reason}): not a Runpod Pod and no SMLM_STOP_CMD, the instance is deleted by hand")
+        return
     r = subprocess.run(["bash", os.path.join(ROOT, "cloud", "stop_pod.sh")], cwd=ROOT, capture_output=True, text=True)
     log(f"Pod stop ({reason}): rc={r.returncode} {(r.stdout + r.stderr).strip()[:300]}")
     if r.returncode != 0:
-        notify("Pod konnte sich NICHT selbst stoppen - bitte in der Runpod-Konsole stoppen!")
+        notify(f"{machine()} konnte sich NICHT selbst stoppen - bitte in der "
+               f"{'Runpod' if PLATFORM == 'runpod' else 'Cloud'}-Konsole stoppen!")
 
 
 def main():
     os.makedirs(OUT, exist_ok=True)
     os.makedirs(PRE, exist_ok=True)
     state = {"phase": "preflight", "peaks": {}, "runs_end": {}, "cap_h": round(CAP_H, 3)}
-    log(f"dense queue start: cap {CAP_USD} $ at {PRICE} $/h = {CAP_H:.2f} h, Pod uptime {pod_hours():.2f} h")
-    notify(f"Dense-Läufe: Setup fertig, Probelauf startet (Pod {pod_hours():.2f} h)")
+    log(f"dense queue start ({PLATFORM}): cap {CAP_USD} $ at {PRICE} $/h = {CAP_H:.2f} h, uptime {pod_hours():.2f} h")
+    notify(f"Dense-Läufe: Setup fertig, Probelauf startet ({machine()} {pod_hours():.2f} h)")
     speeds = preflight(state)
     admitted, dropped, proj = admit(speeds, pod_hours())
     state.update({"phase": "runs", "admitted": admitted, "dropped": dropped, "projected_hours": round(proj, 2),
@@ -450,18 +492,29 @@ def main():
         missing = [f"{j.name} ({state['runs_end'][j.name]})" for j in jobs
                    if state["runs_end"].get(j.name, "done") != "done"]
         log("QUEUE DONE, backup verified" + (f", NOT finished: {', '.join(missing)}" if missing else ""))
-        notify(("Fertig" if not missing else f"UNVOLLSTÄNDIG, nicht fertig: {', '.join(missing)}. Der Rest")
-               + f": Ergebnisse gepusht, Checkpoints auf der Storage Box geprüft. Claude stoppt und löscht jetzt "
-               f"den Pod (Pod {pod_hours():.2f} h ≈ {pod_hours() * PRICE:.2f} $). Falls nicht: Selbst-Stopp in "
-               f"{FALLBACK_MIN:.0f} min.")
-        time.sleep(FALLBACK_MIN * 60 if not FAKE else 1)
-        stop_pod("fallback: not deleted from home within the waiting time")
-        notify("Pod hat sich selbst gestoppt (Fallback). Gestoppt kostet er nur noch Speicher; Claude löscht ihn.")
+        head = ("Fertig" if not missing else f"UNVOLLSTÄNDIG, nicht fertig: {', '.join(missing)}. Der Rest") + ": " \
+            + ("" if NO_PUSH else "Ergebnisse gepusht, ") + "Checkpoints auf der Storage Box geprüft"
+        cost = f"{machine()} {pod_hours():.2f} h ≈ {pod_hours() * PRICE:.2f} $"
+        if PLATFORM == "runpod":
+            notify(f"{head}. Claude stoppt und löscht jetzt den Pod ({cost}). Falls nicht: Selbst-Stopp in "
+                   f"{FALLBACK_MIN:.0f} min.")
+        else:
+            notify(f"{head} ({cost}). Claude prüft das Backup von zu Hause und meldet sich; erst dann die Instanz "
+                   "löschen.")
+        backup([os.path.join(OUT, "queue.log")], quiet=True)
+        if PLATFORM == "runpod":
+            time.sleep(FALLBACK_MIN * 60 if not FAKE else 1)
+            stop_pod("fallback: not deleted from home within the waiting time")
+            notify("Pod hat sich selbst gestoppt (Fallback). Gestoppt kostet er nur noch Speicher; Claude löscht ihn.")
     else:
         log("QUEUE DONE, BACKUP FAILED")
-        notify("Fertig, aber das Sichern auf die Storage Box ist FEHLGESCHLAGEN. Der Pod wird nur gestoppt (nicht "
-               "gelöscht), die Daten liegen weiter auf seinem Volume.")
-        stop_pod("backup failed")
+        if PLATFORM == "runpod":
+            notify("Fertig, aber das Sichern auf die Storage Box ist FEHLGESCHLAGEN. Der Pod wird nur gestoppt (nicht "
+                   "gelöscht), die Daten liegen weiter auf seinem Volume.")
+            stop_pod("backup failed")
+        else:
+            notify("Fertig, aber das Sichern auf die Storage Box ist FEHLGESCHLAGEN. Instanz NICHT löschen, die "
+                   "Daten liegen nur auf ihr.")
 
 
 if __name__ == "__main__":

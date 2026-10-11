@@ -9,6 +9,11 @@
 # preflight is part of run_dense.py (it also feeds the budget gate), checkpoints are backed up to the storage box,
 # and an independent watchdog stops the Pod when its uptime reaches the cost cap.
 # Stages that are done are skipped, so the script can simply be started again.
+#
+# Also on a plain VM (IONOS H200 NVL, prepared by the kit's ionos-cloud-init.yaml: key, packages, driver, reboot):
+# detected by the missing Runpod variables (or SMLM_PLATFORM=vm). There nothing stops by itself (if run.env sets
+# SMLM_STOP_CMD, the watchdog and a failed setup run it); the messages say so instead of asking for the Runpod console.
+# At the end Claude checks the backup on the box from home, then the instance is deleted by hand.
 set -euo pipefail
 if [ "$(id -u)" != "0" ]; then echo "please run as root"; exit 1; fi
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,6 +28,17 @@ LOG="$STATE/setup.log"
 exec > >(tee -a "$LOG") 2>&1
 say() { echo "$(date '+%F %T') [setup] $*"; }
 notify() { [ -n "${NTFY_TOPIC:-}" ] && curl -s -m 20 -H "Title: SMLM Cloud" -d "$1" "https://ntfy.sh/$NTFY_TOPIC" >/dev/null || true; }
+# Runpod puts RUNPOD_POD_ID into every Pod (ssh sessions may not inherit it: PID 1's environment counts too)
+if [ -z "${SMLM_PLATFORM:-}" ]; then
+  SMLM_PLATFORM=vm
+  { [ -n "${RUNPOD_POD_ID:-}" ] || tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -q '^RUNPOD_POD_ID='; } && SMLM_PLATFORM=runpod
+fi
+export SMLM_PLATFORM
+if [ "$SMLM_PLATFORM" = runpod ]; then
+  NOSTOP_MSG="Pod konnte sich NICHT selbst stoppen - bitte in der Runpod-Konsole stoppen!"
+else
+  NOSTOP_MSG="Die Instanz stoppt sich nicht selbst - bitte in der Cloud-Konsole löschen oder stoppen!"
+fi
 done_() { touch "$STATE/$1.done"; }
 is_done() { [ -f "$STATE/$1.done" ]; }
 
@@ -35,8 +51,8 @@ fail() {
     (cd "$REPO_DIR" && git add -f runs/cloud_dense/setup_failed.log && git commit -qm "Cloud dense setup failed: $*" \
       && git pull -q --rebase --autostash origin main && git push -q origin HEAD:main) || true
   fi
-  notify "Setup FEHLGESCHLAGEN: $* - der Pod stoppt sich"
-  bash "$KIT/stop_pod.sh" || notify "Pod konnte sich NICHT selbst stoppen - bitte in der Runpod-Konsole stoppen!"
+  notify "Setup FEHLGESCHLAGEN: $*"
+  bash "$KIT/stop_pod.sh" || notify "$NOSTOP_MSG"
   exit 1
 }
 trap 'fail "line $LINENO"' ERR
@@ -47,10 +63,12 @@ say "start (kit $KIT, repo $REPO_DIR)"
 CAP_S=$(python3 -c "print(int(${SMLM_COST_CAP_USD:-18} / ${SMLM_PRICE_USD_H:-3.49} * 3600))")
 UP_S=$(ps -o etimes= -p 1 | tr -d ' ')
 if [ ! -f /tmp/smlm_watchdog.pid ] || ! kill -0 "$(cat /tmp/smlm_watchdog.pid)" 2>/dev/null; then
-  nohup bash -c "sleep $((CAP_S - UP_S - 360)); echo \"\$(date) watchdog: cost cap reached\"; bash $KIT/stop_pod.sh" \
-    > "$STATE/watchdog.log" 2>&1 &
+  # the ntfy topic comes from cloud.env inside the watchdog, so it never shows up in the process list
+  nohup bash -c "sleep $((CAP_S - UP_S - 360)); echo \"\$(date) watchdog: cost cap reached\"; bash $KIT/stop_pod.sh \
+    || { . $KIT/cloud.env; [ -n \"\$NTFY_TOPIC\" ] && curl -s -m 20 -H 'Title: SMLM Cloud' \
+    -d 'Kostendeckel erreicht. $NOSTOP_MSG' \"https://ntfy.sh/\$NTFY_TOPIC\"; }" > "$STATE/watchdog.log" 2>&1 &
   echo $! > /tmp/smlm_watchdog.pid
-  say "watchdog armed: Pod stops at uptime $((CAP_S - 360)) s (cap ${SMLM_COST_CAP_USD:-18} \$ at ${SMLM_PRICE_USD_H:-3.49} \$/h, now $UP_S s)"
+  say "watchdog armed ($SMLM_PLATFORM): stop or ntfy at uptime $((CAP_S - 360)) s (cap ${SMLM_COST_CAP_USD:-18} \$ at ${SMLM_PRICE_USD_H:-3.49} \$/h, now $UP_S s)"
 fi
 
 mountpoint -q /workspace || [ -d /workspace ] || fail "/workspace missing"
@@ -149,7 +167,11 @@ fi
 # ---- 7 queue (every script must at least compile: a syntax error once left a Pod idle for 2 h)
 for f in scripts/*.py smlm/*.py; do .venv/bin/python -m py_compile "$f" || fail "syntax error in $f"; done
 # (preflight + budget gate + runs + backup are in run_dense.py)
-bash "$KIT/stop_pod.sh" --check || say "WARNING: Runpod API not usable - the Pod will NOT stop by itself"
+if [ "$SMLM_PLATFORM" = runpod ] || [ -n "${SMLM_STOP_CMD:-}" ]; then
+  bash "$KIT/stop_pod.sh" --check || say "WARNING: Runpod API not usable - the Pod will NOT stop by itself"
+else
+  say "plain VM: nothing stops by itself; after the backup check from home the instance is deleted by hand"
+fi
 trap - ERR
 if tmux has-session -t queue 2>/dev/null; then
   say "queue already running (tmux attach -t queue)"

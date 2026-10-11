@@ -1,6 +1,8 @@
-"""Step 1 "Gegenwert der Tabelle": dense presets D-50M ... D-400M and the budget gate of scripts/run_dense.py."""
+"""Step 1 "Gegenwert der Tabelle": dense presets D-50M ... D-400M, the budget gate of scripts/run_dense.py and the end
+of its queue on a Runpod Pod and on a plain VM (IONOS)."""
 import os
 import sys
+import time
 
 import pytest
 import torch
@@ -86,3 +88,29 @@ def test_budget_gate():
     failed = {**fast, "D-100M-s0": None}
     adm, drop, _ = run_dense.admit(failed, elapsed_h=0.6, cap_h=5.0, order=order)
     assert adm == ["D-50M-s0", "D-200M-s0", "D-400M-s0"] and drop[0] == ("D-100M-s0", "preflight failed")
+
+
+@pytest.mark.parametrize("platform", ["runpod", "vm"])
+def test_queue_end_per_platform(tmp_path, monkeypatch, platform):
+    """The whole queue with fake training: the copy of queue.log on the box ends with the end message. On a VM nothing
+    tries to stop the machine, and the end message talks neither about a Pod nor about a push that didn't happen."""
+    out = tmp_path / "runs" / "q"
+    for name, value in (("FAKE", True), ("OUT", str(out)), ("PRE", str(out) + "_preflight"),
+                        ("BOX", str(tmp_path / "box")), ("BASE", str(tmp_path)), ("RUNS", [("D-50M-s0", "D-50M")]),
+                        ("EXTRA", {}), ("PLATFORM", platform), ("NO_PUSH", platform == "vm"), ("FALLBACK_MIN", 0)):
+        monkeypatch.setattr(run_dense, name, value)
+    monkeypatch.setenv("FAKE_S", "0.05")
+    sleep = time.sleep
+    monkeypatch.setattr(time, "sleep", lambda s: sleep(min(s, 0.05)))
+    run_dense.main()
+    log = (out / "queue.log").read_text()
+    boxed = (tmp_path / "box" / "runs" / "q" / "queue.log").read_text()
+    assert (out / "BACKUP_OK").exists() and "QUEUE DONE, backup verified" in log
+    end = [ln for ln in log.splitlines() if "ntfy: Fertig" in ln]
+    assert len(end) == 1 and boxed.splitlines()[-1] == end[0]
+    if platform == "vm":
+        assert boxed == log and "would stop" not in log
+        assert "Pod" not in end[0] and "gepusht" not in end[0] and "Instanz löschen" in end[0]
+    else:
+        assert log.startswith(boxed) and "Claude stoppt und löscht jetzt den Pod" in end[0] and "gepusht" in end[0]
+        assert "(fake) would stop the Pod: fallback" in log.split(end[0])[1]
