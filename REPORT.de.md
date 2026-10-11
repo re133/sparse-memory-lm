@@ -3181,3 +3181,35 @@ am Ende viel von den Zeilen, die B's Wert erzeugen, gäbe es diesen Wert. „Kei
 fast sicher. Aufschlussreich sind die Brücke und das Profil: Gibt es eine Spur von B dort, wo das Modell B nennen
 kann, und wo endet sie? „Keine Zeilen von B an der Brücke“ hieße nicht, dass das Modell B dort nicht kennt (es nennt B
 in jedem Paar), nur dass es B nicht über die Zeilen findet, die B's Name liest. Ein Modell, ein Seed, eine Beziehung.
+
+### Ergebnis von Teil B (2026-10-11, RX 9070, `scripts/hop2_reads.py` → `report/hop2/reads_B-1M.json`)
+
+- **Schranke bestanden, in Schicht 10.** Dort tragen die Zeilen, die einen Wert erzeugen, von einem Kontext in einen
+  anderen: Eine DIRECT-Frage und B's eigene Frage teilen +0,124 [+0,118; +0,130] mehr ihrer Zeilen, wenn sie zum
+  selben Wert führen; das ursprüngliche B-1M −0,003, Unterschied +0,127 (Bonferroni-Intervall +0,118 bis +0,136). In
+  den Schichten 2 und 6 gibt es diesen Effekt nicht. Der Wert wird also in Schicht 10 nachgeschlagen.
+- **Antwortstelle: „keine Spur von B an der Antwortstelle“.** Signal in den Schichten 2, 6, 10: +0,002, +0,002,
+  +0,004, jedes Bonferroni-Intervall schließt 0 ein; das eigene B auf Rang 1 in 0 bis 0,3 % (Zufall 0,5 %). In
+  Schicht 10 liegt die obere Grenze (+0,011) unter einem Zehntel dessen, was derselbe Wert in der Wert-Kontrolle
+  bringt.
+- **Brücke: „keine Zeilen von B an der Brücke“.** Bei „A's mother was“, wonach das Modell in jedem Paar B's Namen
+  schreibt, liest es nicht mehr von den Zeilen, die B's Name liest, als von denen eines anderen B: Signal −0,0002 bis
+  +0,0002, Intervalle innerhalb ±0,003, das eigene B auf Rang 1 in 0 bis 0,5 %. Nach dem Training auf den Paaren teilen
+  diese Lesezugriffe ein wenig mit denen bei irgendeinem dieser Namen (0,010 bis 0,026, gegen 0,0002 im ursprünglichen
+  Modell), aber nicht mehr mit dem richtigen.
+- **Ohne Urteil:**
+  - **Profil:** Entlang der Frage („mother“, dann jedes Stichwort-Wort) hat keine Position ein Intervall über 0; am
+    nächsten kommt Schicht 10 beim vorletzten Wort (+0,005 [−0,000; +0,011]).
+  - **SAME**, wo die Frage klappt (57 % richtig): An der Antwortstelle liest Schicht 10 einige von B's Zeilen, +0,016
+    [+0,009; +0,023], das eigene B auf Rang 1 in 1,3 %. Dort hat B's eigene Frage denselben Wert wie die
+    Zwei-Schritt-Frage, das sind also die Zeilen des Werts selbst, etwa ein Achtel der Wert-Kontrolle. Die Brücke zeigt
+    auch dort nichts.
+- **Wie ich es lese:** B-1M schlägt Werte in Schicht 10 nach, und am Ende der Zwei-Schritt-Frage findet dieser
+  Nachschlag nichts von B. An der Brücke kann das Modell B nennen, aber die Zeilen, die es dort liest, sind nicht die,
+  die B's Name liest, und was es dort über B weiß, kommt beim Nachschlag in Schicht 10 ein paar Wörter später nicht
+  an. Eine Erklärung aus der Literatur ist, dass die Brücke in den Schichten zu spät aufgelöst wird, um für den
+  zweiten Schritt genutzt zu werden (Biran et al. 2024, „Hopping Too Late“); in welcher Schicht B entsteht, habe ich
+  nicht gemessen. Ein zweiter Lesezugriff in derselben Schicht, der auf dem ersten aufbaut (die Schleifen-Variante,
+  die ich mir zu diesem Schritt notiert habe), würde genau auf diese Lücke zielen.
+- **Was das nicht zeigen kann:** dass B-1M B nirgends auf dem Weg hält; nur, dass seine Tabellen-Lesezugriffe B nicht
+  tragen. Ein Modell, ein Seed, eine Beziehung.

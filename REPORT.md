@@ -3029,3 +3029,31 @@ rows that produce B's value at the end, it would give that value. "No trace at t
 certain. The informative parts are the bridge and the profile: is there a trace of B where the model can name B, and
 where does it end? "No B rows at the bridge" wouldn't mean the model doesn't know B there (it names B in every pair),
 only that it doesn't find B through the rows that B's name reads. One model, one seed, one relation.
+
+### Result of part B (2026-10-11, RX 9070, `scripts/hop2_reads.py` → `report/hop2/reads_B-1M.json`)
+
+- **Gate passed, in layer 10.** There the rows that produce a value carry over from one context to another: a DIRECT
+  question and B's own question share +0.124 [+0.118; +0.130] more of their rows when they lead to the same value;
+  the original B-1M −0.003, difference +0.127 (Bonferroni interval +0.118 to +0.136). In layers 2 and 6 there is no
+  such effect. So the value lookup happens in layer 10.
+- **Answer position: "no trace of B at the answer position".** Signal in layers 2, 6, 10: +0.002, +0.002, +0.004,
+  every Bonferroni interval includes 0; its own B ranked first in 0 to 0.3% (chance 0.5%). In layer 10 the upper
+  bound (+0.011) is under a tenth of what the same value brings in the value control.
+- **Bridge: "no B rows at the bridge".** At "A's mother was", where the model then writes B's name in every pair,
+  it reads no more of the rows B's name reads than of another B's: signal −0.0002 to +0.0002, intervals within
+  ±0.003, own B first in 0 to 0.5%. After training on the pairs these reads do share a little with the reads at any
+  of these names (0.010 to 0.026, against 0.0002 in the original model), but not more with the right one.
+- **Without a verdict:**
+  - **Profile:** along the question ("mother", then each cue word) no position has an interval above 0; the closest
+    is layer 10 at the second-to-last word (+0.005 [−0.000; +0.011]).
+  - **SAME**, where the question works (57% right): at the answer position layer 10 reads some of B's rows, +0.016
+    [+0.009; +0.023], own B first in 1.3%. There B's own question has the same value as the two-hop question, so this
+    is the value rows themselves, about an eighth of the value control. The bridge shows nothing there either.
+- **How I read it:** B-1M looks up values in layer 10, and at the end of the two-hop question that lookup finds
+  nothing of B. At the bridge the model can name B, but the rows it reads there aren't the ones B's name reads, and
+  what it knows about B there doesn't reach the layer-10 lookup a few words later. One explanation from the
+  literature is that the bridge is resolved too late in the layers to be used for the second step (Biran et al. 2024,
+  "Hopping Too Late"); I didn't measure at which layer B forms. A second read in the same layer, which builds on the
+  first (the loop variant I noted with this step), would aim at exactly this gap.
+- **What this can't show:** that B-1M holds B nowhere on the way; only that its table reads don't carry B. One model,
+  one seed, one relation.
