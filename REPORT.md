@@ -2937,3 +2937,41 @@ greedy decoding never wrote B's name.
 **What this can't show:** one seed per model (the addendum to step 10 measures how far a second seed moves such a
 result); one relation ("mother") in one fixed format; only this size. If every model fails, that matches the
 literature and doesn't prove that a table can't chain facts in principle.
+
+### Result of step 11, the runs at home (2026-10-11, RX 9070, `scripts/eval_hop2.py` → `report/hop2/summary.json`)
+
+B-1M and D-50M are done; D-100M and B-16M (rented GPU) haven't run yet.
+
+- **Both gates passed, both models: "does not chain".** H2 lift B-1M −0.004 [−0.009; +0.002], D-50M −0.002 [−0.007;
+  +0.002]. Both know the single facts completely: B's attributes right in 100% of the H2 pairs, and the true B ranked
+  first among the 200 names in 100% (with 98% of the probability over those names). The format can be learned: the
+  DIRECT lift is +0.94 (B-1M) and +0.85 (D-50M), every value right. Still, asked "A's mother was born in", both give
+  B's true values no more than the values of a mother they never saw (NULL).
+
+| | B-1M | D-50M |
+|---|---:|---:|
+| H2 (two facts in separate articles) | 0.012 (1.2%) | 0.013 (1.2%) |
+| SAME (both in one article) | **0.441 (57.2%)** | 0.215 (39.0%) |
+| DIRECT (the composed sentences trained) | 0.955 (100%) | 0.861 (100%) |
+| NULL (never seen) | 0.015 (2.2%) | 0.015 (2.0%) |
+
+  (Probability of B's true value, normalised over all values of the attribute, and in brackets the share of values
+  right.)
+- **Main comparison:** it waits for D-100M by the criteria, but its outcome is already fixed. B-1M minus D-50M is
+  −0.002 [−0.009; +0.005] and includes 0, so neither "the table chains better" nor "dense chains better" can come out;
+  if D-100M is testable, it is "no clear difference".
+- **Without a verdict:**
+  - **SAME:** with both facts in one article the question works, and the table model is clearly ahead: lift +0.43
+    [+0.39; +0.46] against +0.20 [+0.17; +0.23], difference +0.19 to +0.27. This doesn't show chaining: A and B's
+    values stood in the same text 64 times, so a model can learn A's values directly. It fits step 10: the table
+    remembers what comes together better.
+  - **False bridge:** in H2 the values of another pair's B get as much as the true ones or more (B-1M 0.019 against
+    0.012, D-50M 0.015 against 0.013). For B-1M the paired difference lies just below 0 (−0.014 to −0.001, an interval
+    I computed afterwards, not part of the criteria). I don't read more into it than this: no trace of the bridge.
+  - **Greedy decoding** writes B's full name after "A's mother was" in every H2 and SAME pair, for both models.
+  - **Val PPL** against the runs without the pairs: B-1M 21.92 (+0.38%), D-50M 22.45 (−0.02%).
+- **How I read it:** the result of the literature holds here too, and the table doesn't change it. The models have
+  both facts and the question format, but the second lookup doesn't use the result of the first. That a table read in
+  three layers could in principle do two lookups in a row isn't enough; B-1M doesn't do it.
+- **What this can't show:** one seed per model; one relation in one fixed format; only this size. Whether B-16M, which
+  memorizes much faster, chains is open until it has run.

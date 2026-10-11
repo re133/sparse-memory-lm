@@ -3083,3 +3083,45 @@ den 200 Namen (Zufall 0,5 %), gieriges Dekodieren hat B's Namen nie geschrieben.
 **Was das nicht zeigen kann:** ein Seed pro Modell (der Nachtrag zu Schritt 10 misst, wie weit ein zweiter Seed so ein
 Ergebnis verschiebt); eine Beziehung („mother“) in einem festen Format; nur diese Größe. Scheitern alle
 Modelle, passt das zur Literatur und beweist nicht, dass eine Tabelle Fakten grundsätzlich nicht verketten kann.
+
+### Ergebnis Schritt 11, die Läufe zu Hause (2026-10-11, RX 9070, `scripts/eval_hop2.py` → `report/hop2/summary.json`)
+
+B-1M und D-50M sind fertig; D-100M und B-16M (gemietete GPU) sind noch nicht gelaufen.
+
+- **Beide Schranken bestanden, beide Modelle: „verkettet nicht“.** H2-Lift B-1M −0,004 [−0,009; +0,002], D-50M
+  −0,002 [−0,007; +0,002]. Beide kennen die Einzelfakten vollständig: B's Eigenschaften in 100 % der H2-Paare richtig,
+  und das wahre B unter den 200 Namen in 100 % auf Platz eins (mit 98 % der Wahrscheinlichkeit über diese Namen). Das
+  Format ist lernbar: Der DIRECT-Lift ist +0,94 (B-1M) und +0,85 (D-50M), jeder Wert richtig. Trotzdem geben beide auf
+  „A's mother was born in“ den wahren Werten von B nicht mehr als den Werten einer Mutter, die sie nie gesehen haben
+  (NULL).
+
+| | B-1M | D-50M |
+|---|---:|---:|
+| H2 (zwei Fakten in getrennten Artikeln) | 0,012 (1,2 %) | 0,013 (1,2 %) |
+| SAME (beide in einem Artikel) | **0,441 (57,2 %)** | 0,215 (39,0 %) |
+| DIRECT (die zusammengesetzten Sätze trainiert) | 0,955 (100 %) | 0,861 (100 %) |
+| NULL (nie gesehen) | 0,015 (2,2 %) | 0,015 (2,0 %) |
+
+  (Wahrscheinlichkeit des wahren Werts von B, normiert über alle Werte der Eigenschaft, in Klammern der Anteil
+  richtiger Werte.)
+- **Hauptvergleich:** Nach den Kriterien wartet er auf D-100M, sein Ausgang steht aber schon fest. B-1M minus D-50M ist
+  −0,002 [−0,009; +0,005] und schließt 0 ein, also kann weder „die Tabelle verkettet besser“ noch „dicht verkettet
+  besser“ herauskommen; ist D-100M testbar, lautet er „kein klarer Unterschied“.
+- **Ohne Urteil:**
+  - **SAME:** Stehen beide Fakten in einem Artikel, klappt die Frage, und das Tabellenmodell liegt klar vorne: Lift
+    +0,43 [+0,39; +0,46] gegen +0,20 [+0,17; +0,23], Unterschied +0,19 bis +0,27. Das zeigt kein Verketten: A und die
+    Werte von B standen 64-mal im selben Text, ein Modell kann also A's Werte direkt lernen. Es passt zu Schritt 10:
+    Die Tabelle merkt sich besser, was zusammen vorkommt.
+  - **Falsche Brücke:** In H2 bekommen die Werte des B eines anderen Paars so viel wie die wahren oder mehr (B-1M
+    0,019 gegen 0,012, D-50M 0,015 gegen 0,013). Bei B-1M liegt der gepaarte Unterschied knapp unter 0 (−0,014 bis
+    −0,001, ein Intervall, das ich nachträglich gerechnet habe, nicht Teil der Kriterien). Ich lese nicht mehr hinein
+    als: keine Spur der Brücke.
+  - **Gierig dekodiert** schreiben beide Modelle nach „A's mother was“ in jedem H2- und SAME-Paar den vollen Namen von
+    B.
+  - **Val-PPL** gegen die Läufe ohne die Paare: B-1M 21,92 (+0,38 %), D-50M 22,45 (−0,02 %).
+- **Wie ich es lese:** Das Ergebnis der Literatur gilt auch hier, und die Tabelle ändert daran nichts. Die Modelle
+  haben beide Fakten und das Frageformat, aber der zweite Nachschlag nutzt das Ergebnis des ersten nicht. Dass eine
+  Tabelle, die in drei Schichten gelesen wird, im Prinzip zwei Nachschläge hintereinander machen könnte, reicht nicht;
+  B-1M tut es nicht.
+- **Was das nicht zeigen kann:** ein Seed pro Modell; eine Beziehung in einem festen Format; nur diese Größe. Ob
+  B-16M, das sich Fakten viel schneller merkt, verkettet, ist offen, bis es gelaufen ist.
