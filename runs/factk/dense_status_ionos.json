@@ -1,0 +1,66 @@
+{
+ "phase": "end",
+ "peaks": {
+  "D-100M-factk-s1": 11.675775051116943,
+  "B-16M-factk-s0": 100.91404438018799
+ },
+ "runs_end": {
+  "D-100M-factk-s1": "done",
+  "B-16M-factk-s0": "done"
+ },
+ "cap_h": 7.003,
+ "preflight_tok_s": {
+  "D-100M-factk-s1": 213642.3641903095,
+  "B-16M-factk-s0": 146809.02403256018
+ },
+ "admitted": [
+  "D-100M-factk-s1",
+  "B-16M-factk-s0"
+ ],
+ "dropped": [],
+ "projected_hours": 2.59,
+ "projected_cost_usd": 9.25,
+ "runs": {
+  "D-100M-factk-s1": {
+   "model": "D-100M",
+   "status": "done",
+   "val_ppl": 20.385548757150456,
+   "val2_ppl": 59.4592361356349,
+   "params": {
+    "total": 137746176,
+    "embedding": 38633472,
+    "non_embedding": 99112704,
+    "memory_values": 0,
+    "dense_body": 99112704,
+    "active_non_embedding_per_token": 99112704,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": 112238.68322463955,
+   "preflight_tok_s": 213642.3641903095,
+   "preflight_peak_vram_gib": 11.675775051116943
+  },
+  "B-16M-factk-s0": {
+   "model": "B-16M-sparse",
+   "status": "done",
+   "val_ppl": 20.06866885717982,
+   "val2_ppl": 62.20397253674158,
+   "params": {
+    "total": 6494130816,
+    "embedding": 19316736,
+    "non_embedding": 6474814080,
+    "memory_values": 6442450944,
+    "dense_body": 32363136,
+    "active_non_embedding_per_token": 32510592,
+    "bn_running_stats": 6144
+   },
+   "train_tok_s_median": 137878.25471133573,
+   "preflight_tok_s": 146809.02403256018,
+   "preflight_peak_vram_gib": 100.91404438018799
+  }
+ },
+ "pod_hours": 2.681,
+ "price_usd_h": 3.57,
+ "cap_usd": 25.0,
+ "est_cost_usd": 9.57,
+ "updated": "2026-10-10 21:38:34"
+}

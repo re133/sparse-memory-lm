@@ -11,3 +11,23 @@
 2026-10-09 12:18:07 backup ok: 6 files verified on storagebox:smlm
 2026-10-09 12:18:08 ntfy: D-100M-factk-s0 done, val PPL 20.513; Pod 1.07 h ≈ 4.28 $
 2026-10-09 12:18:38 push skipped (SMLM_NO_PUSH): Cloud dense: queue finished, checkpoint manifest
+2026-10-10 19:08:18 dense queue start: cap 25.0 $ at 3.57 $/h = 7.00 h, Pod uptime 0.18 h
+2026-10-10 19:08:18 ntfy: Dense-Läufe: Setup fertig, Probelauf startet (Pod 0.18 h)
+2026-10-10 19:08:18 start D-100M-factk-s1: -m smlm.train --model D-100M --out_dir /workspace/AngryAnt/runs/factk_preflight/D-100M-factk-s1 --data wikipedia_factk --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --seed 1
+2026-10-10 19:09:38 preflight D-100M-factk-s1: 213642 tok/s alone, peak 11.7 GiB
+2026-10-10 19:09:38 start B-16M-factk-s0: -m smlm.train --model B-16M-sparse --out_dir /workspace/AngryAnt/runs/factk_preflight/B-16M-factk-s0 --data wikipedia_factk --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 3e6 --seed 0 --data_seed 1234 --mem_impl triton --value_lr 2.4e-3
+2026-10-10 19:12:38 preflight B-16M-factk-s0: 146809 tok/s alone, peak 100.9 GiB
+2026-10-10 19:12:39 push skipped (SMLM_NO_PUSH): Cloud dense: preflight
+2026-10-10 19:12:39 budget gate: admitted ['D-100M-factk-s1', 'B-16M-factk-s0'], dropped [], projected 2.59 h ≈ 9.25 $
+2026-10-10 19:12:39 ntfy: Budget-Wächter: laufen D-100M-factk-s1, B-16M-factk; Hochrechnung 2.6 h ≈ 9 $
+2026-10-10 19:12:39 start B-16M-factk-s0: -m smlm.train --model B-16M-sparse --out_dir /workspace/AngryAnt/runs/factk/B-16M-factk-s0 --data wikipedia_factk --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --seed 0 --data_seed 1234 --mem_impl triton --value_lr 2.4e-3
+2026-10-10 19:12:39 start D-100M-factk-s1: -m smlm.train --model D-100M --out_dir /workspace/AngryAnt/runs/factk/D-100M-factk-s1 --data wikipedia_factk --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --seed 0 --data_seed 1234 --seed 1
+2026-10-10 20:27:10 end D-100M-factk-s1 status=done val_ppl 20.386
+2026-10-10 20:27:10 push skipped (SMLM_NO_PUSH): Cloud dense: D-100M-factk-s1 done, val PPL 20.386
+2026-10-10 20:27:16 backup ok: 6 files verified on storagebox:smlm
+2026-10-10 20:27:16 ntfy: D-100M-factk-s1 done, val PPL 20.386; Pod 1.49 h ≈ 5.33 $
+2026-10-10 21:10:16 end B-16M-factk-s0 status=done val_ppl 20.069
+2026-10-10 21:10:16 push skipped (SMLM_NO_PUSH): Cloud dense: B-16M-factk-s0 done, val PPL 20.069
+2026-10-10 21:37:51 backup ok: 9 files verified on storagebox:smlm
+2026-10-10 21:37:51 ntfy: B-16M-factk-s0 done, val PPL 20.069; Pod 2.67 h ≈ 9.53 $
+2026-10-10 21:38:34 push skipped (SMLM_NO_PUSH): Cloud dense: queue finished, checkpoint manifest

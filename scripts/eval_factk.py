@@ -173,6 +173,13 @@ def summary():
         if "D-100M" in data:
             d = pooled["B-16M"] - pooled["D-100M"]
             add["B-16M_minus_D-100M"] = {"pooled_lift": round(float(d.mean()), 5), "ci95": ci(d)}
+    # per level, paired, as step 10's per_k (reported without a verdict)
+    for a, b in (("B-1M-s1", "D-50M-s1"), ("B-1M-s1", "D-100M-s1"), ("B-16M", "B-1M"), ("B-16M", "D-100M")):
+        if a in data and b in data:
+            add[f"{a}_minus_{b}_per_k"] = {
+                k: {"lift": ci((boot[a][k] - boot[a][0]) - (boot[b][k] - boot[b][0])),
+                    "accuracy_pp": [round(100 * x, 2) for x in ci(hboot[a][k] - hboot[b][k])]}
+                for k in levels if k}
     if add:
         out["addendum"] = add
     write_json(os.path.join(OUT, "summary.json"), out)

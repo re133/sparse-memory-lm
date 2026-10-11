@@ -2944,6 +2944,64 @@ Initialisierung, die Datenreihenfolge bleibt):
 **Was das nicht zeigen kann:** Zwei Seeds sind ein erster Blick auf die Streuung, keine Verteilung; B-16M läuft mit
 einem Seed, ein kleiner Unterschied zu B-1M bleibt also innerhalb dessen, was ein Seed verschieben kann.
 
+### Ergebnis des Nachtrags (2026-10-11, RX 9070 und eine gemietete H200 NVL für etwa 2,7 h, `scripts/eval_factk.py` → `report/factk/summary.json`)
+
+- **Zweiter Seed, Urteil nach den Kriterien: „wiederholt“.** Gepoolter Lift von B-1M-s1 minus D-50M-s1 +0,182 [+0,176;
+  +0,188], minus D-100M-s1 +0,048 [+0,042; +0,054]. Beide Intervalle liegen über 0, wie mit Seed 0 (+0,127 und +0,023).
+- **Größere Tabelle, Urteil nach den Kriterien: „Die größere Tabelle merkt sich wiederholte Fakten besser“.**
+  Gepoolter Lift von B-16M minus B-1M +0,190 [+0,183; +0,196]. Gegen D-100M (ohne Urteil) +0,213 [+0,206; +0,219].
+- Wahrscheinlichkeit des wahren Werts, in Klammern der Anteil der Werte, die das Modell richtig hat, wie in Schritt 10:
+
+| k-mal gesehen | B-1M-s1 | D-50M-s1 | D-100M-s1 | B-16M |
+|---:|---:|---:|---:|---:|
+| 0 (nie) | 0,014 (1,6 %) | 0,012 (1,2 %) | 0,014 (1,6 %) | 0,014 (1,6 %) |
+| 1 | 0,021 (2,1 %) | 0,015 (2,2 %) | 0,019 (2,7 %) | **0,041 (6,6 %)** |
+| 2 | 0,029 (4,9 %) | 0,017 (2,1 %) | 0,026 (3,6 %) | **0,074 (14,0 %)** |
+| 4 | 0,058 (10,7 %) | 0,026 (4,1 %) | 0,052 (11,1 %) | **0,227 (43,9 %)** |
+| 8 | 0,169 (37,1 %) | 0,038 (7,9 %) | 0,112 (26,2 %) | **0,566 (85,6 %)** |
+| 16 | 0,441 (81,2 %) | 0,104 (27,1 %) | 0,324 (69,4 %) | **0,842 (99,7 %)** |
+| 32 | 0,764 (99,7 %) | 0,296 (70,3 %) | 0,665 (98,3 %) | **0,944 (100 %)** |
+| 64 | 0,897 (100 %) | 0,595 (96,2 %) | 0,847 (100 %) | **0,972 (100 %)** |
+
+- **Ein Seed verschiebt das Ergebnis weit mehr, als die Intervalle sagen.** Gepoolter Lift mit Seed 0 und Seed 1: B-1M
+  0,320 und 0,326, D-100M 0,297 und 0,278, D-50M 0,193 und 0,144. Die Intervalle sind etwa ±0,006 breit; D-50M hat sich
+  um 0,05 bewegt, etwa achtmal so viel. Das ist, was ich unter Schritt 10 geschrieben hatte: Die Intervalle laufen über
+  Personen, nicht über Trainingsläufe. Was trotzdem hält: Der Abstand zu D-50M (0,13 und 0,18) und der Vorsprung von
+  B-16M vor B-1M (0,19) sind weit größer als jede Verschiebung, die ein Seed hier gemacht hat. Der Vorsprung von B-1M vor
+  D-100M (0,023 und 0,048) liegt mit beiden Seeds über 0, und beide B-1M-Läufe liegen über beiden D-100M-Läufen, aber er
+  ist etwa so groß wie die Verschiebung durch einen Seed (D-100M: 0,019). Wie groß er wirklich ist, können zwei Seeds pro
+  Modell nicht sagen.
+- **Gegen D-100M zeigt Seed 1 den Vorsprung auch im Anteil richtiger Werte.** Mit Seed 0 gab B-1M dem wahren Wert mehr
+  Wahrscheinlichkeit, hatte aber nicht mehr davon richtig. Mit Seed 1 liegt der gepaarte Unterschied im Anteil richtiger
+  Werte bei k = 8 (+7 bis +15 Prozentpunkte) und k = 16 (+8 bis +15) über 0, knapp auch bei k = 32 (+0,6 bis +2,2):
+  37 % gegen 26 % bei k = 8, 81 % gegen 69 % bei k = 16. Das meiste davon ist D-100M, das sich zwischen den Seeds bewegt
+  hat (bei k = 8: 35 % mit Seed 0, 26 % mit Seed 1); B-1M hat sich kaum bewegt (34 % und 37 %). Ob sich der Vorsprung im
+  Anteil richtiger Werte zeigt, hängt also vom Seed ab. Beide Seeds sind sich einig: kein Unterschied bei k = 1 bis 4,
+  und ab k = 8 ist B-1M mindestens so gut.
+- **Gegen D-50M** wiederholt sich das Bild aus Schritt 10 mit Seed 1, nur deutlicher: Der Lift liegt ab k = 2 über 0
+  (Seed 0: ab k = 1), der Anteil richtiger Werte von k = 2 bis 64; bei k = 16 81 % gegen 27 %.
+- **Die größere Tabelle** hat nach 4 Wiederholungen 44 % richtig (B-1M 11 %), nach 8 schon 86 % (B-1M 34 % und 37 %)
+  und ab 16 fast alles. Der gepaarte Unterschied zu B-1M liegt beim Lift auf jeder Stufe über 0, beim Anteil richtiger
+  Werte von k = 1 bis 32. Grob halbiert jeder Schritt von D-50M über B-1M zu B-16M die Wiederholungen, die ein Fakt
+  braucht (etwa 80 % richtig: D-50M bei k = 32, B-1M bei 16, B-16M bei 8). B-16M rechnet pro Token 20 % mehr als B-1M
+  (56,5 Mio. gegen 47,1 Mio. Multiplikationen und Additionen; in den Kriterien stand „etwa derselbe“), knapp zwei
+  Fünftel der 149 Mio. von D-100M, und 6,44 Mrd. seiner 6,49 Mrd. Parameter sind die Tabelle.
+- **Einmal gesehene Fakten** (ohne Urteil): Lift bei k = 1 B-1M-s1 +0,007, D-50M-s1 +0,003, D-100M-s1 +0,004, B-16M
+  +0,027. Wieder vor allem von Personen aus der zweiten Hälfte des Trainings (B-16M spät +0,041, früh +0,009).
+- **Prüfungen:** Val-PPL gegen die Läufe ohne die Fakten: B-1M-s1 21,87 (+0,15 %), D-50M-s1 22,29 (−0,73 %), D-100M-s1
+  20,39 (+0,57 %), B-16M 20,07 (+0,55 % gegen 19,96). Die Läufe ohne die Fakten sind Seed 0, bei den Seed-1-Läufen
+  steckt also der Effekt des Seeds mit in diesen Zahlen. Dass D-50M-s1 unter seinem Lauf ohne Fakten liegt, zeigt: Ein
+  Seed allein verschiebt die Val-PPL etwa um das „etwa 1 %“, das ich genannt hatte, zumindest bei den dichten Modellen:
+  Ihre zwei Seeds liegen hier 0,6 % (D-100M) und 0,9 % (D-50M) auseinander, die von B-1M nur 0,2 %, passend zu den
+  0,4 %, die ich früher an B-1M gemessen hatte. Was die Fakten kosten, messen diese Zahlen nicht. Ebenfalls ohne Urteil:
+  D-50M-s1 hat die bessere Val-PPL seiner beiden Seeds (22,29 gegen 22,50) und merkt sich die Fakten klar schlechter
+  (0,144 gegen 0,193). Allgemeiner Text und das Einprägen dieser Fakten bewegen sich von Seed zu Seed nicht gemeinsam.
+- **Was das nicht zeigen kann, das Wichtigste zuerst:** Zwei Seeds pro Modell sind ein erster Blick auf die Streuung,
+  keine Verteilung, und sie zeigen, dass sie größer ist als die Intervalle; wie groß der Vorsprung von B-1M vor D-100M
+  ist, bleibt offen. B-16M hat einen Seed und lief auf einer H200 (B-1M auf der RX 9070, D-100M auf einer H100 und einer
+  H200; derselbe Trainingscode), und es wurde mit der Tabelle im RAM bewertet (dieselbe Rechnung). Wie in Schritt 10:
+  Einprägen im Trainingsformat, kein Beantworten umformulierter Fragen, und nur in dieser Größe.
+
 ## Schritt 11: Kann ein Modell zwei getrennt gelernte Fakten verketten? (HOP2, Kriterien vor den Läufen festgelegt, 2026-10-11)
 
 **Frage:** Schritt 10 hat gezeigt, dass das Modell mit Tabelle wiederholte erfundene Fakten besser lernt als ein

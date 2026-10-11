@@ -1,0 +1,267 @@
+{
+  "status": "done",
+  "model_name": "B-16M-sparse",
+  "started": "2026-10-10T19:13:45",
+  "git": {
+    "commit": "5b2d48cdcc21925325434bc36d42dded98c0006e",
+    "dirty": false,
+    "dirty_files": []
+  },
+  "hardware": {
+    "gpu": "NVIDIA H200 NVL",
+    "gpu_arch": "NVIDIA H200 NVL",
+    "gpu_mem_gib": 139.84,
+    "torch": "2.11.0+cu128",
+    "hip": null,
+    "python": "3.14.4",
+    "kernel": "7.0.0-14-generic",
+    "cpu": "AMD EPYC-Turin Processor",
+    "ram_gib": 262.4
+  },
+  "seeds": {
+    "init_seed": 0,
+    "data_seed": 1234
+  },
+  "train_config": {
+    "model": "B-16M-sparse",
+    "out_dir": "/workspace/AngryAnt/runs/factk/B-16M-factk-s0",
+    "tokens": 500000000.0,
+    "epochs": 0.990072026474596,
+    "seed": 0,
+    "data_seed": 1234,
+    "seq_len": 1024,
+    "batch_seqs": 32,
+    "micro_bs": 4,
+    "fused_ce": false,
+    "ce_chunk_size": 1024,
+    "compile": false,
+    "lr": 0.0006,
+    "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip; value table: row-sparse gradients + LazyRowAdam (only rows read in the step are updated, values and Adam state of unread rows unchanged)",
+    "value_lr": 0.0024,
+    "eng_value_lr": null,
+    "value_state": "fp32",
+    "value_device": "gpu",
+    "weight_decay": 0.1,
+    "warmup_frac": 0.05,
+    "min_lr_ratio": 0.1,
+    "clip": 1.0,
+    "eval_every_tokens": 10000000.0,
+    "log_every": 10,
+    "sample_windows": 64,
+    "mem_query_norm": "batchnorm",
+    "mem_score_scale_init": null,
+    "data": "wikipedia_factk",
+    "extra_val": "wikitext103",
+    "mem_impl": "triton",
+    "abort_ref": null,
+    "abort_at_tokens": 100000000.0,
+    "stop_after_tokens": null,
+    "abort_max_rel": 0.05,
+    "no_save": false,
+    "total_steps": 15258,
+    "warmup_steps": 763,
+    "tokens_per_step": 32768,
+    "grad_accum": 8,
+    "total_tokens": 499974144,
+    "eval_every_steps": 305,
+    "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
+    "precision": "bf16 autocast, fp32 weights / optimizer state"
+  },
+  "model_config": {
+    "vocab_size": 50304,
+    "d_model": 384,
+    "n_layers": 12,
+    "n_heads": 6,
+    "ffn_hidden": 1024,
+    "max_seq_len": 1024,
+    "rope_theta": 10000.0,
+    "norm_eps": 1e-05,
+    "init_std": 0.02,
+    "mem_layers": [
+      2,
+      6,
+      10
+    ],
+    "mem_n_keys": 4096,
+    "mem_heads": 4,
+    "mem_knn": 32,
+    "mem_k_dim": 256,
+    "mem_v_dim": -1,
+    "mem_query_norm": "batchnorm",
+    "mem_swilu": true,
+    "mem_value_impl": "embedding_bag",
+    "mem_keys_weight_decay": true,
+    "mem_score_scale": "none",
+    "mem_score_scale_init": 1.0,
+    "mem_share_values": true,
+    "mem_value_grad": "row_sparse",
+    "mem_impl": "triton",
+    "eng_layers": [],
+    "eng_orders": [
+      2,
+      3
+    ],
+    "eng_heads": 8,
+    "eng_head_dim": 24,
+    "eng_rows": 524287,
+    "eng_conv_kernel": 4,
+    "eng_hash_seed": 0,
+    "eng_impl": "triton",
+    "eng_value_grad": "row_sparse"
+  },
+  "params": {
+    "total": 6494130816,
+    "embedding": 19316736,
+    "non_embedding": 6474814080,
+    "memory_values": 6442450944,
+    "dense_body": 32363136,
+    "active_non_embedding_per_token": 32510592,
+    "bn_running_stats": 6144
+  },
+  "value_table_memory": {
+    "table_bytes": 25769803776,
+    "gradient_bytes": 25769803776,
+    "moment_bytes": 51539607552,
+    "scale_bytes": 0,
+    "touched_bytes": 16777216,
+    "step_bytes": 4,
+    "total_bytes": 103095992324
+  },
+  "macs_per_token": {
+    "attn_proj": 7077888,
+    "attn_scores": 4718592.0,
+    "ffn": 10616832,
+    "memory": 14795904,
+    "engram": 0,
+    "lm_head": 19316736,
+    "total": 56525952.0
+  },
+  "data": {
+    "dataset": "wikipedia_factk",
+    "data_dir": "/workspace/AngryAnt/data/wikipedia_factk_gpt2",
+    "source": "wikimedia/wikipedia 20231101.en (HF parquet, 41 files) + FACTK people (scripts/make_factk.py)",
+    "tokenizer": "tiktoken/gpt2",
+    "vocab_size": 50257,
+    "seed": 20231101,
+    "val_frac": 0.0003,
+    "train_frac": 0.125,
+    "articles_in_dump": 6407814,
+    "doc_format": "title + '\\n\\n' + text + <|endoftext|>",
+    "wikitext_val_test_titles": 122,
+    "wikitext_titles_found_and_excluded": 14,
+    "splits": {
+      "validation": {
+        "n_tokens": 1484010,
+        "n_articles": 1917,
+        "n_candidate_articles": 1917,
+        "candidate_tokens": 1484010,
+        "n_words": 990651
+      },
+      "train": {
+        "n_tokens": 505000000,
+        "n_articles": null,
+        "n_words": null
+      }
+    },
+    "factk": {
+      "seed": 20261009,
+      "levels": [
+        0,
+        1,
+        2,
+        4,
+        8,
+        16,
+        32,
+        64
+      ],
+      "per_level": 300,
+      "inserted_windows": 38100,
+      "inserted_tokens": 1724070,
+      "dropped_source_tokens": 1724070,
+      "sha256": {
+        "train": "64604664e21066f536a7413bf056152bb5c7ff85a152e66b6ee56152413f0188",
+        "validation": "20a8a26f5032d2a5b44a1f21cadcbf0ddc12feb043fafc0e87d78ce90f5dc9f9"
+      }
+    },
+    "extra_val": "wikitext103"
+  },
+  "finished": "2026-10-10T21:09:51",
+  "duration_s": 7031.4,
+  "train_time_s": 5862.2,
+  "results": {
+    "val_loss": 2.9991598356051496,
+    "val_ppl": 20.06866885717982,
+    "val_word_ppl": 89.36983586282625,
+    "val2_dataset": "wikitext103",
+    "val2_loss": 4.1304188648559,
+    "val2_ppl": 62.20397253674158,
+    "val2_word_ppl": 109.44091022908381,
+    "train_tok_s_mean": 106948.1310956824,
+    "train_tok_s_median": 137878.25471133573,
+    "peak_train_vram_gib": 100.91404438018799,
+    "weights_gib_fp32": 24.192522525787354,
+    "decode_b1_tok_s": 307.7974782431688,
+    "decode_peak_vram_gib": 25.112954139709473,
+    "prefill_tok_s": 421255.24807824916,
+    "prefill_peak_vram_gib": 27.258919715881348,
+    "mem_val": {
+      "usage": 0.9049452543258667,
+      "kl": 1.385777333713989,
+      "top1pct_share": 0.24039821495916355,
+      "eff_entries_per_head": 29.835410511398972,
+      "top1_weight": 0.07734439110911208
+    },
+    "mem_val_per_layer": [
+      {
+        "usage": 0.35630786418914795,
+        "kl": 2.943048699160677,
+        "top1pct_share": 0.4890771857262995,
+        "eff_entries_per_head": 29.8951885031763,
+        "top1_weight": 0.07721572862671473
+      },
+      {
+        "usage": 0.6345664262771606,
+        "kl": 1.7041644296969451,
+        "top1pct_share": 0.26621813045776677,
+        "eff_entries_per_head": 30.024947162366644,
+        "top1_weight": 0.0740933383542783
+      },
+      {
+        "usage": 0.5280471444129944,
+        "kl": 2.1393950900226617,
+        "top1pct_share": 0.32707869991017574,
+        "eff_entries_per_head": 29.58609586865397,
+        "top1_weight": 0.0807241063463432
+      }
+    ],
+    "mem_train_usage_total": 0.9999998807907104,
+    "mem_score_scale_per_head": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mem_score_scale_per_layer_head": [
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    ],
+    "mem_key_norm_mean": 0.4317690134048462
+  }
+}

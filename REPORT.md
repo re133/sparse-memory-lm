@@ -2805,6 +2805,62 @@ the data order stays):
 **What this can't show:** two seeds are a first look at the spread, not a distribution; B-16M runs with one seed, so a
 small difference to B-1M stays within what a seed can move.
 
+### Result of the addendum (2026-10-11, RX 9070 and a rented H200 NVL for about 2.7 h, `scripts/eval_factk.py` → `report/factk/summary.json`)
+
+- **Second seed, verdict by the criteria: "replicated".** Pooled lift of B-1M-s1 minus D-50M-s1 +0.182 [+0.176;
+  +0.188], minus D-100M-s1 +0.048 [+0.042; +0.054]. Both intervals lie above 0, as with seed 0 (+0.127 and +0.023).
+- **Bigger table, verdict by the criteria: "the bigger table remembers repeated facts better".** Pooled lift of B-16M
+  minus B-1M +0.190 [+0.183; +0.196]. Against D-100M (without a verdict) +0.213 [+0.206; +0.219].
+- Probability of the true value, and in brackets the share of values the model gets right, as in step 10:
+
+| Seen k times | B-1M-s1 | D-50M-s1 | D-100M-s1 | B-16M |
+|---:|---:|---:|---:|---:|
+| 0 (never) | 0.014 (1.6%) | 0.012 (1.2%) | 0.014 (1.6%) | 0.014 (1.6%) |
+| 1 | 0.021 (2.1%) | 0.015 (2.2%) | 0.019 (2.7%) | **0.041 (6.6%)** |
+| 2 | 0.029 (4.9%) | 0.017 (2.1%) | 0.026 (3.6%) | **0.074 (14.0%)** |
+| 4 | 0.058 (10.7%) | 0.026 (4.1%) | 0.052 (11.1%) | **0.227 (43.9%)** |
+| 8 | 0.169 (37.1%) | 0.038 (7.9%) | 0.112 (26.2%) | **0.566 (85.6%)** |
+| 16 | 0.441 (81.2%) | 0.104 (27.1%) | 0.324 (69.4%) | **0.842 (99.7%)** |
+| 32 | 0.764 (99.7%) | 0.296 (70.3%) | 0.665 (98.3%) | **0.944 (100%)** |
+| 64 | 0.897 (100%) | 0.595 (96.2%) | 0.847 (100%) | **0.972 (100%)** |
+
+- **A seed moves the result far more than the intervals say.** Pooled lift with seed 0 and seed 1: B-1M 0.320 and
+  0.326, D-100M 0.297 and 0.278, D-50M 0.193 and 0.144. The intervals are about ±0.006 wide; D-50M moved by 0.05, about
+  eight times that. This is what I wrote under step 10: the intervals cover people, not training runs. What holds
+  anyway: the gap to D-50M (0.13 and 0.18) and B-16M's lead over B-1M (0.19) are far larger than any move a seed made
+  here. B-1M's lead over D-100M (0.023 and 0.048) is above 0 with both seeds, and both B-1M runs lie above both D-100M
+  runs, but it is about the size of one seed's move (D-100M: 0.019). Two seeds per model can't say how large it really
+  is.
+- **Against D-100M, seed 1 also shows the lead in the share right.** With seed 0, B-1M gave the true value more
+  probability but didn't get more of them right. With seed 1 the paired difference in the share right lies above 0 at
+  k = 8 (+7 to +15 percentage points) and k = 16 (+8 to +15), slightly at k = 32 (+0.6 to +2.2): 37% against 26% at
+  k = 8, 81% against 69% at k = 16. Most of that is D-100M moving between seeds (at k = 8: 35% with seed 0, 26% with
+  seed 1); B-1M hardly moved (34% and 37%). So whether the lead shows in the share right depends on the seed. Both
+  seeds agree: no difference at k = 1 to 4, and from k = 8 on B-1M is at least as good.
+- **Against D-50M** the picture of step 10 repeats with seed 1, wider: the lift is above 0 from k = 2 (seed 0: from
+  k = 1), the share right from k = 2 to 64; at k = 16 81% against 27%.
+- **The bigger table** gets 44% right after 4 repetitions (B-1M 11%), 86% after 8 (B-1M 34% and 37%) and nearly
+  everything from 16 on. The paired difference to B-1M is above 0 at every level in the lift, from k = 1 to 32 in the
+  share right. Roughly, each step from D-50M to B-1M to B-16M halves the repetitions a fact needs (about 80% right:
+  D-50M at k = 32, B-1M at 16, B-16M at 8). B-16M computes 20% more per token than B-1M (56.5 M against 47.1 M
+  multiply-adds; the criteria said "about the same"), under two fifths of D-100M's 149 M, and 6.44 B of its 6.49 B
+  parameters are the table.
+- **Facts seen once** (without a verdict): lift at k = 1 B-1M-s1 +0.007, D-50M-s1 +0.003, D-100M-s1 +0.004, B-16M
+  +0.027. Again mostly from people seen in the second half of training (B-16M late +0.041, early +0.009).
+- **Checks:** Val PPL against the runs without the facts: B-1M-s1 21.87 (+0.15%), D-50M-s1 22.29 (−0.73%), D-100M-s1
+  20.39 (+0.57%), B-16M 20.07 (+0.55% against 19.96). The runs without the facts are seed 0, so for the seed-1 runs the
+  seed's own effect is in these numbers. That D-50M-s1 lies below its run without facts shows that a seed alone moves
+  the Val PPL by about the "about 1%" I named, at least for the dense models: their two seeds here lie 0.6% (D-100M)
+  and 0.9% (D-50M) apart, B-1M's only 0.2%, in line with the 0.4% I measured on B-1M earlier. These numbers don't
+  measure what the facts cost. Also without a verdict:
+  D-50M-s1 has the better Val PPL of its two seeds (22.29 against 22.50) and clearly remembers the facts worse (0.144
+  against 0.193). General text and memorizing these facts don't move together from one seed to the next.
+- **What this can't show, most important first:** two seeds per model are a first look at the spread, not a
+  distribution, and they show it's larger than the intervals; how large B-1M's lead over D-100M is stays open. B-16M
+  has one seed and ran on an H200 (B-1M on the RX 9070, D-100M on an H100 and an H200; same training code), and it was
+  evaluated with the table in RAM (the same math). As in step 10: memorization in the training format, not answering
+  rephrased questions, and only at this size.
+
 ## Step 11: can a model chain two facts it learned separately? (HOP2, criteria fixed before the runs, 2026-10-11)
 
 **Question:** step 10 showed that the table model learns repeated made-up facts better than a dense model of the same
