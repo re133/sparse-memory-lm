@@ -3,6 +3,13 @@ the bridge and at the end of the two-hop question, compared with the rows it rea
 
   python scripts/hop2_reads.py B-1M                                     -> report/hop2/reads_B-1M.json
   python scripts/hop2_reads.py B-1M-orig --run runs/hampter/B-1M-sparse-s0   (null test: never saw the pairs)
+  python scripts/hop2_reads.py --step12 B-1M-r2 | B-1M | B-1M-orig --run ...  -> report/hop2d/ (step 12, LOOP)
+
+Step 12: results are keyed by read site ("2", "6", "10", and "10r2" for layer 10's second read); the Bonferroni
+interval covers all sites of the model (four for B-1M-r2), and the value control is paired with the original B-1M at
+the same site, round 2 with its layer 10. Verdict for round 2 (REPORT.md, "Step 12"): "round 2 reads B's values" only
+if its value control is above the null model's and its answer signal has an interval above 0. Without a verdict:
+round 2 at the end of the two-hop question against round 1 at the end of B's own question.
 
 Rows of one read: every memory layer (2, 6, 10) reads heads x knn rows of the shared table at every position, with
 softmax weights per head; the weight of a row is the sum over heads / heads (the rows of one read sum to 1, a row
@@ -42,12 +49,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, ROOT)
 sys.path.insert(0, os.path.join(ROOT, "scripts"))
 from eval_factk import load  # noqa: E402
-from eval_hop2 import ATTRS, EOT, OUT, RUNS  # noqa: E402
+import eval_hop2 as E  # noqa: E402
+from eval_hop2 import ATTRS, EOT  # noqa: E402
 from smlm.atomic import write_json  # noqa: E402
 
 BATCH, BOOT = 64, 10000
 OFFSETS = (-4, -3, -2, -1)
-BONF = 100 * 0.05 / 3 / 2                       # two-sided, three layers: percentiles 0.833 / 99.167
+BONF = 100 * 0.05 / 3 / 2                       # two-sided, three read sites: percentiles 0.833 / 99.167 (set in main)
 
 
 def record(model, seqs, offsets, device):
@@ -127,13 +135,19 @@ def main():
     ap.add_argument("name")
     ap.add_argument("--run")
     ap.add_argument("--device", default="cuda")
+    ap.add_argument("--step12", action="store_true", help="step 12 (LOOP): report/hop2d, runs/hop2d")
     a = ap.parse_args()
-    run = a.run or RUNS[a.name]
+    if a.step12:
+        E.step12()
+    OUT = E.OUT
+    run = a.run or E.RUNS[a.name]
     enc = tiktoken.get_encoding("gpt2")
     P = json.load(open(os.path.join(OUT, "pairs.json")))
     group = {c: [p for p in P["pairs"] if p["cond"] == c] for c in ("H2", "SAME", "DIRECT")}
     model = load(run, a.device)
-    layers = list(model.cfg.mem_layers) if hasattr(model, "cfg") else [2, 6, 10]
+    layers = [x[1:] for x in model.memory_sites()]     # read sites: "2", "6", "10" (+ "10r2" with a second read)
+    global BONF
+    BONF = 100 * 0.05 / len(layers) / 2
     t0 = time.time()
 
     def T(p, at):
@@ -158,7 +172,7 @@ def main():
     def sub(r, rows):
         return {key: (v[0][rows], v[1][rows]) for key, v in r.items()}
 
-    res = {"model": a.name, "run": run, "device": a.device, "layers": layers}
+    res = {"model": a.name, "run": run, "device": a.device, "layers": layers, "bonferroni_sites": len(layers)}
     for cond in ("H2", "SAME"):
         g = group[cond]
         n = len(g)
@@ -178,6 +192,16 @@ def main():
                     oth.append(x)
                 out["profile"][str(o)][str(layer)] = stats(np.mean(sig, 0), np.concatenate(rk), oth)
         out["answer"] = out["profile"]["-1"]
+        if "10r2" in layers:                            # round 2 of the question against round 1 of B's question
+            k2, k1 = layers.index("10r2"), layers.index("10")
+            sig, rk, oth = [], [], []
+            for j in range(len(ATTRS)):
+                rows = slice(j * n, (j + 1) * n)
+                s, r, x = own_vs_others(overlap(sub(t_r, rows)[(k2, -1)], sub(s_r, rows)[(k1, -1)], a.device))
+                sig.append(s)
+                rk.append(r)
+                oth.append(x)
+            out["answer_r2_vs_10"] = stats(np.mean(sig, 0), np.concatenate(rk), oth)
         for k, layer in enumerate(layers):
             s, r, x = own_vs_others(overlap(r_r[(k, -1)], sub(s_r, slice(0, n))[(k, -4)], a.device))
             out["bridge"][str(layer)] = stats(s, r, x)
@@ -208,8 +232,8 @@ def main():
     null = os.path.join(OUT, "reads_B-1M-orig.json")
     if a.name != "B-1M-orig" and os.path.exists(null):
         N = json.load(open(null))["value_control"]
-        res["value_control_minus_null"] = {
-            str(l): stats(np.array(vc[str(l)]) - np.array(N[str(l)]["per_pair"])) for l in layers}
+        res["value_control_minus_null"] = {      # round 2 has no counterpart in the original: its layer 10
+            str(l): stats(np.array(vc[str(l)]) - np.array(N[str(l).replace("r2", "")]["per_pair"])) for l in layers}
         gate = any(res["value_control_minus_null"][str(l)]["ci_bonf"][0] > 0 for l in layers)
     else:
         gate = any(res["value_control"][str(l)]["ci_bonf"][0] > 0 for l in layers)
@@ -219,6 +243,11 @@ def main():
         res["verdict_answer"] = ("B's rows are read at the answer position"
                                  if any(h2["answer"][str(l)]["ci_bonf"][0] > 0 for l in layers)
                                  else "no trace of B at the answer position")
+    if "10r2" in layers and "value_control_minus_null" in res:
+        g2 = res["value_control_minus_null"]["10r2"]["ci_bonf"][0] > 0
+        res["verdict_round2"] = ("not testable for round 2 (its rows don't carry a value across contexts)" if not g2
+                                 else "round 2 reads B's values" if h2["answer"]["10r2"]["ci_bonf"][0] > 0
+                                 else "round 2 reads no B values")
     res["seconds"] = round(time.time() - t0, 1)
     write_json(os.path.join(OUT, f"reads_{a.name}.json"), res)
     for cond in ("H2", "SAME"):
@@ -233,7 +262,8 @@ def main():
     print(a.name, "overlap with the others (answer, bridge)", {l: (res["H2"]["answer"][l]["overlap_others"],
                                                                res["H2"]["bridge"][l]["overlap_others"]) for l in
                                                            res["H2"]["answer"]})
-    print(a.name, res["verdict_bridge"], "|", res["verdict_answer"], f"| {res['seconds']} s", flush=True)
+    print(a.name, res["verdict_bridge"], "|", res["verdict_answer"], "|", res.get("verdict_round2", "-"),
+          f"| {res['seconds']} s", flush=True)
 
 
 if __name__ == "__main__":
