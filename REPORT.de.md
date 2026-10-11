@@ -3281,3 +3281,104 @@ Zeilen pro Sekunde, in Klammern der Median der Zeit pro Lesevorgang:
 der schiefen Verteilung des Modells, ohne RAM-Cache für die häufigen Zeilen); andere SSDs und Dateisysteme (eine
 990 PRO, btrfs; O_DIRECT verhält sich je nach Dateisystem anders); Ausreißer (30 Lesevorgänge je Einstellung reichen
 nicht für ein belastbares p99); mehr als einen Prozess und einen Ring.
+
+## Schritt 12: Hilft ein zweiter Lesezugriff auf die Tabelle beim Verketten? (LOOP, Kriterien zur Freigabe, Entwurf 2026-10-11)
+
+**Frage:** In Schritt 11 kennt B-1M beide Einzelfakten, verkettet sie aber nicht. Teil B zeigt, wo es hängt: Die Werte
+werden in Schicht 10 nachgeschlagen, und an der Antwortstelle findet dieser Nachschlag nichts von B. Hilft es, wenn
+die Memory-Schicht in Schicht 10 ein zweites Mal liest und die zweite Abfrage auf dem Ergebnis der ersten aufbaut?
+
+**Was bekannt ist** (Suche am 2026-10-11, nicht erschöpfend):
+- Mehrere Leserunden über einen Speicher, bei denen jede Abfrage aus dem Ergebnis der vorigen entsteht, sind der Kern
+  von End-to-End Memory Networks (Sukhbaatar et al. 2015, https://arxiv.org/abs/1503.08895) und Key-Value Memory
+  Networks (Miller et al. 2016, https://arxiv.org/abs/1606.03126). Neu ist der Gedanke also nicht.
+- Geschleifte Transformer wenden denselben Block mehrmals an. Saunshi et al. („Reasoning with Latent Thoughts: On the
+  Power of Looped Transformers“, ICLR 2025, https://arxiv.org/abs/2502.17416): Mit Schleife holt ein Modell beim
+  Schlussfolgern viel vom Vorsprung eines doppelt so tiefen Modells auf, bei Perplexität und Closed-Book-QA
+  (auswendig Gewusstes) weniger.
+- Getrennt gelernte Fakten verketten: In „The Two-Hop Curse“ (Schritt 11) lernen die Modelle für andere Paare auch
+  vorgeführte Zwei-Schritt-Fragen mit und scheitern trotzdem an den übrigen (Zufallsniveau). Auch die Fakten in frühe
+  und späte Schichten zu zwingen, half dort nicht. Bei Kohli et al. 2026 („Loop, Think, & Generalize“,
+  https://arxiv.org/abs/2604.07822) verketten von Grund auf trainierte Modelle mit Schleife auch Fakten, deren
+  Verkettung nie vorgeführt wurde, Modelle ohne Schleife nicht. Bei Fu et al. 2026 („DiscoLoop“,
+  https://arxiv.org/abs/2607.00341) gelingt das der einfachen Schleife kaum (8,3 %), erst mit einem Zusatz, der den
+  Zwischenzustand an das Embedding der Brücke angleicht. Beide Arbeiten führen im Training Verkettungen vor, auf
+  kleinen künstlichen Wissensgraphen, bei Kohli et al. über Tausende Durchläufe.
+- Eine Schleife nur über eine Product-Key-Tabelle habe ich nicht gefunden.
+- Fu et al. erklären das Scheitern ohne Schleife (nach Biran et al. 2024) so: Fakten, die ein Modell in frühen
+  Schichten ablegt, stehen in den späten Schichten, wo der zweite Schritt passieren müsste, nicht zur Verfügung. Für
+  die Tabelle von B-1M gilt das nicht, die drei Memory-Schichten lesen dieselben Zeilen. Was eine
+  zweite Runde dazugeben kann, ist also kein anderer Speicher, sondern eine zweite Adresse, berechnet nach dem ersten
+  Lesen.
+
+**Variante B-1M-r2** (gebaut auf einem eigenen Branch, nach `main` erst, wenn die Tests bestehen):
+- Wie B-1M, aber in Schicht 10 liest die Memory-Schicht zweimal hintereinander, ohne Attention dazwischen:
+  `x = x + mem(norm(x))`, dann `x = x + mem_r2(norm_r2(x))`.
+- Runde 2 liest dieselbe Tabelle, hat aber wie jede Memory-Schicht heute eigene Abfrage, Schlüssel, BatchNorm und
+  swilu-Pfad: +1,74 M Parameter (Körper ohne Tabelle 22,9 → 24,7 M), +1,79 M MACs pro Token (47,1 → 48,9 M), 512
+  statt 384 gelesene Zeilen pro Token (+33 %).
+- Warum Schicht 10 und nicht Schicht 6, wie ursprünglich notiert: Teil B zeigt, dass die Werte in Schicht 10
+  nachgeschlagen werden. Eine zweite Runde direkt dort kann auf dem aufbauen, was die erste gefunden hat.
+- Tests vor dem ersten Lauf: ohne den neuen Schalter bitgleich zu heute; alte Checkpoints laden; Torch- gegen
+  Triton-Weg; zeilen-sparsamer Gradient der Tabelle mit vier Lesern gegen den dichten; Speichern und Laden;
+  Decode-Graphen; der Rekorder von Teil B erfasst auch Runde 2 und paart nach Lesestelle statt nach
+  Schichtnummer.
+
+**Daten** (`scripts/make_hop2.py`, erweitert):
+- Die 800 Paare aus Schritt 11 mit denselben Bedingungen H2, SAME, DIRECT und NULL, dazu **DEMO**: 200 neue Paare.
+  A's Artikel und B's Artikel stehen getrennt wie in H2, dazu kommt ein dritter Artikel mit den verketteten Sätzen
+  („A\n\nA's mother was born in 1912. …“, wie DIRECT). Jeder Artikel 64-mal, nach denselben Regeln platziert wie
+  in Schritt 11. Das ergibt 89.600 statt 51.200 Fenster.
+- Warum DEMO: Alle Arbeiten, in denen Schleifen beim Verketten helfen, führen Verkettungen im Training vor. In
+  Schritt 11 hat das Modell nie gesehen, dass die Zwei-Schritt-Frage mit B's Wert zu beantworten ist; eine zweite
+  Runde hätte keinen Grund, das zu lernen. H2 bleibt die Prüfung: Paare, deren Verkettung nie vorgeführt wurde.
+
+**Modelle** (ein Seed, Argumente wie Schritt 11, beide auf den neuen Daten, RX 9070):
+- **B-1M-hop2d** (wie B-1M, ohne Schleife) und **B-1M-r2-hop2d**. B-1M brauchte in Schritt 11 2,6 h, r2 etwas mehr
+  (im Kurztest messen).
+
+**Messung:** wie Schritt 11 (`scripts/eval_hop2.py`), dazu DEMO.
+
+**Kriterien** (je Modell):
+- **Tore wie in Schritt 11:** In H2 sind B's Eigenschaften zu mindestens 90 % richtig, und das wahre B steht unter 200
+  Namen in mindestens 90 % der Paare auf Platz 1. Der DIRECT-Lift hat ein Intervall über 0. Neu: Auch der DEMO-Lift
+  hat ein Intervall über 0 (die vorgeführten Verkettungen sitzen). Sonst **„nicht prüfbar“**.
+- **Hauptergebnis je Modell:** **„verkettet“**, wenn der H2-Lift ein Intervall über 0 hat, sonst **„verkettet
+  nicht“**.
+- **Vergleich:** H2-Lift von B-1M-r2-hop2d minus B-1M-hop2d, gepaart über die Paare:
+  - **„Die zweite Runde verkettet besser“:** Intervall über 0 und B-1M-r2-hop2d „verkettet“.
+  - **„Die zweite Runde verkettet schlechter“:** Intervall unter 0 und B-1M-hop2d „verkettet“.
+  - Sonst **„kein klarer Unterschied“**. Liegt das Intervall über oder unter 0, ohne dass das bessere Modell
+    verkettet, steht der Unterschied ohne Urteil da. (In Schritt 11 lag B-1M bei H2 knapp unter NULL; ein solcher
+    Unterschied unter 0 soll nicht als „verkettet besser“ zählen.)
+  - Das Intervall deckt die Paare ab, nicht den Seed. In Schritt 10 lagen zwei Seeds weiter auseinander als ihre
+    Intervalle (deutlich bei den dichten Modellen, kaum bei B-1M). Deshalb ist der Vergleich das zweite Ergebnis,
+    nicht das erste.
+- **Ohne Urteil:**
+  - der SAME- und der DEMO-Lift, die falsche Brücke und die Einzelschritte;
+  - Val PPL beider Modelle gegen B-1M ohne Paare und gegeneinander, Tempo (tok/s);
+  - der H2-Lift von B-1M-hop2d gegen B-1M aus Schritt 11 (hilft das Vorführen allein?).
+- **Danach, ohne Training (jetzt festgelegt):** Teil B (`scripts/hop2_reads.py`) für beide Modelle, bei r2 auch für
+  Runde 2. Liest Runde 2 an der Antwortstelle B's Wertzeilen?
+  - Gleiche Maße wie in Teil B, Bonferroni über alle Lesestellen (bei r2 vier statt drei).
+  - Die Schranke ist die Wert-Kontrolle gegen das Original-B-1M als Nullmodell, je Lesestelle gepaart über die Paare.
+    Das Original hat keine Runde 2; Runde 2 wird gegen seine Schicht 10 verglichen.
+  - „Runde 2 liest B's Werte“ nur, wenn ihre Wert-Kontrolle die Schranke besteht und das B-Signal an der
+    Antwortstelle ein Intervall über 0 hat.
+
+**Erwartung (vorher notiert):** Nach „The Two-Hop Curse“ verkettet B-1M-hop2d auch mit vorgeführten Paaren nicht. Für
+B-1M-r2-hop2d weiß ich es nicht. Die positiven Ergebnisse mit Schleifen kommen von kleinen künstlichen Wissensgraphen
+und sehr langem Training, hier sieht das Modell jedes Faktum 64-mal. Ich halte „verkettet nicht“ auch für B-1M-r2-hop2d
+für wahrscheinlicher.
+
+**Was das nicht zeigen kann:**
+- Ob es an der Schleife liegt oder an mehr Lesezugriffen und Parametern. Runde 2 hat eigene Schlüssel. Die nächste
+  Kontrolle wäre B-1M mit einer vierten gewöhnlichen Memory-Schicht, nur wenn B-1M-r2-hop2d verkettet.
+- Ein Seed, eine Beziehung, eine Größe, eine Zahl vorgeführter Paare (200).
+- Ein „verkettet nicht“ schließt Schleifen nicht allgemein aus (mehr Runden, geteilte Gewichte, längeres Training).
+
+**Vor dem Push der endgültigen Kriterien:**
+- Bau und Tests.
+- Daten bauen und prüfen wie in Schritt 11.
+- Nulltest mit dem Original-B-1M auf den neuen Prompts.
+- Ein Kurztest auf der GPU (nur nach Rückfrage).

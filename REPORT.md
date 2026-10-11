@@ -3122,3 +3122,97 @@ Rows per second, in brackets the median time per batch:
 skewed distribution, no RAM cache for the frequent rows); other SSDs and file systems (one 990 PRO, btrfs; O_DIRECT
 behaves differently depending on the file system); outliers (30 batches per setting aren't enough for a solid p99);
 more than one process and one ring.
+
+## Step 12: does a second read of the table help to chain facts? (LOOP, criteria for approval, draft 2026-10-11)
+
+**Question:** in step 11, B-1M knows both single facts but doesn't chain them. Part B shows where it gets stuck: the
+values are looked up in layer 10, and at the answer position that lookup finds nothing of B. Does it help if the
+memory layer in layer 10 reads a second time, with the second query built on the result of the first?
+
+**What is known** (search on 2026-10-11, not exhaustive):
+- Several read rounds over one memory, each query formed from the result of the previous one, are the core of
+  End-to-End Memory Networks (Sukhbaatar et al. 2015, https://arxiv.org/abs/1503.08895) and Key-Value Memory Networks
+  (Miller et al. 2016, https://arxiv.org/abs/1606.03126). So the idea isn't new.
+- Looped transformers apply the same block several times. Saunshi et al. ("Reasoning with Latent Thoughts: On the
+  Power of Looped Transformers", ICLR 2025, https://arxiv.org/abs/2502.17416): with a loop, a model makes up much of the
+  lead of a twice as deep model in reasoning, less in perplexity and closed-book QA (things known by heart).
+- Chaining separately learned facts: in "The Two-Hop Curse" (step 11) the models also learn demonstrated two-hop
+  questions for other pairs and still fail on the rest (chance level). Forcing the facts into early and late layers
+  didn't help there either. In Kohli et al. 2026 ("Loop, Think, & Generalize", https://arxiv.org/abs/2604.07822),
+  models trained from scratch with a loop also chain facts whose chaining was never demonstrated, models without a loop
+  don't. In Fu et al. 2026 ("DiscoLoop", https://arxiv.org/abs/2607.00341) the plain loop hardly manages that (8.3%),
+  only with an addition that aligns the intermediate state with the bridge's embedding. Both papers demonstrate
+  chaining in training, on small synthetic knowledge graphs, in Kohli et al. over thousands of passes.
+- I didn't find a loop over a product-key table alone.
+- Fu et al. explain the failure without a loop (after Biran et al. 2024) like this: facts a model stores in early
+  layers aren't available in the late layers where the second step would have to happen. That doesn't hold for B-1M's
+  table, the three memory layers read the same rows. So what a second round can add
+  isn't other storage, but a second address, computed after the first read.
+
+**Variant B-1M-r2** (built on its own branch, into `main` only when the tests pass):
+- Like B-1M, but in layer 10 the memory layer reads twice in a row, with no attention in between:
+  `x = x + mem(norm(x))`, then `x = x + mem_r2(norm_r2(x))`.
+- Round 2 reads the same table but, like every memory layer today, has its own query, keys, BatchNorm and swilu path:
+  +1.74 M parameters (body without the table 22.9 → 24.7 M), +1.79 M MACs per token (47.1 → 48.9 M), 512 instead of
+  384 rows read per token (+33%).
+- Why layer 10 and not layer 6, as first noted: part B shows that the values are looked up in layer 10. A second round
+  right there can build on what the first one found.
+- Tests before the first run: bit-identical to today without the new switch; old checkpoints load; torch against
+  Triton path; row-sparse gradient of the table with four readers against the dense one; saving and loading; decode
+  graphs; part B's recorder also captures round 2 and pairs by read site instead of layer number.
+
+**Data** (`scripts/make_hop2.py`, extended):
+- The 800 pairs of step 11 with the same conditions H2, SAME, DIRECT and NULL, plus **DEMO**: 200 new pairs. A's
+  article and B's article are separate as in H2, plus a third article with the chained sentences ("A\n\nA's mother was
+  born in 1912. …", as in DIRECT). Every article 64 times, placed by the same rules as in step 11. That makes 89,600
+  windows instead of 51,200.
+- Why DEMO: every paper in which loops help with chaining demonstrates chaining in training. In step 11 the model never
+  saw that the two-hop question is answered with B's value; a second round would have no reason to learn it. H2 stays
+  the test: pairs whose chaining was never demonstrated.
+
+**Models** (one seed, the arguments of step 11, both on the new data, RX 9070):
+- **B-1M-hop2d** (like B-1M, without a loop) and **B-1M-r2-hop2d**. B-1M took 2.6 h in step 11, r2 a bit more
+  (measured in the smoke test).
+
+**Measure:** as in step 11 (`scripts/eval_hop2.py`), plus DEMO.
+
+**Criteria** (per model):
+- **Gates as in step 11:** in H2, B's attributes right in at least 90%, and the true B ranked first among 200 names in
+  at least 90% of the pairs. The DIRECT lift has an interval above 0. New: the DEMO lift also has an interval above 0
+  (the demonstrated chains sit). Otherwise **"not testable"**.
+- **Main result per model:** **"chains"** if the H2 lift has an interval above 0, otherwise **"does not chain"**.
+- **Comparison:** H2 lift of B-1M-r2-hop2d minus B-1M-hop2d, paired over the pairs:
+  - **"The second round chains better":** interval above 0 and B-1M-r2-hop2d "chains".
+  - **"The second round chains worse":** interval below 0 and B-1M-hop2d "chains".
+  - Otherwise **"no clear difference"**. If the interval is above or below 0 without the better model chaining, the
+    difference is reported without a verdict. (In step 11, B-1M's H2 lay slightly below NULL; a difference like that
+    shouldn't count as "chains better".)
+  - The interval covers the pairs, not the seed. In step 10 two seeds lay further apart than their intervals (clearly
+    for the dense models, hardly for B-1M). That's why the comparison is the second result, not the first.
+- **Reported without a verdict:**
+  - the SAME and DEMO lifts, the false bridge and the single steps;
+  - Val PPL of both models against B-1M without the pairs and against each other, speed (tok/s);
+  - the H2 lift of B-1M-hop2d against B-1M from step 11 (does demonstrating alone help?).
+- **Afterwards, without training (fixed now):** part B (`scripts/hop2_reads.py`) for both models, for r2 also for
+  round 2. Does round 2 read B's value rows at the answer position?
+  - The same measures as in part B, Bonferroni over all read sites (four instead of three for r2).
+  - The bound is the value control against the original B-1M as the null model, per read site, paired over the
+    pairs. The original has no round 2; round 2 is compared against its layer 10.
+  - "Round 2 reads B's values" only if its value control passes the bound and the B signal at the answer position has
+    an interval above 0.
+
+**Expectation (noted beforehand):** going by "The Two-Hop Curse", B-1M-hop2d doesn't chain even with demonstrated pairs.
+For B-1M-r2-hop2d I don't know. The positive results with loops come from small synthetic knowledge graphs and very long
+training; here the model sees every fact 64 times. I think "does not chain" is more likely for B-1M-r2-hop2d too.
+
+**What this can't show:**
+- Whether it's the loop or more reads and parameters. Round 2 has its own keys. The next control would be B-1M with a
+  fourth ordinary memory layer, only if B-1M-r2-hop2d chains.
+- One seed, one relation, one size, one number of demonstrated pairs (200).
+- A "does not chain" doesn't rule out loops in general (more rounds, shared weights, longer training).
+
+**Before the final criteria are pushed:**
+- Build and tests.
+- Build and check the data as in step 11.
+- A null test with the original B-1M on the new prompts.
+- A smoke test on the GPU (only after asking).
