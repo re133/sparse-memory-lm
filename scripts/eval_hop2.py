@@ -11,8 +11,10 @@ format, bf16 autocast on the GPU as in validation, product-key models with the f
   professions), whether it is the most likely of them, and the probability of the value of another pair's B of the
   same condition (the false bridge). Score of a pair = mean over the three attributes.
 - single step B (H2, and NULL as its baseline), `<|endoftext|>B\\n\\nB was born in` ...: as in FACTK.
-- single step relation (H2, SAME, NULL), `<|endoftext|>A\\n\\nA's mother was`: log probability of B's name tokens,
-  and whether greedy decoding writes exactly B's name (every name token the most likely one).
+- single step relation (H2, SAME, NULL), `<|endoftext|>A\\n\\nA's mother was`: the log probability of B's full name
+  against the names of the other 199 B of the same condition (is the true B ranked first?), and whether greedy
+  decoding writes exactly B's name (every name token the most likely one; reported without a verdict, because DIRECT
+  makes " born" a strong next token after "A's mother was").
 
 Summary: lift(condition) = mean score of the condition minus mean score of NULL, 95% bootstrap over pairs (each
 condition resampled on its own, paired across models: the same resampled pairs for every model).
@@ -38,14 +40,14 @@ RUNS = {"B-1M": "runs/hop2/B-1M-hop2-s0", "D-50M": "runs/hop2/D-50M-hop2-s0", "D
         "B-16M": "runs/hop2/B-16M-hop2-s0"}
 ORIG_PPL = {"B-1M": 21.837, "D-50M": 22.452, "D-100M": 20.270, "B-16M": 19.960}   # the same runs without the pairs
 ATTRS = ("year", "city", "job")
-EOT, BATCH, BOOT, GATE_ACC = 50256, 64, 10000, 0.90
+EOT, BATCH, CBATCH, BOOT, GATE_ACC = 50256, 64, 256, 10000, 0.90
 
 
 def false_partner(pairs):
     """For every pair another pair of the same condition (a fixed derangement): its B's values are the false bridge."""
     rng = np.random.default_rng(1)
     out = {}
-    for cond in {p["cond"] for p in pairs}:
+    for cond in sorted({p["cond"] for p in pairs}):         # sorted: a set's order changes with every process
         ids = [p["id"] for p in pairs if p["cond"] == cond]
         perm = rng.permutation(len(ids))
         for k, i in enumerate(perm):
@@ -54,7 +56,7 @@ def false_partner(pairs):
 
 
 def forward(model, seqs, device):
-    """Logits (float32, on CPU) for a list of token lists, right-padded, in batches."""
+    """Next-token logits after the last token (float32, on CPU) for a list of token lists, right-padded, in batches."""
     res = [None] * len(seqs)
     order = sorted(range(len(seqs)), key=lambda i: len(seqs[i]))
     for b in range(0, len(order), BATCH):
@@ -66,8 +68,31 @@ def forward(model, seqs, device):
         with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device == "cuda"):
             logits = model(x.to(device))
         for r, i in enumerate(idx):
-            res[i] = logits[r, :len(seqs[i])].float().cpu()
+            res[i] = logits[r, len(seqs[i]) - 1].float().cpu()
     return res
+
+
+def name_logprobs(model, prefix, names, device):
+    """For one prompt and candidate names (token lists): log P(name | prompt) summed over the name's tokens, and for
+    each name whether every one of its tokens is the most likely next token (greedy decoding writes it)."""
+    seqs = [prefix + n for n in names]
+    out_lp, out_greedy = [0.0] * len(seqs), [False] * len(seqs)
+    order = sorted(range(len(seqs)), key=lambda i: len(seqs[i]))
+    for b in range(0, len(order), CBATCH):
+        idx = order[b:b + CBATCH]
+        L = max(len(seqs[i]) for i in idx)
+        x = torch.zeros(len(idx), L, dtype=torch.long)
+        for r, i in enumerate(idx):
+            x[r, :len(seqs[i])] = torch.tensor(seqs[i])
+        with torch.autocast("cuda", dtype=torch.bfloat16, enabled=device == "cuda"):
+            logits = model(x.to(device))
+        for r, i in enumerate(idx):
+            n = len(names[i])
+            lsm = torch.log_softmax(logits[r, len(prefix) - 1:len(prefix) - 1 + n].float(), -1).cpu()
+            tgt = torch.tensor(names[i])
+            out_lp[i] = float(lsm[torch.arange(n), tgt].sum())
+            out_greedy[i] = bool((lsm.argmax(-1) == tgt).all())
+    return out_lp, out_greedy
 
 
 @torch.no_grad()
@@ -91,25 +116,22 @@ def score(name, run, device, host_table=False):
                 items.append(("b", p, a, [EOT] + enc.encode(f"{p['B']}\n\n{p['B']}{P['cues'][a]}")))
     logits = forward(model, [it[3] for it in items], device)
     for (kind, p, a, ids), lg in zip(items, logits):
-        lp = torch.log_softmax(lg[len(ids) - 1][cand[a]], -1)
+        lp = torch.log_softmax(lg[cand[a]], -1)
         true = vals[a].index(p[a])
         r = {"p": round(float(lp[true].exp()), 6), "hit": bool(int(lp.argmax()) == true)}
         if kind == "two_hop":
             r["p_false"] = round(float(lp[vals[a].index(by_id[partner[p["id"]]][a])].exp()), 6)
         res[str(p["id"])][kind][a] = r
-    # relation: B's name after "A's mother was", teacher-forced
-    rel = [p for p in pairs if p["cond"] in ("H2", "SAME", "NULL")]
-    seqs, spans = [], []
-    for p in rel:
-        pre = [EOT] + enc.encode(f"{p['A']}\n\n{p['A']}{P['rel']}")
-        b_ids = enc.encode(" " + p["B"])
-        seqs.append(pre + b_ids)
-        spans.append((len(pre), b_ids))
-    for p, lg, (n_pre, b_ids) in zip(rel, forward(model, seqs, device), spans):
-        lsm = torch.log_softmax(lg[n_pre - 1:n_pre - 1 + len(b_ids)], -1)
-        tgt = torch.tensor(b_ids)
-        res[str(p["id"])]["rel"] = {"logp": round(float(lsm[torch.arange(len(b_ids)), tgt].sum()), 4),
-                                    "greedy": bool((lsm.argmax(-1) == tgt).all())}
+    # relation: B's full name after "A's mother was", against the other B names of the same condition
+    for cond in ("H2", "SAME", "NULL"):
+        group = [p for p in pairs if p["cond"] == cond]
+        names = [enc.encode(" " + p["B"]) for p in group]
+        for k, p in enumerate(group):
+            lps, greedy = name_logprobs(model, [EOT] + enc.encode(f"{p['A']}\n\n{p['A']}{P['rel']}"), names, device)
+            lps = np.array(lps)
+            choice = np.exp(lps[k] - np.logaddexp.reduce(lps))
+            res[str(p["id"])]["rel"] = {"logp": round(float(lps[k]), 4), "p_choice": round(float(choice), 6),
+                                        "top1": bool(int(lps.argmax()) == k), "greedy": greedy[k]}
     out = {"model": name, "run": run, "device": device, "seconds": round(time.time() - t0, 1), "pairs": res}
     os.makedirs(OUT, exist_ok=True)
     write_json(os.path.join(OUT, f"eval_{name}.json"), out)
@@ -121,7 +143,8 @@ def score(name, run, device, host_table=False):
         if cond in ("H2", "NULL"):
             extra += f"  B single step acc {np.mean([res[i]['b'][a]['hit'] for i in ids for a in ATTRS]):.3f}"
         if cond in ("H2", "SAME", "NULL"):
-            extra += f"  relation greedy {np.mean([res[i]['rel']['greedy'] for i in ids]):.3f}"
+            extra += (f"  relation top1 {np.mean([res[i]['rel']['top1'] for i in ids]):.3f}"
+                      f" greedy {np.mean([res[i]['rel']['greedy'] for i in ids]):.3f}")
         print(f"{name} {cond:6s} two-hop score {s:.4f} acc {acc:.3f}{extra}", flush=True)
 
 
@@ -154,11 +177,15 @@ def summary():
                                  "p_false": round(float(np.mean([R[i]["two_hop"][a]["p_false"] for i in ids["H2"]
                                                                  for a in ATTRS])), 5)},
              "b_single_step_acc": {c: round(acc(c, "b"), 4) for c in ("H2", "NULL")},
+             "relation_top1": {c: round(float(np.mean([R[i]["rel"]["top1"] for i in ids[c]])), 4)
+                               for c in ("H2", "SAME", "NULL")},
+             "relation_p_choice": {c: round(float(np.mean([R[i]["rel"]["p_choice"] for i in ids[c]])), 5)
+                                   for c in ("H2", "SAME", "NULL")},
              "relation_greedy": {c: round(float(np.mean([R[i]["rel"]["greedy"] for i in ids[c]])), 4)
                                  for c in ("H2", "SAME", "NULL")},
              "relation_logp": {c: round(float(np.mean([R[i]["rel"]["logp"] for i in ids[c]])), 3)
                                for c in ("H2", "SAME", "NULL")}}
-        m["gate_single_steps"] = (m["b_single_step_acc"]["H2"] >= GATE_ACC and m["relation_greedy"]["H2"] >= GATE_ACC)
+        m["gate_single_steps"] = (m["b_single_step_acc"]["H2"] >= GATE_ACC and m["relation_top1"]["H2"] >= GATE_ACC)
         m["gate_format"] = m["lift_ci95"]["DIRECT"][0] > 0
         m["testable"] = m["gate_single_steps"] and m["gate_format"]
         m["verdict"] = (("chains" if m["lift_ci95"]["H2"][0] > 0 else "does not chain") if m["testable"] else
@@ -196,7 +223,8 @@ def summary():
     print(json.dumps({k: v for k, v in out.items() if k != "models"}, indent=1))
     for n, m in out["models"].items():
         print(n, m["verdict"], "| lift", m["lift"], "| ci", m["lift_ci95"], "| acc", m["accuracy"])
-        print("   B single", m["b_single_step_acc"], "relation greedy", m["relation_greedy"], "false bridge",
+        print("   B single", m["b_single_step_acc"], "relation top1", m["relation_top1"], "greedy", m["relation_greedy"],
+              "false bridge",
               m["false_bridge_h2"], "PPL", m.get("val_ppl"), m.get("val_ppl_vs_original"))
 
 

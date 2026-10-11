@@ -2814,9 +2814,9 @@ in three layers (2, 6 and 10), so in principle it could look up B in one layer a
 
 **What is known:** language models largely fail at exactly this when both facts are synthetic and were learned in
 separate documents; with both facts in the same document it works (Balesni, Korbak, Evans: "The Two-Hop Curse",
-https://arxiv.org/abs/2411.16353). Product-key memories (Lample et al. 2019, Berges et al. 2024) help most with
-factual knowledge. In two searches on 2026-10-11 I found no test of chaining separately learned facts with a
-product-key table trained from scratch; that search wasn't exhaustive.
+https://arxiv.org/abs/2411.16353). Product-key memory layers come from Lample et al. (2019); Berges et al. (2024) find
+that they help most with factual knowledge. In two searches on 2026-10-11 I found no test of chaining separately
+learned facts with a product-key table trained from scratch; that search wasn't exhaustive.
 
 **Data** (`scripts/make_hop2.py` → `data/wikipedia_hop2_gpt2`, who and where: `report/hop2/pairs.json`):
 - 800 pairs of made-up people: a subject A and a bridge person B ("A's mother was B"). B has the three FACTK attributes
@@ -2845,16 +2845,23 @@ models with the full fp32 table):
 - Two-hop question for every pair, `<|endoftext|>A\n\nA's mother was born in` (or `grew up in`, `worked as a`): the
   probability of B's true value, normalised over all values of the attribute. Score of a pair: mean over the three.
   Lift of a condition: its mean score minus that of NULL, 95% bootstrap over pairs, paired across models.
-- Single steps: B's attributes asked directly (`B\n\nB was born in`, as in step 10), and the relation: does greedy
-  decoding after `A\n\nA's mother was` write exactly B's name?
+- Single steps: B's attributes asked directly (`B\n\nB was born in`, as in step 10), and the relation: after
+  `A\n\nA's mother was`, the log probability of B's full name against the names of the other 199 B of the same
+  condition (is the true B ranked first?). Also, without a verdict: does greedy decoding write exactly B's name?
+- **Amended before the runs (2026-10-11, about 02:30):** the relation gate was first "greedy decoding writes B's name".
+  DIRECT trains "A's mother was born in" 12,800 times, so " born" may be the most likely next word even for a model
+  that knows B, and the gate would fail on the format, not on the fact. The choice among the 200 names doesn't have
+  this problem; greedy stays as a number without a verdict.
 
 **Before the criteria:** a null test with the original B-1M, which never saw these pairs: two-hop scores 0.011 to
 0.014 in every condition (chance 0.013), lifts −0.003 to +0.000 with intervals of about ±0.005, all including 0; B's
-attributes right 0.8% of the time, the relation never.
+attributes right 0.8% of the time, the true B ranked first among the 200 names in 0.5% of the H2 pairs (chance 0.5%),
+greedy decoding never wrote B's name.
 
 **Criteria** (per model):
-- **Gate 1, the single facts sit:** in H2, B's attributes right in at least 90% and B's name written correctly after
-  "A's mother was" in at least 90% of the pairs. Otherwise **"not testable: the single facts don't sit"**.
+- **Gate 1, the single facts sit:** in H2, B's attributes right in at least 90%, and the true B ranked first among
+  the 200 names after "A's mother was" in at least 90% of the pairs. Otherwise **"not testable: the single facts don't
+  sit"**.
 - **Gate 2, the format can be learned:** the DIRECT lift has an interval above 0. Otherwise **"not testable: the
   question format doesn't work"**.
 - **Per model:** **"chains"** if the H2 lift has an interval above 0, otherwise **"does not chain"**.

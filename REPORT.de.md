@@ -2954,9 +2954,10 @@ also im Prinzip in einer Schicht B nachschlagen und in einer späteren B's Gebur
 
 **Was bekannt ist:** Sprachmodelle scheitern genau daran weitgehend, wenn beide Fakten synthetisch sind und in
 getrennten Dokumenten gelernt wurden; stehen beide im selben Dokument, klappt es (Balesni, Korbak, Evans: „The Two-Hop
-Curse“, https://arxiv.org/abs/2411.16353). Product-Key-Speicher (Lample et al. 2019, Berges et al. 2024) helfen vor
-allem bei Faktenwissen. In zwei Suchen am 2026-10-11 habe ich keinen Test gefunden, ob eine von Grund auf trainierte
-Product-Key-Tabelle getrennt gelernte Fakten verkettet; die Suche war nicht vollständig.
+Curse“, https://arxiv.org/abs/2411.16353). Product-Key-Speicherschichten stammen von Lample et al. (2019); Berges et
+al. (2024) finden, dass sie vor allem bei Faktenwissen helfen. In zwei Suchen am 2026-10-11 habe ich keinen Test
+gefunden, ob eine von Grund auf trainierte Product-Key-Tabelle getrennt gelernte Fakten verkettet; die Suche war nicht
+vollständig.
 
 **Daten** (`scripts/make_hop2.py` → `data/wikipedia_hop2_gpt2`, wer und wo: `report/hop2/pairs.json`):
 - 800 Paare erfundener Personen: ein Subjekt A und eine Brückenperson B („A's mother was B“). B hat die drei
@@ -2987,16 +2988,23 @@ mit der vollen fp32-Tabelle):
 - Zwei-Schritt-Frage für jedes Paar, `<|endoftext|>A\n\nA's mother was born in` (bzw. `grew up in`, `worked as a`): die
   Wahrscheinlichkeit von B's wahrem Wert, normiert über alle Werte des Attributs. Wert eines Paars: Mittel über die
   drei. Lift einer Bedingung: ihr mittlerer Wert minus der von NULL, 95-%-Bootstrap über Paare, gepaart über Modelle.
-- Einzelschritte: B's Attribute direkt gefragt (`B\n\nB was born in`, wie in Schritt 10), und die Beziehung: Schreibt
-  gieriges Dekodieren nach `A\n\nA's mother was` genau B's Namen?
+- Einzelschritte: B's Attribute direkt gefragt (`B\n\nB was born in`, wie in Schritt 10), und die Beziehung: nach
+  `A\n\nA's mother was` die Log-Wahrscheinlichkeit von B's vollem Namen gegen die Namen der anderen 199 B derselben
+  Bedingung (steht das wahre B vorn?). Außerdem, ohne Urteil: Schreibt gieriges Dekodieren genau B's Namen?
+- **Vor den Läufen geändert (2026-10-11, gegen 02:30):** Das Beziehungs-Tor war zuerst „gieriges Dekodieren schreibt
+  B's Namen“. DIRECT trainiert „A's mother was born in“ 12.800-mal, also könnte „ born“ das wahrscheinlichste nächste
+  Wort sein, auch bei einem Modell, das B kennt, und das Tor würde am Format scheitern, nicht am Fakt. Die Auswahl unter
+  den 200 Namen hat dieses Problem nicht; gierig bleibt als Zahl ohne Urteil.
 
 **Vor den Kriterien:** ein Nulltest mit dem ursprünglichen B-1M, das diese Paare nie gesehen hat: Zwei-Schritt-Werte
 0,011 bis 0,014 in jeder Bedingung (Zufall 0,013), Lifts −0,003 bis +0,000 mit Intervallen von etwa ±0,005, alle
-schließen 0 ein; B's Attribute in 0,8 % der Fälle richtig, die Beziehung nie.
+schließen 0 ein; B's Attribute in 0,8 % der Fälle richtig, das wahre B in 0,5 % der H2-Paare an erster Stelle unter
+den 200 Namen (Zufall 0,5 %), gieriges Dekodieren hat B's Namen nie geschrieben.
 
 **Kriterien** (je Modell):
-- **Tor 1, die Einzelfakten sitzen:** in H2 B's Attribute in mindestens 90 % richtig und B's Name nach „A's mother
-  was“ in mindestens 90 % der Paare richtig geschrieben. Sonst **„nicht testbar: die Einzelfakten sitzen nicht“**.
+- **Tor 1, die Einzelfakten sitzen:** in H2 B's Attribute in mindestens 90 % richtig, und das wahre B steht nach
+  „A's mother was“ in mindestens 90 % der Paare an erster Stelle unter den 200 Namen. Sonst **„nicht testbar: die
+  Einzelfakten sitzen nicht“**.
 - **Tor 2, das Format ist lernbar:** der DIRECT-Lift hat ein Intervall über 0. Sonst **„nicht testbar: das Frageformat
   funktioniert nicht“**.
 - **Je Modell:** **„verkettet“**, wenn der H2-Lift ein Intervall über 0 hat, sonst **„verkettet nicht“**.
