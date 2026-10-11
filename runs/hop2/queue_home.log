@@ -1,0 +1,9 @@
+2026-10-11 06:50:15 HOP2 queue start: ['B-1M-hop2-s0', 'D-50M-hop2-s0'], deadline 2026-10-11 14:00
+2026-10-11 06:50:15 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/hop2/B-1M-hop2-s0 --model B-1M-sparse --value_lr 2.4e-3 --mem_impl triton --data wikipedia_hop2 --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --seed 0 --data_seed 1234
+2026-10-11 09:27:15 end B-1M-hop2-s0 rc=0  (2.62 h) val_ppl 21.920
+2026-10-11 09:27:16 ntfy: B-1M-hop2-s0 fertig, Val-PPL 21.920, 2.6 h
+2026-10-11 09:27:16 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/hop2/D-50M-hop2-s0 --model D-50M --data wikipedia_hop2 --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --seed 0 --data_seed 1234
+2026-10-11 11:51:16 end D-50M-hop2-s0 rc=0  (2.40 h) val_ppl 22.448
+2026-10-11 11:51:16 ntfy: D-50M-hop2-s0 fertig, Val-PPL 22.448, 2.4 h
+2026-10-11 11:51:16 QUEUE DONE | B-1M-hop2-s0 21.920, D-50M-hop2-s0 22.448
+2026-10-11 11:51:17 ntfy: HOP2 zu Hause fertig: B-1M-hop2-s0 21.920, D-50M-hop2-s0 22.448. Vergleich ohne Paare: B-1M 21.837, D-50M 22.452.
