@@ -31,7 +31,7 @@ notify() { [ -n "${NTFY_TOPIC:-}" ] && curl -s -m 20 -H "Title: SMLM Cloud" -d "
 # Runpod puts RUNPOD_POD_ID into every Pod (ssh sessions may not inherit it: PID 1's environment counts too)
 if [ -z "${SMLM_PLATFORM:-}" ]; then
   SMLM_PLATFORM=vm
-  { [ -n "${RUNPOD_POD_ID:-}" ] || tr '\0' '\n' < /proc/1/environ 2>/dev/null | grep -q '^RUNPOD_POD_ID='; } && SMLM_PLATFORM=runpod
+  { [ -n "${RUNPOD_POD_ID:-}" ] || grep -qz '^RUNPOD_POD_ID=' /proc/1/environ 2>/dev/null; } && SMLM_PLATFORM=runpod
 fi
 export SMLM_PLATFORM
 if [ "$SMLM_PLATFORM" = runpod ]; then
