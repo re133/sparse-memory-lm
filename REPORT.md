@@ -2201,7 +2201,7 @@ generated text. One model (B-16M), one cache size.
   structure to exploit. (Sharpened on 2026-10-07 after a review: the first version said "whatever the layout".) What
   helps more directly is fewer misses (more rows in RAM, prefetching) or more reads per second. The quick run of the direct-I/O benchmark
   (`scripts/bench_table_io.py`, branch `codex/dio`) gives io_uring 1.4–1.8× the reads per second of mmap; that's
-  the next step.
+  the next step. (The long run is in "Addendum to step 5" at the end, added on 2026-10-11.)
 - **Plausibility check:** the latency measurement counted 8,059 device reads for the cold prompt (simulation: 9,648
   pages) and ~31 per further token (simulation: 67). The SSD merges neighbouring pages into one request, and the
   measurement continued with the model's own text, which repeats itself more than real text. So only the order of
@@ -3057,3 +3057,68 @@ only that it doesn't find B through the rows that B's name reads. One model, one
   first (the loop variant I noted with this step), would aim at exactly this gap.
 - **What this can't show:** that B-1M holds B nowhere on the way; only that its table reads don't carry B. One model,
   one seed, one relation.
+
+## Addendum to step 5: reading the table faster from the SSD (benchmark, measured 2026-10-07/08, no criteria fixed beforehand)
+
+**Question:** Step 5 showed that a different row order hardly saves pages: practically every row that isn't in RAM
+costs its own random read. That leaves the other lever, more reads per second. How many rows per second does the SSD
+deliver if I don't read through mmap but directly (O_DIRECT, past the page cache), with several threads or through
+io_uring?
+
+**Criteria:** none. This is a benchmark that I didn't tie to a verdict before the run. The numbers are reported here
+without a verdict.
+
+**Code** (commit `e14f781`, now in `main`):
+- `scripts/bench_table_io.py` measures three ways, on the CPU only:
+  - **mmap:** today's path from step 2 (`MADV_RANDOM`, neighbouring pages merged with `MADV_WILLNEED`, then copy the
+    rows);
+  - **pread:** O_DIRECT `preadv` into aligned buffers, spread over 1–64 threads;
+  - **io_uring:** O_DIRECT through one io_uring ring (a small C helper using liburing), queue depth 1–256.
+- `DirectQ4Table` in `smlm/offload.py`: the same interface as `MmapQ4Table` (which stays unchanged), with a pread or
+  io_uring path. Tests: `tests/test_table_io.py`, `tests/test_direct_offload.py`.
+
+**Setup:**
+- Table: B-16M's 4-bit value table (3.2 GB, 16.8 M rows of 192 bytes) on the Samsung 990 PRO (`/home`, btrfs with
+  `compress=zstd:1`; the table file itself isn't compressed, checked: 21 normal extents). Read only.
+- Per read batch 200, 2,000 or 20,000 rows, uniformly random, without repeats, sorted. 200 rows are the order of one
+  token (step 2: ≈ 270 different rows per token when reading a prompt), 2,000 and 20,000 more like a piece of a
+  prompt. All ways read exactly the same rows, 30 batches per setting.
+- **Cold:** before every batch the table's pages are dropped from the page cache, and `mincore` confirms 0 pages in
+  memory (in all 810 batches).
+- Timed: planning the pages, reading, copying the rows. Not included: scales, the RAM cache for frequent rows, the
+  transfer to the GPU. So it's raw row reading, no model.
+- Every batch is checked by sha256 against a reference read: all correct.
+
+### Result (long run 2026-10-08, 170 s, `runs/dio/table-io-full.json`)
+
+Rows per second, in brackets the median time per batch:
+
+| Rows per batch | mmap | pread, 16 threads | io_uring, depth 128 | io_uring / mmap |
+|---|---:|---:|---:|---:|
+| 200 | 150 k (1.32 ms) | 96 k (2.07 ms) | 213 k (0.93 ms) | 1.42× |
+| 2,000 | 153 k (12.9 ms) | 170 k (11.7 ms) | 270 k (7.0 ms) | 1.76× |
+| 20,000 | 163 k (122 ms) | 190 k (105 ms) | 294 k (67 ms) | 1.80× |
+
+- **io_uring** reads 1.4× (200 rows) to 1.8× (20,000) as many rows per second as mmap. Depth 256 adds nothing
+  (213 k / 264 k / 286 k), depth 32 is a bit below (182 k / 251 k / 273 k).
+- **pread with threads:** 16 threads is the best setting, 64 are slower (67 k / 149 k / 183 k). At 200 rows pread is
+  slower than mmap.
+- **One read after the other** (depth 1 or 1 thread): 14–15 k rows/s, so about 70 µs per random 4 KB read. The gain
+  comes from having many reads open at the same time.
+- At best about 1.2 GB/s of requested pages, of which only 57 MB/s are the rows themselves: every 192-byte row costs a
+  whole 4 KB page (as in step 2). Where the limit is (the one ring, the CPU or the SSD), I didn't look into.
+- The quick run on 2026-10-07 gave the same ratios (io_uring 1.4–1.8× mmap).
+
+**What this means:**
+- For raw reading, io_uring is the fastest way: about 40% more rows per second than mmap for small batches, about 80%
+  for large ones.
+- Whether that makes the model faster isn't measured: `DirectQ4Table` isn't in the latency measurement
+  (`scripts/bench_token_latency.py`) or in the demo yet.
+- Where it could help is reading long texts from the NVMe, which in step 2 was limited by the reads
+  (4,400–6,500 tok/s). When writing word by word, the NVMe isn't the main cost (step 2: without any cache only 18%
+  slower than from RAM, the gap comes mostly from the CPU round trips); there I expect little.
+
+**What this can't show:** the model's speed (see above); real access patterns (uniform rows instead of the model's
+skewed distribution, no RAM cache for the frequent rows); other SSDs and file systems (one 990 PRO, btrfs; O_DIRECT
+behaves differently depending on the file system); outliers (30 batches per setting aren't enough for a solid p99);
+more than one process and one ring.

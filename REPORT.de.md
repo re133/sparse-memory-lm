@@ -2296,6 +2296,7 @@ Forcing auf echtem Text statt erzeugtem Text. Ein Modell (B-16M), eine Cache-Gr�
   Review: Die erste Fassung sagte „egal wie die Tabelle angeordnet ist“.) Helfen kann nur: weniger Fehlzugriffe (mehr Zeilen im RAM, Vorab-Laden) oder mehr
   Lesezugriffe pro Sekunde. Der Kurzlauf des Direct-I/O-Messprogramms (`scripts/bench_table_io.py`, Branch
   `codex/dio`) gibt io_uring 1,4–1,8-mal so viele Lesezugriffe pro Sekunde wie mmap; das ist der nächste Schritt.
+  (Der Langlauf dazu steht im „Nachtrag zu Schritt 5“ am Ende, ergänzt am 2026-10-11.)
 - **Plausibilitätsprüfung:** Die Latenzmessung hat für den kalten Prompt 8.059 Lesezugriffe des Geräts gezählt
   (Simulation: 9.648 Seiten) und rund 31 pro weiterem Token (Simulation: 67). Die SSD fasst benachbarte Seiten zu einer
   Anfrage zusammen, und die Messung lief mit dem eigenen Text des Modells weiter, der sich mehr wiederholt als echter
@@ -3213,3 +3214,70 @@ in jedem Paar), nur dass es B nicht über die Zeilen findet, die B's Name liest.
   die ich mir zu diesem Schritt notiert habe), würde genau auf diese Lücke zielen.
 - **Was das nicht zeigen kann:** dass B-1M B nirgends auf dem Weg hält; nur, dass seine Tabellen-Lesezugriffe B nicht
   tragen. Ein Modell, ein Seed, eine Beziehung.
+
+## Nachtrag zu Schritt 5: die Tabelle schneller von der SSD lesen (Messprogramm, gemessen 2026-10-07/08, ohne vorher festgelegte Kriterien)
+
+**Frage:** Schritt 5 hat gezeigt, dass eine andere Anordnung der Zeilen kaum Seiten spart: Praktisch jede Zeile, die
+nicht im RAM liegt, kostet einen eigenen zufälligen Lesezugriff. Bleibt die andere Stellschraube, mehr Lesezugriffe
+pro Sekunde. Wie viele Zeilen pro Sekunde schafft die SSD, wenn ich nicht über mmap lese, sondern direkt (O_DIRECT,
+am Seiten-Cache vorbei), mit mehreren Threads oder über io_uring?
+
+**Kriterien:** keine. Das ist ein Messprogramm, das ich vor dem Lauf mit keinem Urteil verbunden habe. Die Zahlen
+stehen hier ohne Urteil.
+
+**Code** (Commit `e14f781`, inzwischen in `main`):
+- `scripts/bench_table_io.py` misst drei Wege, nur auf der CPU:
+  - **mmap:** der heutige Weg aus Schritt 2 (`MADV_RANDOM`, benachbarte Seiten mit `MADV_WILLNEED` zusammengefasst,
+    dann die Zeilen kopieren);
+  - **pread:** O_DIRECT-`preadv` in ausgerichtete Puffer, verteilt auf 1–64 Threads;
+  - **io_uring:** O_DIRECT über einen io_uring-Ring (kleine C-Hilfe mit liburing), Warteschlangentiefe 1–256.
+- `DirectQ4Table` in `smlm/offload.py`: dieselbe Schnittstelle wie `MmapQ4Table` (das unverändert bleibt), mit
+  pread- oder io_uring-Weg. Tests: `tests/test_table_io.py`, `tests/test_direct_offload.py`.
+
+**Aufbau:**
+- Tabelle: die 4-Bit-Wertetabelle von B-16M (3,2 GB, 16,8 Mio. Zeilen à 192 Bytes) auf der Samsung 990 PRO
+  (`/home`, btrfs mit `compress=zstd:1`; die Tabellendatei selbst ist nicht komprimiert, geprüft: 21 normale
+  Extents). Nur Lesen.
+- Je Lesevorgang 200, 2.000 oder 20.000 Zeilen, gleichverteilt zufällig, ohne Wiederholung, sortiert. 200 Zeilen
+  sind die Größenordnung eines Tokens (Schritt 2: ≈ 270 verschiedene Zeilen pro Token beim Einlesen), 2.000 und
+  20.000 eher ein Stück Prompt. Alle Wege lesen genau dieselben Zeilen, 30 Lesevorgänge je Einstellung.
+- **Kalt:** Vor jedem Lesevorgang werden die Seiten der Tabelle aus dem Seiten-Cache geworfen, `mincore` bestätigt
+  0 Seiten im Speicher (in allen 810 Lesevorgängen).
+- Gemessen wird: Seiten planen, lesen, Zeilen kopieren. Nicht dabei sind Skalen, der RAM-Cache für häufige Zeilen und
+  die Übertragung zur GPU. Es ist also reines Zeilen-Lesen, kein Modell.
+- Jeder Lesevorgang wird per sha256 gegen ein Referenz-Lesen geprüft: alle richtig.
+
+### Ergebnis (Langlauf 2026-10-08, 170 s, `runs/dio/table-io-full.json`)
+
+Zeilen pro Sekunde, in Klammern der Median der Zeit pro Lesevorgang:
+
+| Zeilen pro Lesevorgang | mmap | pread, 16 Threads | io_uring, Tiefe 128 | io_uring / mmap |
+|---|---:|---:|---:|---:|
+| 200 | 150 k (1,32 ms) | 96 k (2,07 ms) | 213 k (0,93 ms) | 1,42× |
+| 2.000 | 153 k (12,9 ms) | 170 k (11,7 ms) | 270 k (7,0 ms) | 1,76× |
+| 20.000 | 163 k (122 ms) | 190 k (105 ms) | 294 k (67 ms) | 1,80× |
+
+- **io_uring** liest 1,4-mal (200 Zeilen) bis 1,8-mal (20.000) so viele Zeilen pro Sekunde wie mmap. Tiefe 256 bringt
+  nichts mehr dazu (213 k / 264 k / 286 k), Tiefe 32 liegt knapp darunter (182 k / 251 k / 273 k).
+- **pread mit Threads:** 16 Threads sind die beste Einstellung, 64 sind langsamer (67 k / 149 k / 183 k). Bei
+  200 Zeilen ist pread langsamer als mmap.
+- **Ein Lesezugriff nach dem anderen** (Tiefe 1 oder 1 Thread): 14–15 k Zeilen/s, also rund 70 µs pro zufälligem
+  4-KB-Lesezugriff. Der Gewinn kommt daher, dass viele Lesezugriffe gleichzeitig offen sind.
+- Im besten Fall rund 1,2 GB/s angefragte Seiten, davon nur 57 MB/s die Zeilen selbst: Jede 192-Byte-Zeile kostet
+  eine ganze 4-KB-Seite (wie in Schritt 2). Wo die Grenze liegt (der eine Ring, die CPU oder die SSD), habe ich nicht
+  untersucht.
+- Der Kurzlauf am 2026-10-07 gab dieselben Verhältnisse (io_uring 1,4–1,8-mal mmap).
+
+**Was das bedeutet:**
+- Beim reinen Lesen ist io_uring der schnellste Weg: bei kleinen Lesevorgängen rund 40 % mehr Zeilen pro Sekunde als
+  mmap, bei großen rund 80 %.
+- Ob das Modell dadurch schneller wird, ist nicht gemessen: `DirectQ4Table` steckt noch nicht in der Latenzmessung
+  (`scripts/bench_token_latency.py`) und nicht in der Demo.
+- Helfen könnte es beim Einlesen langer Texte von der NVMe, das in Schritt 2 an den Lesezugriffen hing
+  (4.400–6.500 tok/s). Beim Schreiben Wort für Wort ist die NVMe nicht der Hauptposten (Schritt 2: ohne Cache nur
+  18 % langsamer als aus dem RAM, der Abstand kommt vor allem von den CPU-Hin- und Rückwegen); dort erwarte ich wenig.
+
+**Was das nicht zeigen kann:** das Tempo des Modells (siehe oben); echte Zugriffsmuster (gleichverteilte Zeilen statt
+der schiefen Verteilung des Modells, ohne RAM-Cache für die häufigen Zeilen); andere SSDs und Dateisysteme (eine
+990 PRO, btrfs; O_DIRECT verhält sich je nach Dateisystem anders); Ausreißer (30 Lesevorgänge je Einstellung reichen
+nicht für ein belastbares p99); mehr als einen Prozess und einen Ring.
