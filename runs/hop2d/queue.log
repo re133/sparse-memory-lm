@@ -26,4 +26,4 @@
 2026-10-11 19:24:24 ntfy: Fertig: Ergebnisse gepusht, Checkpoints auf der Storage Box geprüft. Claude stoppt und löscht jetzt den Pod (Pod 2.03 h ≈ 7.26 $). Falls nicht: Selbst-Stopp in 20 min.
 # note added at home: this was IONOS, not Runpod. Nothing was pushed from the instance (SMLM_NO_PUSH), despite the
 # message above. The waiting fallback stop was ended from home; the checkpoints' sha256 were recomputed on the Storage
-# Box from home before the instance was released for deletion (Leon deletes IONOS instances himself).
+# Box from home before the instance was released for deletion (I delete IONOS instances myself).

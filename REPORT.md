@@ -3054,7 +3054,8 @@ only that it doesn't find B through the rows that B's name reads. One model, one
   what it knows about B there doesn't reach the layer-10 lookup a few words later. One explanation from the
   literature is that the bridge is resolved too late in the layers to be used for the second step (Biran et al. 2024,
   "Hopping Too Late"); I didn't measure at which layer B forms. A second read in the same layer, which builds on the
-  first (the loop variant I noted with this step), would aim at exactly this gap.
+  first (the loop variant I noted with this step), would aim at exactly this gap. (Step 12 tried it, it doesn't close
+  the gap; added on 2026-10-11.)
 - **What this can't show:** that B-1M holds B nowhere on the way; only that its table reads don't carry B. One model,
   one seed, one relation.
 
@@ -3249,8 +3250,8 @@ training; here the model sees every fact 64 times. I think "does not chain" is m
   right.)
 - **Comparison: "no clear difference".** H2 lift of B-1M-r2-hop2d minus B-1M-hop2d +0.002 [−0.006; +0.009].
 - **Without a verdict:**
-  - **Demonstrating alone doesn't help:** B-1M-hop2d against step 11's B-1M (same model, same 800 pairs, plus the 200
-    demonstrated ones) +0.003 [−0.005; +0.010] in the H2 lift.
+  - **Demonstrating alone, no measurable effect:** B-1M-hop2d against step 11's B-1M (same model, same 800 pairs, plus
+    the 200 demonstrated ones) +0.003 [−0.005; +0.010] in the H2 lift. The upper bound is about 1% of the DIRECT lift.
   - **SAME:** here the second read is behind, lift +0.41 [+0.37; +0.45] against +0.47 [+0.43; +0.50], difference
     −0.06 [−0.11; −0.01]. Step 11's B-1M lay in between (+0.43 [+0.39; +0.46]); with one seed per model I don't read
     more into it than that.

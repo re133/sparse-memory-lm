@@ -3211,7 +3211,8 @@ in jedem Paar), nur dass es B nicht über die Zeilen findet, die B's Name liest.
   an. Eine Erklärung aus der Literatur ist, dass die Brücke in den Schichten zu spät aufgelöst wird, um für den
   zweiten Schritt genutzt zu werden (Biran et al. 2024, „Hopping Too Late“); in welcher Schicht B entsteht, habe ich
   nicht gemessen. Ein zweiter Lesezugriff in derselben Schicht, der auf dem ersten aufbaut (die Schleifen-Variante,
-  die ich mir zu diesem Schritt notiert habe), würde genau auf diese Lücke zielen.
+  die ich mir zu diesem Schritt notiert habe), würde genau auf diese Lücke zielen. (Schritt 12 hat es versucht, er
+  schließt die Lücke nicht; ergänzt am 2026-10-11.)
 - **Was das nicht zeigen kann:** dass B-1M B nirgends auf dem Weg hält; nur, dass seine Tabellen-Lesezugriffe B nicht
   tragen. Ein Modell, ein Seed, eine Beziehung.
 
@@ -3416,8 +3417,9 @@ für wahrscheinlicher.
   richtiger Werte.)
 - **Vergleich: „kein klarer Unterschied“.** H2-Lift von B-1M-r2-hop2d minus B-1M-hop2d +0,002 [−0,006; +0,009].
 - **Ohne Urteil:**
-  - **Vorführen allein hilft nicht:** B-1M-hop2d gegen das B-1M aus Schritt 11 (dasselbe Modell, dieselben 800 Paare,
-    dazu die 200 vorgeführten) +0,003 [−0,005; +0,010] im H2-Lift.
+  - **Vorführen allein, kein messbarer Effekt:** B-1M-hop2d gegen das B-1M aus Schritt 11 (dasselbe Modell, dieselben
+    800 Paare, dazu die 200 vorgeführten) +0,003 [−0,005; +0,010] im H2-Lift. Die obere Grenze ist etwa 1 % des
+    DIRECT-Lifts.
   - **SAME:** Hier liegt der zweite Lesezugriff hinten, Lift +0,41 [+0,37; +0,45] gegen +0,47 [+0,43; +0,50],
     Unterschied −0,06 [−0,11; −0,01]. Das B-1M aus Schritt 11 lag dazwischen (+0,43 [+0,39; +0,46]); bei einem Seed
     pro Modell lese ich nicht mehr hinein.
