@@ -342,7 +342,8 @@ class Job:
         env = dict(os.environ, PYTORCH_CUDA_ALLOC_CONF="expandable_segments:True")
         # appended: after a restart the first part (and its traceback) stays readable
         self.fh = open(os.path.join(self.out, "stdout.log"), "a")
-        self.fh.write(f"===== {time.strftime('%Y-%m-%d %H:%M:%S')} start {' '.join(cmd[1:]) if not FAKE else '(fake)'}\n")
+        what = " ".join(cmd[1:]) if not FAKE else "(fake)"
+        self.fh.write(f"===== {time.strftime('%Y-%m-%d %H:%M:%S')} start {what}\n")
         self.fh.flush()
         self.proc = subprocess.Popen(cmd, cwd=ROOT, stdout=self.fh, stderr=subprocess.STDOUT, env=env,
                                      start_new_session=True)       # a crash or signal never reaches the others
@@ -567,8 +568,8 @@ def main():
     state.update({"phase": "runs", "admitted": admitted, "dropped": dropped, "projected_hours": round(proj, 2),
                   "projected_cost_usd": round(proj * PRICE, 2)})
     log(f"budget gate: admitted {admitted}, dropped {dropped}, projected {proj:.2f} h ≈ {proj * PRICE:.2f} {CUR}"
-        + (f", still to train {({n: round(v, 3) for n, v in left.items() if v < 1})}" if any(v < 1 for v in left.values())
-           else ""))
+        + (f", still to train {({n: round(v, 3) for n, v in left.items() if v < 1})}"
+           if any(v < 1 for v in left.values()) else ""))
     notify(f"Budget-Wächter: laufen {', '.join(a.split('-s0')[0] for a in admitted) or 'nichts'}"
            + (f"; weggelassen {', '.join(d[0].split('-s0')[0] + ' (' + d[1] + ')' for d in dropped)}" if dropped else "")
            + f"; Hochrechnung {proj:.1f} h ≈ {proj * PRICE:.0f} {CUR}")
@@ -584,7 +585,8 @@ def main():
             j.reserve_gib = 1.1 * (state["peaks"].get(j.name) or 20) + 1.5
         elif j.status() is not None and j.status() != "done" and may_restart(j):
             note_restart(j, f"Prozess nach Neustart der Queue weg (Status {j.status()})")
-            log(f"{j.name}: status {j.status()}, process gone when the scheduler restarted - resumed from its checkpoint")
+            log(f"{j.name}: status {j.status()}, process gone when the scheduler restarted - "
+                "resumed from its checkpoint")
         elif j.status() is not None:
             # started earlier and the process is gone, or "done" without model.pt (e.g. a run-info.json from git
             # in a fresh clone): report, do not restart
@@ -631,7 +633,8 @@ def main():
     m = manifest()
     status_path = write_status(state)
     git_push("Cloud dense: queue finished, checkpoint manifest", [m, os.path.join(OUT, "queue.log"), status_path])
-    # an unfinished run keeps its checkpoint on the box (the only way to continue it elsewhere), half-written files don't
+    # an unfinished run keeps its checkpoint on the box (the only way to continue it elsewhere), half-written files
+    # don't
     files = [os.path.join(dp, f) for top in (OUT, PRE) for dp, _, fs in os.walk(top) for f in fs
              if not (".tmp" in f and f.rsplit(".tmp", 1)[1].isdigit())]
     ok = backup(files)

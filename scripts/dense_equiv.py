@@ -1,6 +1,8 @@
 """Step 1 evaluation (rules pre-registered in REPORT.md, "Step 1"): equivalent dense size of B-1M / B-4M / B-16M.
 
   python scripts/dense_equiv.py            -> report/dense_equiv.json, report/dense_equiv.png, markdown table on stdout
+  python scripts/dense_equiv.py --step13   -> report/long/dense_equiv.json + .png: the same at 3 B tokens (runs/long),
+                                              with the gates and the verdict of step 13 (REPORT.md, fixed beforehand)
 
 Dense points: A (runs/s1b/A-s0, seed 0) and D-50M ... D-400M (runs/cloud_dense/D-*-s0), Wikipedia val PPL against
 non-embedding parameters N. For each B (runs/cloud/B-*-s0):
@@ -12,10 +14,17 @@ non-embedding parameters N. For each B (runs/cloud/B-*-s0):
   * bracketing: better than the largest dense model -> "> N_max" (fit extrapolation only as a marked hint);
     worse than A -> "< N_A"
 Compute per token: forward MACs (run-info macs_per_token, context 1024); for B also the table values read per token.
+
+Step 13, per model: a run counts only if it is done with at most 20 skipped steps (gate 1) and better than the same
+model at 500 M tokens (gate 2); a dense model that fails drops out of the ladder, a B model loses its verdict. No N_eq
+if the remaining dense points don't get better with size (gate 3). Verdict per B against its 500 M range from
+report/dense_equiv.json: "grows" if the lower end of the 3 B range lies above the upper end of the 500 M range,
+"shrinks" if the upper end lies below the lower end, otherwise "holds"; "> N_max" counts as lower end N_max.
 """
 import json
 import math
 import os
+import sys
 
 import numpy as np
 
@@ -24,6 +33,10 @@ SEED_SPREAD = 0.004
 DENSE = [("A", os.path.join("runs", "s1b", "A-s0"))] + \
     [(f"D-{s}", os.path.join("runs", "cloud_dense", f"D-{s}-s0")) for s in ("50M", "100M", "200M", "400M")]
 BS = [(f"B-{s}", os.path.join("runs", "cloud", f"B-{s}-s0")) for s in ("1M", "4M", "16M")]
+# step 13 (LONG): the same models on 3 B tokens; the 500 M runs above are their references (gate 2)
+LONG_DENSE = [(n, os.path.join("runs", "long", f"{n}-long-s0")) for n, _ in DENSE]
+LONG_BS = [(n, os.path.join("runs", "long", f"{n}-long-s0")) for n, _ in BS]
+MAX_SKIPPED = 20
 
 
 def load(rel):
@@ -36,7 +49,39 @@ def load(rel):
     return {"ppl": i["results"]["val_ppl"], "ppl2": i["results"].get("val2_ppl"),
             "n": i["params"]["non_embedding"], "active": i["params"].get("active_non_embedding_per_token"),
             "macs": i["macs_per_token"]["total"], "table": i["params"].get("memory_values", 0),
-            "tok_s": i["results"].get("train_tok_s_median")}
+            "tok_s": i["results"].get("train_tok_s_median"), "train_h": i.get("train_time_s", 0) / 3600,
+            "skipped": i.get("n_skipped_steps", 0), "tokens": i["train_config"]["total_tokens"]}
+
+
+def gated(name, rel, ref_rel, notes):
+    """Step 13 gates 1 and 2 for one run: None (with a note) if it doesn't count."""
+    d, ref = load(rel), load(ref_rel)
+    if d is None:
+        notes[name] = "not done"
+    elif d["skipped"] > MAX_SKIPPED:
+        notes[name] = f"gate 1: {d['skipped']} skipped steps"
+    elif ref is None or not d["ppl"] < ref["ppl"]:
+        notes[name] = f"gate 2: not better than at 500 M ({d['ppl']:.3f} vs {ref and ref['ppl']})"
+    else:
+        notes[name] = "ok"
+        return {**d, "ppl_500m": ref["ppl"]}
+    return None
+
+
+def verdict(rng3, status3, pts, rng500):
+    """Step 13 rule: compare the 3 B range with the 500 M range (both [lo, hi] in parameters)."""
+    lo, hi = rng3
+    if status3.startswith(">"):
+        lo, hi = pts[-1][0], float("inf")
+    elif status3.startswith("<"):
+        lo, hi = 0.0, pts[0][0]
+    if lo is None or hi is None:
+        return None
+    if lo > rng500[1]:
+        return "grows"
+    if hi < rng500[0]:
+        return "shrinks"
+    return "holds"
 
 
 def interp(ppl_b, pts):
@@ -76,14 +121,27 @@ def fit_inverse(ppl, f):
     return (f["a"] / (ppl - f["E"])) ** (1 / f["alpha"])
 
 
-def main():
-    dense = [(name, load(rel)) for name, rel in DENSE]
+def main(step13=False):
+    notes = {}
+    if step13:
+        refs = dict(DENSE + BS)
+        dense = [(name, gated(name, rel, refs[name], notes)) for name, rel in LONG_DENSE]
+        bs = [(name, gated(name, rel, refs[name], notes)) for name, rel in LONG_BS]
+        prev = json.load(open(os.path.join(ROOT, "report", "dense_equiv.json")))["b"]
+        out_dir = os.path.join(ROOT, "report", "long")
+        os.makedirs(out_dir, exist_ok=True)
+    else:
+        dense = [(name, load(rel)) for name, rel in DENSE]
+        bs = [(name, load(rel)) for name, rel in BS]
+        out_dir = os.path.join(ROOT, "report")
     dense = [(name, d) for name, d in dense if d]
     pts = sorted((d["n"], d["ppl"]) for _, d in dense)
+    monotone = all(p1 < p0 for (_, p0), (_, p1) in zip(pts, pts[1:]))
     f = fit(pts) if len(pts) >= 3 else None
     out = {"dense": {k: v for k, v in dense}, "fit": f, "seed_spread": SEED_SPREAD, "b": {}}
-    for name, rel in BS:
-        b = load(rel)
+    if step13:
+        out.update(gates=notes, dense_monotone=monotone)
+    for name, b in bs:
         if not b:
             continue
         neq, status = interp(b["ppl"], pts)
@@ -101,7 +159,12 @@ def main():
         out["b"][name] = {**b, "n_eq": neq, "status": status, "range": [lo, hi], "n_eq_fit": nfit,
                           "table_values_read_per_token": 3 * 4 * 32 * 384,
                           "range_note": "unbounded (outside the measured dense range)" if None in cands else ""}
-    json.dump(out, open(os.path.join(ROOT, "report", "dense_equiv.json"), "w"), indent=1)
+        if step13:
+            out["b"][name]["range_500m"] = prev[name]["range"]
+            out["b"][name]["n_eq_500m"] = prev[name]["n_eq"]
+            out["b"][name]["verdict"] = (verdict([lo, hi], status, pts, prev[name]["range"]) if monotone and pts
+                                         else None)
+    json.dump(out, open(os.path.join(out_dir, "dense_equiv.json"), "w"), indent=1)
     print("| Modell | Val-PPL | N ohne Emb. | MACs/Token vorwärts |")
     print("|---|---|---|---|")
     for name, d in dense:
@@ -116,6 +179,10 @@ def main():
         nf = f"{b['n_eq_fit'] / 1e6:.0f} M" if b["n_eq_fit"] and math.isfinite(b["n_eq_fit"]) else "–"
         print(f"| {name} | {b['ppl']:.3f} | {neq} | {rng} | {nf} | {b['macs'] / 1e6:.1f} M | "
               f"{b['active'] / 1e6:.1f} M / {b['table'] / 1e9:.2f} Mrd. |")
+    if step13:
+        print(f"\ngates: {notes}; dense points monotone: {monotone}")
+        for name, b in out["b"].items():
+            print(f"{name}: verdict {b['verdict']} (500 M range {b['range_500m']})")
     try:
         import matplotlib
         matplotlib.use("Agg")
@@ -135,7 +202,7 @@ def main():
         if b["n_eq"]:
             ax[0].plot([b["n_eq"]], [b["ppl"]], "s", color=f"C{i + 1}")
     ax[0].set(xscale="log", yscale="log", xlabel="Non-embedding parameters (dense)", ylabel="Val PPL (Wikipedia)",
-              title="What the table is worth (500M tokens)")
+              title=f"What the table is worth ({'3B' if step13 else '500M'} tokens)")
     ax[0].legend(fontsize=7)
     ax[1].plot([d["macs"] for _, d in dense], [d["ppl"] for _, d in dense], "o-", color="C0", label="dense")
     for i, (name, b) in enumerate(out["b"].items()):
@@ -149,8 +216,8 @@ def main():
         a.yaxis.set_major_formatter(ScalarFormatter())
         a.yaxis.set_minor_formatter(NullFormatter())
     fig.tight_layout()
-    fig.savefig(os.path.join(ROOT, "report", "dense_equiv.png"), dpi=120)
+    fig.savefig(os.path.join(out_dir, "dense_equiv.png"), dpi=120)
 
 
 if __name__ == "__main__":
-    main()
+    main(step13="--step13" in sys.argv[1:])
