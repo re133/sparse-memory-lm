@@ -83,7 +83,9 @@ def main():
         subprocess.run([sys.executable, os.path.join(ROOT, "scripts", script)], cwd=ROOT, check=True)
     bad = []
     for p, h in exp.items():
-        if p.startswith("raw"):
+        # only what this script builds; the other token files in the manifest are made at home (factk, hop2,
+        # 1500m) and come from the storage box alone
+        if not p.startswith(("wikitext103_gpt2/", "wikipedia_en_gpt2/")):
             continue
         got = sha256(os.path.join(DATA, p))
         print(f"{'OK ' if got == h else 'BAD'} {p}", flush=True)

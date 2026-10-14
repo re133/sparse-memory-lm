@@ -282,7 +282,7 @@ def test_muon_state_dict_continuation(device):
         assert torch.equal(parameter, restored)
 
 
-@pytest.mark.parametrize("kind", ["dense", "dense_values"])
+@pytest.mark.parametrize("kind", ["dense", "dense_values", "both"])
 def test_mixed_dense_state_dict_continuation(kind):
     model = tiny(kind)
     opt = build_optimizer(model, 6e-4, 1e-3, 0.1, optimizer="muon")
@@ -306,13 +306,12 @@ def test_mixed_dense_state_dict_continuation(kind):
             assert torch.equal(actual, expected), name
 
 
-def test_mixed_lazy_state_dict_rejected_clearly():
+def test_mixed_lazy_state_dict_rejects_other_tables():
     model = tiny("both")
     opt = build_optimizer(model, 6e-4, 1e-3, 0.1, optimizer="muon")
-    with pytest.raises(NotImplementedError, match="LazyRowAdam|row.sparse|resum"):
-        opt.state_dict()
-    with pytest.raises(NotImplementedError, match="LazyRowAdam|row.sparse|resum"):
-        opt.load_state_dict({})
+    other = build_optimizer(tiny("pkm"), 6e-4, 1e-3, 0.1, optimizer="muon")
+    with pytest.raises(ValueError):
+        other.load_state_dict(copy.deepcopy(opt.state_dict()))
 
 
 @pytest.mark.parametrize("frozen", ["body", "tables", "some"])
@@ -363,7 +362,8 @@ def test_cli_defaults_and_run_info_use_selected_optimizer(monkeypatch, tmp_path,
         pass
 
     model = tiny()
-    model.cuda = lambda: model
+    monkeypatch.setattr(train, "DEVICE", "cpu")
+    monkeypatch.setattr(train, "CUDA", False)
     monkeypatch.setattr(train, "Transformer", lambda cfg: model)
     monkeypatch.setattr(train, "load_meta", lambda dataset: {"splits": {"validation": {"n_words": 1}}})
     monkeypatch.setattr(train, "TrainStream", lambda *args, **kw: SimpleNamespace(tokens_per_step=32,
@@ -375,13 +375,13 @@ def test_cli_defaults_and_run_info_use_selected_optimizer(monkeypatch, tmp_path,
     if selection is not None:
         command += ["--optimizer", selection]
     monkeypatch.setattr(sys, "argv", command)
-    original_dump = json.dump
+    original_write = train.write_json
 
-    def write_then_stop(info, file, **kwargs):
-        original_dump(info, file, **kwargs)
+    def write_then_stop(path, info, **kwargs):
+        original_write(path, info, **kwargs)
         raise InfoWritten
 
-    monkeypatch.setattr(train.json, "dump", write_then_stop)
+    monkeypatch.setattr(train, "write_json", write_then_stop)
     with pytest.raises(InfoWritten):
         train.main()
     info = json.loads((tmp_path / "run-info.json").read_text())

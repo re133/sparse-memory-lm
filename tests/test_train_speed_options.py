@@ -33,10 +33,9 @@ def test_evaluate_chunked_weights_partial_windows(monkeypatch, device):
     tokens = np.arange(30, dtype=np.uint16) % 37
     monkeypatch.setattr(train, "load_split", lambda split, dataset: tokens)
     if device == "cpu":
-        # evaluate is a GPU entry point; redirect only transfer/autocast to test its real window loop locally.
-        monkeypatch.setattr(torch.Tensor, "cuda", lambda self: self)
-        autocast = torch.autocast
-        monkeypatch.setattr(torch, "autocast", lambda *a, **kw: autocast("cpu", **kw))
+        # evaluate is a GPU entry point; its CPU mode (tests only) runs the real window loop locally
+        monkeypatch.setattr(train, "DEVICE", "cpu")
+        monkeypatch.setattr(train, "CUDA", False)
     eager = train.evaluate(model, "validation", 6, n_words=10, batch=3)
     fused = train.evaluate(model, "validation", 6, n_words=10, batch=3, fused_ce=True, ce_chunk_size=4)
     assert eager["n_tokens"] == fused["n_tokens"] == len(tokens) - 1

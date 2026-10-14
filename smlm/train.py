@@ -6,6 +6,8 @@ Outputs in --out_dir:
                        memory usage statistics (B)
   train_log.csv        every --log_every steps: train loss, lr, grad norms, tok/s
   model.pt             final weights (not in git)
+  ckpt.pt              with --ckpt_every_tokens: weights + optimizer state + loop counters at the last checkpoint,
+                       for --resume after a crash (removed when the run is done, unless --keep_ckpt)
   B only: mem_access_train.npy (reads per entry over the whole training), mem_access_val.npz
           (reads + summed softmax weight per entry on the validation set), mem_index_sample.npz
           (indices / scores / token ids for the first 64k validation tokens, in text order)
@@ -24,11 +26,21 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
+from .atomic import torch_save, write_json
 from .data import DATASETS, TrainStream, data_dir, has_split, load_meta, load_split
 from .model import ModelConfig, Transformer
 from .optim import build_optimizer, clip_grads, lr_multiplier, set_lr, value_table_memory
+from .sparse_values import row_sparse_tables, row_store
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+# "cpu" only for tests of the training loop itself (tests/test_resume.py); real runs always use the GPU
+DEVICE = os.environ.get("SMLM_TRAIN_DEVICE", "cuda")
+CUDA = DEVICE == "cuda"
+CKPT = "ckpt.pt"
+# arguments that change what is trained: a checkpoint only resumes a run with the same ones
+RESUME_KEYS = ("model", "seq_len", "batch_seqs", "lr", "optimizer", "value_lr", "eng_value_lr", "value_state",
+               "value_device", "weight_decay", "warmup_frac", "min_lr_ratio", "clip", "mem_query_norm",
+               "mem_score_scale_init", "data", "data_seed", "seed", "fused_ce", "ce_chunk_size", "compile")
 
 MODELS = {
     "A": dict(),
@@ -97,6 +109,34 @@ def git_info():
     return {"commit": run("rev-parse", "HEAD"), "dirty": bool(status), "dirty_files": status.splitlines() if status else []}
 
 
+def sync():
+    if CUDA:
+        torch.cuda.synchronize()
+
+
+def peak_gib():
+    return torch.cuda.max_memory_allocated() / 2**30 if CUDA else 0.0
+
+
+def reset_peak():
+    if CUDA:
+        torch.cuda.reset_peak_memory_stats()
+
+
+def open_csv(path, fields, keep_upto=None):
+    """CSV writer; keep_upto (resume): keep the rows up to that step, drop the ones written after the checkpoint."""
+    rows = []
+    if keep_upto is not None and os.path.exists(path):
+        with open(path, newline="") as f:
+            rows = [r for r in csv.DictReader(f) if int(r["step"]) <= keep_upto]
+    f = open(path, "w", newline="")
+    w = csv.DictWriter(f, fieldnames=fields)
+    w.writeheader()
+    w.writerows(rows)
+    f.flush()
+    return f, w
+
+
 def reference_ppl(metrics_csv, tokens):
     """Val PPL of a reference run at `tokens` (its metrics.csv; log-PPL interpolated between evaluations)."""
     with open(metrics_csv) as f:
@@ -108,12 +148,18 @@ def reference_ppl(metrics_csv, tokens):
 
 def hardware_info():
     info = {
-        "gpu": torch.cuda.get_device_name(0),
-        "gpu_arch": torch.cuda.get_device_properties(0).gcnArchName,
-        "gpu_mem_gib": round(torch.cuda.get_device_properties(0).total_memory / 2**30, 2),
-        "torch": torch.__version__, "hip": torch.version.hip, "python": platform.python_version(),
-        "kernel": platform.release(),
+        **({"gpu": torch.cuda.get_device_name(0),
+            "gpu_arch": torch.cuda.get_device_properties(0).gcnArchName,
+            "gpu_mem_gib": round(torch.cuda.get_device_properties(0).total_memory / 2**30, 2)} if CUDA
+           else {"gpu": None}),
+        "torch": torch.__version__, "hip": torch.version.hip, "cuda": torch.version.cuda,
+        "python": platform.python_version(), "kernel": platform.release(),
     }
+    try:
+        import triton
+        info["triton"] = triton.__version__
+    except Exception:
+        pass
     try:
         with open("/proc/cpuinfo") as f:
             info["cpu"] = next(l.split(":", 1)[1].strip() for l in f if l.startswith("model name"))
@@ -174,10 +220,10 @@ def evaluate(model, split, seq_len, n_words, batch=8, mem_stats=False, sample_wi
     mems = model.memory_layers()
     for m in mems:
         m.record = mem_stats or bool(sample_windows)
-    stats = [MemoryStats(m.size, "cuda") for m in mems] if mem_stats else []
-    combined = MemoryStats(mems[0].size, "cuda") if mem_stats and len(mems) > 1 else None
+    stats = [MemoryStats(m.size, DEVICE) for m in mems] if mem_stats else []
+    combined = MemoryStats(mems[0].size, DEVICE) if mem_stats and len(mems) > 1 else None
     sample = {"indices": [], "scores": [], "tokens": []}
-    tok = torch.from_numpy(np.asarray(load_split(split, dataset), dtype=np.int64)).cuda()
+    tok = torch.from_numpy(np.asarray(load_split(split, dataset), dtype=np.int64)).to(DEVICE)
     n = tok.numel() - 1
     full = n // seq_len
     x_all = tok[:full * seq_len].view(full, seq_len)
@@ -188,11 +234,11 @@ def evaluate(model, split, seq_len, n_words, batch=8, mem_stats=False, sample_wi
     nll, count, seen_windows = 0.0, 0, 0
     for x, y in chunks:
         if fused_ce:
-            with torch.autocast("cuda", dtype=torch.bfloat16):
+            with torch.autocast(DEVICE, dtype=torch.bfloat16):
                 _, loss = model(x, y, fused_ce=True, ce_chunk_size=ce_chunk_size)
             nll += float(loss) * y.numel()
         else:
-            with torch.autocast("cuda", dtype=torch.bfloat16):
+            with torch.autocast(DEVICE, dtype=torch.bfloat16):
                 logits = model(x)
             nll += float(F.cross_entropy(logits.float().view(-1, logits.size(-1)), y.reshape(-1), reduction="sum"))
         count += y.numel()
@@ -230,33 +276,33 @@ def evaluate(model, split, seq_len, n_words, batch=8, mem_stats=False, sample_wi
 def inference_benchmark(model, seq_len, prompt_len=128, new_tokens=256, prefill_batch=16, dataset=None):
     """Batch-1 greedy decoding with KV cache, and batched full-sequence forward (prefill / scoring)."""
     model.eval()
-    val = torch.from_numpy(np.asarray(load_split("validation", dataset)[:prompt_len], dtype=np.int64)).cuda()[None]
-    torch.cuda.reset_peak_memory_stats()
+    val = torch.from_numpy(np.asarray(load_split("validation", dataset)[:prompt_len], dtype=np.int64)).to(DEVICE)[None]
+    reset_peak()
     res = {}
-    with torch.autocast("cuda", dtype=torch.bfloat16):
+    with torch.autocast(DEVICE, dtype=torch.bfloat16):
         for rep in range(2):                                   # first repetition = warmup
             caches = [dict() for _ in range(model.cfg.n_layers)]
             logits = model(val, kv_caches=caches, pos0=0)
             nxt = logits[:, -1:].argmax(-1)
-            torch.cuda.synchronize()
+            sync()
             t0 = time.perf_counter()
             for i in range(new_tokens):
                 logits = model(nxt, kv_caches=caches, pos0=prompt_len + i)
                 nxt = logits[:, -1:].argmax(-1)
-            torch.cuda.synchronize()
+            sync()
             res["decode_b1_tok_s"] = new_tokens / (time.perf_counter() - t0)
-        res["decode_peak_vram_gib"] = torch.cuda.max_memory_allocated() / 2**30
-        torch.cuda.reset_peak_memory_stats()
-        x = torch.randint(0, 50257, (prefill_batch, seq_len), device="cuda")
+        res["decode_peak_vram_gib"] = peak_gib()
+        reset_peak()
+        x = torch.randint(0, min(50257, model.cfg.vocab_size), (prefill_batch, seq_len), device=DEVICE)
         model(x)
-        torch.cuda.synchronize()
+        sync()
         t0 = time.perf_counter()
         reps = 5
         for _ in range(reps):
             model(x)
-        torch.cuda.synchronize()
+        sync()
         res["prefill_tok_s"] = reps * prefill_batch * seq_len / (time.perf_counter() - t0)
-        res["prefill_peak_vram_gib"] = torch.cuda.max_memory_allocated() / 2**30
+        res["prefill_peak_vram_gib"] = peak_gib()
     model.train()
     return res
 
@@ -306,14 +352,32 @@ def main():
                     "at this token count) but keep the schedule of --tokens/--epochs (kernel comparison runs)")
     ap.add_argument("--abort_max_rel", type=float, default=0.05)
     ap.add_argument("--no_save", action="store_true", help="do not write model.pt (benchmark runs)")
+    ap.add_argument("--ckpt_every_tokens", type=float, default=0, help="write ckpt.pt (weights, optimizer state, "
+                    "loop counters) at the first evaluation after every this many tokens and at the last step; "
+                    "0 = never")
+    ap.add_argument("--resume", action="store_true", help="continue from ckpt.pt in --out_dir if there is one "
+                    "(same training arguments required), otherwise start from scratch")
+    ap.add_argument("--keep_ckpt", action="store_true", help="keep ckpt.pt when the run is done")
+    ap.add_argument("--skip_nonfinite", action="store_true", help="skip the optimizer step when a gradient norm is "
+                    "not finite (logged in run-info.json; costs one GPU sync per step)")
+    ap.add_argument("--max_skipped_steps", type=int, default=20, help="with --skip_nonfinite: stop as diverged "
+                    "after more skipped steps than this")
     args = ap.parse_args()
     micro_bs = MICRO_BS[args.model] if args.micro_bs is None else args.micro_bs
     if micro_bs <= 0 or args.batch_seqs <= 0 or args.batch_seqs % micro_bs:
         ap.error("--micro_bs must be positive and divide --batch_seqs")
     if args.ce_chunk_size <= 0:
         ap.error("--ce_chunk_size must be positive")
+    if (args.tokens is None) == (args.epochs is None):
+        ap.error("give exactly one of --tokens and --epochs")
+    if args.resume and args.value_device == "host":
+        ap.error("--resume is not supported with --value_device host")
 
     os.makedirs(args.out_dir, exist_ok=True)
+    for f in os.listdir(args.out_dir):
+        # half-written files of a killed earlier start (smlm/atomic.py names them <file>.tmp<pid>)
+        if ".tmp" in f and f.rsplit(".tmp", 1)[1].isdigit():
+            os.remove(os.path.join(args.out_dir, f))
     t_start = time.time()
     meta = load_meta(args.data)
     stream = TrainStream(args.seq_len, args.batch_seqs, args.data_seed, dataset=args.data)
@@ -326,6 +390,11 @@ def main():
     abort_step = (int(round(args.abort_at_tokens / stream.tokens_per_step / eval_every)) * eval_every
                   if args.abort_ref else None)
     accum = args.batch_seqs // micro_bs
+    # checkpoints only right after an evaluation: the interval losses are reset there, metrics.csv is complete
+    ckpt_every = (max(1, int(round(args.ckpt_every_tokens / stream.tokens_per_step / eval_every))) * eval_every
+                  if args.ckpt_every_tokens else 0)
+    ckpt_path = os.path.join(args.out_dir, CKPT)
+    resume_config = {**{k: getattr(args, k) for k in RESUME_KEYS}, "total_steps": total_steps, "micro_bs": micro_bs}
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -336,17 +405,30 @@ def main():
             mcfg.mem_score_scale_init = args.mem_score_scale_init
         if args.mem_impl is not None:
             mcfg.mem_impl = args.mem_impl
+    ck = None
+    if args.resume and os.path.exists(ckpt_path):
+        # memory-mapped: a 77 GB checkpoint (B-16M) is read tensor by tensor, never held twice in RAM
+        ck = torch.load(ckpt_path, map_location="cpu", mmap=True, weights_only=True)
+        diff = {k: (ck["resume_config"].get(k), v) for k, v in resume_config.items() if ck["resume_config"].get(k) != v}
+        if ck.get("format") != "smlm.train_ckpt.v1" or diff or ck["model_config"] != mcfg.to_dict():
+            raise SystemExit(f"{ckpt_path} belongs to another run (checkpoint vs now: {diff or 'model config'}); "
+                             "remove it or change --out_dir")
+        print(f"[resume] from {ckpt_path}: step {ck['step']}/{total_steps}", flush=True)
     model = Transformer(mcfg)
+    if ck is not None:
+        model.load_state_dict(ck["state_dict"])
     if args.value_device == "host":
         from .host_values import enable_host_values
         model = enable_host_values(model)
-    model = model.cuda()
+    model = model.to(DEVICE)
     if args.compile:
         from .compile import compile_dense
         compile_dense(model)
     loss_options = {"fused_ce": True, "ce_chunk_size": args.ce_chunk_size} if args.fused_ce else {}
     opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, eng_value_lr=args.eng_value_lr,
                           value_state=args.value_state, optimizer=args.optimizer)
+    if ck is not None:
+        opt.load_state_dict(ck["optimizer"])
     mems = model.memory_layers()
     n_val_words = meta["splits"]["validation"]["n_words"]
     n_val2_words = load_meta(args.extra_val)["splits"]["validation"]["n_words"] if args.extra_val else None
@@ -386,41 +468,90 @@ def main():
         from .muon import optimizer_description
         info["train_config"]["optimizer"] = optimizer_description(opt)
 
+    if ck is not None:
+        # same run, continued: keep what the first part recorded, note where and on what it was resumed
+        try:
+            with open(os.path.join(args.out_dir, "run-info.json")) as f:
+                old = json.load(f)
+        except (OSError, ValueError):
+            old = {}
+        for k in ("started", "abort_check", "skipped_steps", "n_skipped_steps", "resumes", "checkpoint"):
+            if k in old:
+                info[k] = old[k]
+        info.setdefault("resumes", []).append({
+            "at_step": ck["step"], "at_tokens": ck["step"] * stream.tokens_per_step,
+            "time": dt.datetime.now().isoformat(timespec="seconds"), "git": info["git"],
+            "hardware_before": old.get("hardware")})
+
     def write_info():
-        with open(os.path.join(args.out_dir, "run-info.json"), "w") as f:
-            json.dump(info, f, indent=2, default=lambda o: o.item() if hasattr(o, "item") else str(o))
+        write_json(os.path.join(args.out_dir, "run-info.json"), info, indent=2,
+                   default=lambda o: o.item() if hasattr(o, "item") else str(o))
 
     write_info()
     print(json.dumps({k: info[k] for k in ("model_name", "params", "seeds", "value_table_memory")},
                      default=str), flush=True)
-    print(f"steps={total_steps} warmup={warmup_steps} eval_every={eval_every} accum={accum}", flush=True)
+    print(f"steps={total_steps} warmup={warmup_steps} eval_every={eval_every} accum={accum} "
+          f"ckpt_every={ckpt_every}", flush=True)
 
-    mfile = open(os.path.join(args.out_dir, "metrics.csv"), "w", newline="")
-    mcsv = csv.DictWriter(mfile, fieldnames=METRIC_FIELDS)
-    mcsv.writeheader()
-    lfile = open(os.path.join(args.out_dir, "train_log.csv"), "w", newline="")
-    lcsv = csv.DictWriter(lfile, fieldnames=LOG_FIELDS)
-    lcsv.writeheader()
+    keep = ck["step"] if ck is not None else None
+    mfile, mcsv = open_csv(os.path.join(args.out_dir, "metrics.csv"), METRIC_FIELDS, keep)
+    lfile, lcsv = open_csv(os.path.join(args.out_dir, "train_log.csv"), LOG_FIELDS, keep)
 
     size = mems[0].size if mems else 0
-    acc_interval = torch.zeros(size, dtype=torch.int64, device="cuda") if mems else None
-    acc_total = torch.zeros(size, dtype=torch.int64, device="cuda") if mems else None
+    acc_interval = torch.zeros(size, dtype=torch.int64, device=DEVICE) if mems else None
+    acc_total = torch.zeros(size, dtype=torch.int64, device=DEVICE) if mems else None
     for m in mems:
         m.record = True
 
     train_time = 0.0
-    interval_loss, interval_steps = torch.zeros((), device="cuda"), 0
-    log_loss = torch.zeros((), device="cuda")
-    log_gn, log_vgn = torch.zeros((), device="cuda"), torch.zeros((), device="cuda")
+    interval_loss, interval_steps = torch.zeros((), device=DEVICE), 0
+    log_loss = torch.zeros((), device=DEVICE)
+    log_gn, log_vgn = torch.zeros((), device=DEVICE), torch.zeros((), device=DEVICE)
     last_log_t, steps_since_t = None, 0     # throughput window; evaluation time is excluded
     tok_s_hist = []
+    skipped = info.get("n_skipped_steps", 0)
 
     peak_train_vram = 0.0
+    start_step = 0
+    if ck is not None:
+        loop = ck["loop"]
+        start_step, train_time, peak_train_vram = ck["step"], loop["train_time"], loop["peak_train_vram"]
+        tok_s_hist = list(loop["tok_s_hist"])
+        interval_steps = loop["interval_steps"]
+        for t, v in ((interval_loss, "interval_loss"), (log_loss, "log_loss"), (log_gn, "log_gn"),
+                     (log_vgn, "log_vgn")):
+            t.fill_(loop[v])
+        if mems:
+            acc_interval.copy_(loop["acc_interval"])
+            acc_total.copy_(loop["acc_total"])
+        t_start = time.time() - loop["wall_s"]        # wall time of the run, without the time it was down
+        torch.set_rng_state(loop["rng_cpu"])
+        if CUDA and loop["rng_cuda"]:
+            torch.cuda.set_rng_state_all(loop["rng_cuda"])
+        del ck, loop                                  # drop the memory map
+
+    def save_checkpoint(step):
+        t0 = time.time()
+        loop = {"train_time": train_time, "peak_train_vram": peak_train_vram, "tok_s_hist": tok_s_hist,
+                "interval_steps": interval_steps, "interval_loss": float(interval_loss), "log_loss": float(log_loss),
+                "log_gn": float(log_gn), "log_vgn": float(log_vgn), "wall_s": time.time() - t_start,
+                "acc_interval": acc_interval, "acc_total": acc_total,
+                # nothing in the loop draws random numbers today (data order: TrainStream); kept for safety
+                "rng_cpu": torch.get_rng_state(), "rng_cuda": torch.cuda.get_rng_state_all() if CUDA else []}
+        torch_save({"format": "smlm.train_ckpt.v1", "step": step, "model_config": mcfg.to_dict(),
+                    "resume_config": resume_config, "state_dict": model.state_dict(),
+                    "optimizer": opt.state_dict(), "loop": loop}, ckpt_path)
+        info["checkpoint"] = {"step": step, "tokens": step * stream.tokens_per_step,
+                              "saved": dt.datetime.now().isoformat(timespec="seconds"),
+                              "save_s": round(time.time() - t0, 1),
+                              "gib": round(os.path.getsize(ckpt_path) / 2**30, 3)}
+        write_info()
+        print(f"[ckpt] step {step} saved in {time.time() - t0:.1f} s ({info['checkpoint']['gib']} GiB)", flush=True)
 
     def do_eval(step):
         nonlocal interval_loss, interval_steps, peak_train_vram
         # training peak since the last evaluation (evaluation itself is not counted)
-        peak_train_vram = max(peak_train_vram, torch.cuda.max_memory_allocated() / 2**30)
+        peak_train_vram = max(peak_train_vram, peak_gib())
         ev = evaluate(model, "validation", args.seq_len, n_val_words, batch=micro_bs, mem_stats=bool(mems),
                       dataset=args.data, **loss_options)
         ev2 = evaluate(model, "validation", args.seq_len, n_val2_words, batch=micro_bs,
@@ -463,32 +594,35 @@ def main():
                 info.update({"status": "aborted", "finished": dt.datetime.now().isoformat(timespec="seconds"),
                              "duration_s": round(time.time() - t_start, 1), "train_time_s": round(train_time, 1)})
                 write_info()
-                torch.save({"model_config": mcfg.to_dict(), "state_dict": model.state_dict()},
+                torch_save({"model_config": mcfg.to_dict(), "state_dict": model.state_dict()},
                            os.path.join(args.out_dir, "model.pt"))
                 raise SystemExit(3)
             write_info()
         interval_loss.zero_()
         interval_steps = 0
-        torch.cuda.reset_peak_memory_stats()
+        reset_peak()
         print(f"[eval] step {step} tokens {row['tokens']/1e6:.1f}M val_ppl {ev['ppl']:.3f} "
               f"train_loss {row['train_loss'] if row['train_loss']=='' else round(row['train_loss'],4)} "
               + (f"usage {ev['mem']['usage']:.3f} kl {ev['mem']['kl']:.3f}" if mems else ""), flush=True)
         return ev
 
-    do_eval(0)
+    if start_step == 0:
+        do_eval(0)
     model.train()
-    torch.cuda.synchronize()
+    sync()
     last_log_t = time.perf_counter()
-    for step in range(total_steps):
+    warm_from = start_step + 2 * args.log_every       # skip warm-up kernels / autotuning (again after a resume)
+    for step in range(start_step, total_steps):
         set_lr(opt, lr_multiplier(step, total_steps, warmup_steps, args.min_lr_ratio))
-        batch = torch.from_numpy(stream.batch(step).astype(np.int64)).pin_memory().cuda(non_blocking=True)
+        batch = torch.from_numpy(stream.batch(step).astype(np.int64))
+        batch = batch.pin_memory().cuda(non_blocking=True) if CUDA else batch
+        step_loss = torch.zeros((), device=DEVICE)
         for i in range(accum):
             mb = batch[i * micro_bs:(i + 1) * micro_bs]
-            with torch.autocast("cuda", dtype=torch.bfloat16):
+            with torch.autocast(DEVICE, dtype=torch.bfloat16):
                 _, loss = model(mb[:, :-1], mb[:, 1:], **loss_options)
             (loss / accum).backward()
-            interval_loss += loss.detach() / accum
-            log_loss += loss.detach() / accum
+            step_loss += loss.detach() / accum
             if mems:
                 # reads per table entry; with several layers sharing one table the reads are summed
                 for m in mems:
@@ -496,12 +630,33 @@ def main():
                     acc_interval += cnt
                     acc_total += cnt
         gn, vgn = clip_grads(model, args.clip)
-        log_gn += gn
-        if vgn is not None:
-            log_vgn += vgn
-        opt.step()
-        opt.zero_grad(set_to_none=True)
-        interval_steps += 1
+        if args.skip_nonfinite and not bool(torch.isfinite(gn) & (torch.isfinite(vgn) if vgn is not None else True)):
+            # drop this step's gradients (dense and table rows) instead of letting a NaN into weights or moments
+            skipped += 1
+            rec = {"step": step + 1, "grad_norm": float(gn), "value_grad_norm": float(vgn) if vgn is not None else None,
+                   "loss": float(step_loss)}
+            info["n_skipped_steps"] = skipped
+            info.setdefault("skipped_steps", [])
+            if len(info["skipped_steps"]) < 100:
+                info["skipped_steps"].append(rec)
+            write_info()
+            print(f"[skip] step {step + 1}: non-finite gradient norm {rec}", flush=True)
+            opt.zero_grad(set_to_none=True)
+            for t in row_sparse_tables(model):
+                row_store(t).reset()
+            if skipped > args.max_skipped_steps:
+                info["status"] = "diverged"
+                write_info()
+                raise SystemExit(f"more than {args.max_skipped_steps} steps with non-finite gradients")
+        else:
+            interval_loss += step_loss
+            log_loss += step_loss
+            log_gn += gn
+            if vgn is not None:
+                log_vgn += vgn
+            opt.step()
+            opt.zero_grad(set_to_none=True)
+            interval_steps += 1
         steps_since_t += 1
         if (step + 1) % args.log_every == 0 or step + 1 == total_steps:
             n_log = (step % args.log_every) + 1
@@ -509,7 +664,7 @@ def main():
             now = time.perf_counter()
             train_time += now - last_log_t
             tok_s = steps_since_t * stream.tokens_per_step / (now - last_log_t)
-            if step >= 2 * args.log_every:   # skip warm-up kernels / autotuning
+            if step >= warm_from:
                 tok_s_hist.append(tok_s)
             lcsv.writerow({"step": step + 1, "tokens": (step + 1) * stream.tokens_per_step,
                            "lr_mult": lr_multiplier(step, total_steps, warmup_steps, args.min_lr_ratio),
@@ -525,11 +680,13 @@ def main():
                 write_info()
                 raise SystemExit(f"non-finite loss at step {step+1}")
         if (step + 1) % eval_every == 0 or step + 1 == total_steps:
-            torch.cuda.synchronize()
+            sync()
             now = time.perf_counter()
             train_time += now - last_log_t
             do_eval(step + 1)
-            torch.cuda.synchronize()
+            if ckpt_every and ((step + 1) % ckpt_every == 0 or step + 1 == total_steps):
+                save_checkpoint(step + 1)
+            sync()
             last_log_t, steps_since_t = time.perf_counter(), 0   # evaluation excluded from throughput
             if args.stop_after_tokens and (step + 1) * stream.tokens_per_step >= args.stop_after_tokens:
                 info["stopped_early_at_step"] = step + 1
@@ -542,7 +699,7 @@ def main():
     final_val2 = (evaluate(model, "validation", args.seq_len, n_val2_words, batch=micro_bs,
                            dataset=args.extra_val, **loss_options) if args.extra_val else None)
     if not args.no_save:
-        torch.save({"model_config": mcfg.to_dict(), "state_dict": model.state_dict()},
+        torch_save({"model_config": mcfg.to_dict(), "state_dict": model.state_dict()},
                    os.path.join(args.out_dir, "model.pt"))
     if mems:
         np.save(os.path.join(args.out_dir, "mem_access_train.npy"), acc_total.cpu().numpy())
@@ -563,7 +720,8 @@ def main():
         p.grad = None
         if hasattr(p, "row_store"):
             del p.row_store                     # row-sparse gradient accumulator (training only)
-    torch.cuda.empty_cache()
+    if CUDA:
+        torch.cuda.empty_cache()
     infer = inference_benchmark(model, args.seq_len, dataset=args.data)
     tok_s_mean = float(np.mean(tok_s_hist)) if tok_s_hist else None
     info.update({
@@ -594,6 +752,8 @@ def main():
     write_info()
     mfile.close()
     lfile.close()
+    if os.path.exists(ckpt_path) and not args.keep_ckpt:
+        os.remove(ckpt_path)                  # done: model.pt and run-info.json hold the result
     print(json.dumps(info["results"], indent=1), flush=True)
 
 

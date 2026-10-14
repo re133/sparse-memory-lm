@@ -184,8 +184,9 @@ class LazyRowAdam(torch.optim.Optimizer):
         self.impl = impl                    # "triton": kernel 3 (smlm/kernels.py), in place, no copies
         self.state_dtype = state_dtype
         fused = all(p.is_cuda for p in params)
+        # only the fp32 torch path steps through an inner Adam; Triton and the compact modes keep self.state[p]
         self._adam = ({p: torch.optim.Adam([p], lr=lr, betas=betas, eps=eps, fused=fused or None) for p in params}
-                      if state_dtype == "fp32" else {})
+                      if state_dtype == "fp32" and impl == "torch" else {})
 
     def _lowmem_state(self, p):
         state = self.state[p]
@@ -306,14 +307,61 @@ class LazyRowAdam(torch.optim.Optimizer):
         # in table.row_store (row_store(table).reset() drops them)
         pass
 
+    def _params(self):
+        return [p for g in self.param_groups for p in g["params"]]
+
+    def _group_positions(self, params):
+        pos = {id(p): i for i, p in enumerate(params)}          # by identity: == on tensors compares values
+        return [[pos[id(p)] for p in g["params"]] for g in self.param_groups]
+
+    def _table_state(self, p):
+        # the fp32 torch path keeps the moments in its inner Adam (self.state[p] only points there after a step)
+        adam = self._adam.get(p)
+        return adam.state[p] if adam is not None else self.state[p]
+
+    def state_dict(self):
+        """Moments and step count per table, in parameter order (for resuming a run, smlm/train.py).
+        Call between steps: rows accumulated since the last step (table.row_store) are not part of it."""
+        params = self._params()
+        return {"format": "smlm.lazy_row_adam.v1", "state_dtype": self.state_dtype,
+                "shapes": [list(p.shape) for p in params],
+                "param_groups": [{**{k: v for k, v in g.items() if k != "params"}, "params": idx}
+                                 for g, idx in zip(self.param_groups, self._group_positions(params))],
+                "state": [dict(self._table_state(p)) for p in params]}
+
     def load_state_dict(self, state_dict):
-        # the torch path keeps its moments in an inner Adam per table that the inherited load would not fill,
-        # so a resumed run would silently restart the bias correction. Training never resumes here.
-        raise NotImplementedError("LazyRowAdam can't be restored from a state dict (no resuming)")
+        """Inverse of state_dict(): same tables (shapes) and moment storage. Group settings (lr, base_lr, betas,
+        eps) come back as saved, like torch optimizers do. Moments go to the table's device in their saved dtype;
+        the step count goes where this optimizer keeps it (CPU, or the inner fused Adam's own choice)."""
+        if state_dict.get("format") != "smlm.lazy_row_adam.v1":
+            raise ValueError("not a LazyRowAdam state dict (smlm.lazy_row_adam.v1)")
+        params = self._params()
+        if state_dict["state_dtype"] != self.state_dtype:
+            raise ValueError(f"LazyRowAdam state is {state_dict['state_dtype']}, this optimizer keeps "
+                             f"{self.state_dtype}")
+        if state_dict["shapes"] != [list(p.shape) for p in params]:
+            raise ValueError("LazyRowAdam state was saved for other tables (shapes differ)")
+        groups = state_dict["param_groups"]
+        if [g["params"] for g in groups] != self._group_positions(params):
+            raise ValueError("LazyRowAdam state has other parameter groups")
+        for g, saved in zip(self.param_groups, groups):
+            g.update({k: (tuple(v) if k == "betas" else v) for k, v in saved.items() if k != "params"})
+        for p, saved in zip(params, state_dict["state"]):
+            if not saved:
+                continue
+            adam = self._adam.get(p)
+            if adam is not None:
+                inner = adam.state_dict()
+                adam.load_state_dict({"state": {0: saved}, "param_groups": inner["param_groups"]})
+                self.state[p] = adam.state[p]
+            else:
+                # one copy per tensor (to() and clone() would hold a table-sized moment twice on the GPU)
+                self.state[p] = {k: (v.detach().clone() if k == "step" else v.to(device=p.device, copy=True))
+                                 for k, v in saved.items()}
 
 
 class OptimizerSet:
-    """Several optimizers driven as one (lr schedule via param_groups, step, zero_grad)."""
+    """Several optimizers driven as one (lr schedule via param_groups, step, zero_grad, state_dict)."""
 
     def __init__(self, *opts):
         self.opts = [o for o in opts if o is not None]
@@ -329,3 +377,17 @@ class OptimizerSet:
     def zero_grad(self, set_to_none=True):
         for o in self.opts:
             o.zero_grad(set_to_none=set_to_none)
+
+    def state_dict(self):
+        return {"format": "smlm.optimizer_set.v1",
+                "optimizers": [{"type": type(o).__name__, "state_dict": o.state_dict()} for o in self.opts]}
+
+    def load_state_dict(self, state_dict):
+        if state_dict.get("format") != "smlm.optimizer_set.v1":
+            raise ValueError("not an OptimizerSet state dict (smlm.optimizer_set.v1)")
+        saved = state_dict["optimizers"]
+        if [s["type"] for s in saved] != [type(o).__name__ for o in self.opts]:
+            raise ValueError("OptimizerSet state holds other optimizers: "
+                             f"{[s['type'] for s in saved]} vs {[type(o).__name__ for o in self.opts]}")
+        for o, s in zip(self.opts, saved):
+            o.load_state_dict(s["state_dict"])

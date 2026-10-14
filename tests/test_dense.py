@@ -1,5 +1,6 @@
 """Step 1 "Gegenwert der Tabelle": dense presets D-50M ... D-400M, the budget gate of scripts/run_dense.py and the end
 of its queue on a Runpod Pod and on a plain VM (IONOS)."""
+import json
 import os
 import sys
 import time
@@ -114,3 +115,64 @@ def test_queue_end_per_platform(tmp_path, monkeypatch, platform):
     else:
         assert log.startswith(boxed) and "Claude stoppt und löscht jetzt den Pod" in end[0] and "gepusht" in end[0]
         assert "(fake) would stop the Pod: fallback" in log.split(end[0])[1]
+
+
+def fake_queue(tmp_path, monkeypatch, runs, ckpt=True, crash=(), **extra):
+    out = tmp_path / "runs" / "q"
+    args = ["--data", "wikipedia", "--tokens", "500e6"] + (["--ckpt_every_tokens", "100e6", "--resume"] if ckpt else [])
+    for name, value in (("FAKE", True), ("OUT", str(out)), ("PRE", str(out) + "_preflight"),
+                        ("BOX", str(tmp_path / "box")), ("BASE", str(tmp_path)), ("RUNS", runs), ("EXTRA", {}),
+                        ("PLATFORM", "vm"), ("NO_PUSH", True), ("CKPT_EVERY", 100e6 if ckpt else 0.0),
+                        ("CKPT_ARG", "100e6" if ckpt else "0"), ("ARGS", args), *extra.items()):
+        monkeypatch.setattr(run_dense, name, value)
+    monkeypatch.setenv("FAKE_S", "0.05")
+    monkeypatch.setenv("SMLM_FAKE_CRASH", ",".join(crash))
+    sleep = time.sleep
+    monkeypatch.setattr(time, "sleep", lambda s: sleep(min(s, 0.05)))
+    run_dense.main()
+    return out
+
+
+def test_queue_restarts_a_crashed_run_from_its_checkpoint(tmp_path, monkeypatch):
+    runs = [("B-16M-x-s0", "B-16M-sparse"), ("D-50M-x-s0", "D-50M")]
+    out = fake_queue(tmp_path, monkeypatch, runs, crash=["B-16M-x-s0"])
+    log = (out / "queue.log").read_text()
+    info = json.loads((out / "B-16M-x-s0" / "run-info.json").read_text())
+    assert info["status"] == "done" and info["resumes"]
+    assert "restarting from its checkpoint" in log and "Neustart 1/3 ab checkpoint at 1M tokens" in log
+    assert json.loads((out / "restarts.json").read_text()) == {"B-16M-x-s0": 1}
+    assert "QUEUE DONE, backup verified" in log and "NOT finished" not in log
+    # preflight: stopped halfway with a checkpoint, then resumed; nothing big left behind
+    assert "checkpoint 0.0 GiB saved in 0.5 s, resumed ok" in log
+    for n, _ in runs:
+        assert not (tmp_path / "runs" / "q_preflight" / n / "ckpt.pt").exists()
+        assert not (out / n / "ckpt.pt").exists() and not (tmp_path / "box" / "runs" / "q" / n / "ckpt.pt").exists()
+    stdout = (out / "B-16M-x-s0" / "stdout.log").read_text()
+    assert stdout.count("===== ") == 2                     # both starts kept in the log
+
+
+def test_queue_gives_up_after_max_restarts(tmp_path, monkeypatch):
+    monkeypatch.setattr(run_dense, "FAKE_TRAIN", run_dense.FAKE_TRAIN.replace(
+        "if crash and not info.get(\"resumes\"):", "if crash and len(info.get(\"resumes\", [])) < 99:"))
+    out = fake_queue(tmp_path, monkeypatch, [("D-50M-y-s0", "D-50M")], crash=["D-50M-y-s0"], MAX_RESTARTS=2)
+    log = (out / "queue.log").read_text()
+    assert log.count("restarting from its checkpoint") == 2
+    assert "NOT finished: D-50M-y-s0 (running)" in log
+    # an unfinished run keeps its checkpoint on the box, so it can be continued elsewhere
+    assert (tmp_path / "box" / "runs" / "q" / "D-50M-y-s0" / "ckpt.pt").exists()
+
+
+def test_queue_without_checkpoints_reports_instead_of_restarting(tmp_path, monkeypatch):
+    out = fake_queue(tmp_path, monkeypatch, [("D-50M-z-s0", "D-50M")], ckpt=False, crash=["D-50M-z-s0"])
+    log = (out / "queue.log").read_text()
+    assert "restarting" not in log and "reported, not restarted (no checkpoints in this queue)" in log
+
+
+def test_budget_gate_counts_only_what_is_left():
+    order = ["B-16M-s0", "D-50M-s0"]
+    speeds = {"B-16M-s0": 1e5, "D-50M-s0": 2e5}
+    _, _, full = run_dense.admit(speeds, elapsed_h=0.0, cap_h=100.0, order=order)
+    _, _, half = run_dense.admit(speeds, elapsed_h=0.0, cap_h=100.0, order=order,
+                                 left={"B-16M-s0": 0.5, "D-50M-s0": 0.0})
+    work = (500e6 + 50 * run_dense.VAL_TOKENS / 3) * run_dense.FACTOR / 3600
+    assert full - half == pytest.approx(work / 1e5 * 0.5 + work / 2e5)

@@ -164,11 +164,3 @@ def test_frozen_table_and_table_only_training(device, impl):
             assert any("query_proj" in n for n in changed)
         else:
             assert changed == {"layers.0.ffn.values.weight"}
-
-
-def test_lazy_adam_refuses_state_dict_load():
-    """Resuming isn't supported: loading optimizer state must fail loudly, not restart the bias correction."""
-    m = tiny("row_sparse")
-    opt = LazyRowAdam(row_sparse_tables(m), lr=1e-2)
-    with pytest.raises(NotImplementedError):
-        opt.load_state_dict(opt.state_dict())

@@ -113,20 +113,13 @@ def muon_parameters(model):
 
 
 class MuonOptimizerSet(OptimizerSet):
-    """Dense Muon/AdamW checkpointing; reject unsupported lazy-Adam checkpoints before changing state."""
-
-    def _check_checkpointable(self):
-        if any(isinstance(o, LazyRowAdam) for o in self.opts):
-            raise NotImplementedError("Muon with LazyRowAdam cannot save/load optimizer state: "
-                                      "LazyRowAdam does not support resuming; model weights can still be saved")
+    """Muon/AdamW (and LazyRowAdam) checkpointing; checks every optimizer's groups before changing any state."""
 
     def state_dict(self):
-        self._check_checkpointable()
         return {"format": "smlm.muon.v1", "optimizers": [
             {"type": type(o).__name__, "state_dict": o.state_dict()} for o in self.opts]}
 
     def load_state_dict(self, state_dict):
-        self._check_checkpointable()
         if state_dict.get("format") != "smlm.muon.v1":
             raise ValueError("Expected a MuonOptimizerSet state dict (smlm.muon.v1)")
         saved = state_dict.get("optimizers", [])

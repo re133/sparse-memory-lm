@@ -14,6 +14,8 @@
 # detected by the missing Runpod variables (or SMLM_PLATFORM=vm). There nothing stops by itself (if run.env sets
 # SMLM_STOP_CMD, the watchdog and a failed setup run it); the messages say so instead of asking for the Runpod console.
 # At the end Claude checks the backup on the box from home, then the instance is deleted by hand.
+# On a VM the script also notes when the instance was first up (billing_start, for the cost count after a reboot) and
+# installs an @reboot entry that runs it again, so a rebooted VM continues its queue (runs resume from their checkpoints).
 set -euo pipefail
 if [ "$(id -u)" != "0" ]; then echo "please run as root"; exit 1; fi
 KIT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -62,18 +64,40 @@ say "start (kit $KIT, repo $REPO_DIR)"
 # ---- 0 independent watchdog: stop the Pod when its uptime reaches the cost cap (whatever else happens)
 CAP_S=$(python3 -c "print(int(${SMLM_COST_CAP_USD:-18} / ${SMLM_PRICE_USD_H:-3.49} * 3600))")
 UP_S=$(ps -o etimes= -p 1 | tr -d ' ')
+if [ "$SMLM_PLATFORM" = vm ]; then
+  # billing runs since the instance was created: cloud-init rebooted once after the driver, so the first boot counts
+  # (birth time of /var/lib/cloud/instances if it lies less than an hour before this boot, as in run_dense.py).
+  # Noted once; after a later reboot the count goes on from there instead of starting at zero.
+  if [ ! -s "$STATE/billing_start" ]; then
+    NOW=$(date +%s); BOOT=$((NOW - UP_S)); START=$BOOT
+    BORN=$(stat -c %W /var/lib/cloud/instances 2>/dev/null || echo 0)
+    if [ "${BORN:-0}" -gt 0 ] && [ $((BOOT - BORN)) -ge 0 ] && [ $((BOOT - BORN)) -lt 3600 ]; then START=$BORN; fi
+    echo "$START" > "$STATE/billing_start"
+  fi
+  UP_S=$(( $(date +%s) - $(cat "$STATE/billing_start") ))
+  # after a reboot: run this script again (stages that are done are skipped, the queue resumes its runs)
+  if [ -d /etc/cron.d ] && [ ! -f /etc/cron.d/smlm-setup ]; then
+    echo "@reboot root sleep 60 && bash $KIT/setup_dense.sh >> $STATE/reboot.log 2>&1" > /etc/cron.d/smlm-setup
+    say "installed /etc/cron.d/smlm-setup (setup + queue again after a reboot)"
+  fi
+fi
 if [ ! -f /tmp/smlm_watchdog.pid ] || ! kill -0 "$(cat /tmp/smlm_watchdog.pid)" 2>/dev/null; then
   # the ntfy topic comes from cloud.env inside the watchdog, so it never shows up in the process list
   nohup bash -c "sleep $((CAP_S - UP_S - 360)); echo \"\$(date) watchdog: cost cap reached\"; bash $KIT/stop_pod.sh \
     || { . $KIT/cloud.env; [ -n \"\$NTFY_TOPIC\" ] && curl -s -m 20 -H 'Title: SMLM Cloud' \
     -d 'Kostendeckel erreicht. $NOSTOP_MSG' \"https://ntfy.sh/\$NTFY_TOPIC\"; }" > "$STATE/watchdog.log" 2>&1 &
   echo $! > /tmp/smlm_watchdog.pid
-  say "watchdog armed ($SMLM_PLATFORM): stop or ntfy at uptime $((CAP_S - 360)) s (cap ${SMLM_COST_CAP_USD:-18} \$ at ${SMLM_PRICE_USD_H:-3.49} \$/h, now $UP_S s)"
+  say "watchdog armed ($SMLM_PLATFORM): stop or ntfy at uptime $((CAP_S - 360)) s (cap ${SMLM_COST_CAP_USD:-18} ${SMLM_CURRENCY:-\$} at ${SMLM_PRICE_USD_H:-3.49} ${SMLM_CURRENCY:-\$}/h, now $UP_S s)"
 fi
 
 mountpoint -q /workspace || [ -d /workspace ] || fail "/workspace missing"
-[ "$(df -P /workspace | tail -1 | awk '{print $4}')" -gt $((25 * 1024 * 1024)) ] \
-  || fail "less than 25 GB free on /workspace (environment ~8 GB, data 1.2 GB, checkpoints ~4 GB)"
+# default for step 1 (environment ~8 GB, data 1.2 GB, checkpoints ~4 GB); a B-16M run with checkpoints needs ~250 GB
+# (77 GB checkpoint, the same again while the next one is written, 26 GB model.pt, 3 GB data)
+MIN_FREE_GB="${SMLM_MIN_FREE_GB:-25}"
+if ! is_done data; then
+  [ "$(df -P /workspace | tail -1 | awk '{print $4}')" -gt $((MIN_FREE_GB * 1024 * 1024)) ] \
+    || fail "less than $MIN_FREE_GB GB free on /workspace"
+fi
 
 # ---- 1 system packages (container disk: again after every Pod start)
 if ! command -v tmux >/dev/null || ! command -v rsync >/dev/null || ! command -v git >/dev/null; then
@@ -119,7 +143,8 @@ say "repo at $(git rev-parse --short HEAD)"
 if ! is_done venv; then
   python3 -m venv .venv
   .venv/bin/pip install -q --upgrade pip
-  .venv/bin/pip install -q torch --index-url "${TORCH_INDEX:-https://download.pytorch.org/whl/cu128}"
+  # pinned: every cloud run so far used 2.11.0+cu128 (and its Triton); a newer wheel could round differently
+  .venv/bin/pip install -q "${TORCH_SPEC:-torch==2.11.0}" --index-url "${TORCH_INDEX:-https://download.pytorch.org/whl/cu128}"
   .venv/bin/pip install -q numpy pandas matplotlib pyarrow tiktoken pytest
   done_ venv
 fi
@@ -129,6 +154,9 @@ assert torch.cuda.is_available(), "CUDA not available"
 print("torch", torch.__version__, "cuda", torch.version.cuda, torch.cuda.get_device_name(0),
       round(torch.cuda.get_device_properties(0).total_memory / 2**30, 1), "GiB")
 EOF
+# the exact environment of this run, backed up with its results
+mkdir -p "${SMLM_DENSE_OUT:-runs/cloud_dense}"
+.venv/bin/pip freeze > "${SMLM_DENSE_OUT:-runs/cloud_dense}/pip_freeze.txt"
 
 # ---- 5 data: token files from the storage box, byte-identical to home (sha256)
 if ! is_done data; then
@@ -137,10 +165,10 @@ if ! is_done data; then
   # arrived); whether the data is right is decided by sha256 alone
   rsync -rt --partial storagebox:smlm/data/wikipedia_en_gpt2 storagebox:smlm/data/wikitext103_gpt2 data/ || true
   case "${SMLM_DENSE_DATA:-wikipedia}" in
-    wikipedia_factk|wikipedia_hop2|wikipedia_hop2d)
-      # steps 10-12: built at home by scripts/make_factk.py / make_hop2.py; no Hugging Face fallback, a wrong
-      # file stops the Pod
-      D="${SMLM_DENSE_DATA}_gpt2"
+    wikipedia_factk|wikipedia_hop2|wikipedia_hop2d|wikipedia_1500m)
+      # steps 10-12: built at home by scripts/make_factk.py / make_hop2.py; 1500m: scripts/prepare_wikipedia.py
+      # --train_tokens 1.5e9 (first 505 M tokens = wikipedia). No Hugging Face fallback, a wrong file stops the Pod
+      case "$SMLM_DENSE_DATA" in wikipedia_1500m) D=wikipedia_en_gpt2_1500m ;; *) D="${SMLM_DENSE_DATA}_gpt2" ;; esac
       rsync -rt --partial "storagebox:smlm/data/$D" data/ || true
       (cd data && grep " $D/" ../cloud/data_sha256.txt | sha256sum -c --quiet) \
         || fail "$D missing or wrong on the storage box (sha256)"
