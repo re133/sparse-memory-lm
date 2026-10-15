@@ -1,0 +1,269 @@
+{
+  "status": "done",
+  "model_name": "B-1M-sparse",
+  "started": "2026-10-15T21:49:15",
+  "git": {
+    "commit": "b3b90882bda08d8db7a1827fa0cf1d2a1cb335a6",
+    "dirty": true,
+    "dirty_files": [
+      "?? scripts/check_resume.py"
+    ]
+  },
+  "hardware": {
+    "gpu": "AMD Radeon RX 9070",
+    "gpu_arch": "gfx1201",
+    "gpu_mem_gib": 15.92,
+    "torch": "2.14.1",
+    "hip": "7.2.53211",
+    "cuda": null,
+    "python": "3.14.8",
+    "kernel": "7.2.9-2-cachyos",
+    "triton": "3.5.1",
+    "cpu": "AMD Ryzen 9 5900XT 16-Core Processor",
+    "ram_gib": 125.7,
+    "gpu_state_at_start": [
+      "GPU[0]\t\t: GPU use (%): 86",
+      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 15"
+    ]
+  },
+  "seeds": {
+    "init_seed": 0,
+    "data_seed": 1234
+  },
+  "train_config": {
+    "model": "B-1M-sparse",
+    "out_dir": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/resume_check/R2",
+    "tokens": 12000000.0,
+    "epochs": 0.02374927000194666,
+    "seed": 0,
+    "data_seed": 1234,
+    "seq_len": 1024,
+    "batch_seqs": 32,
+    "micro_bs": 4,
+    "fused_ce": false,
+    "ce_chunk_size": 1024,
+    "compile": false,
+    "lr": 0.0006,
+    "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip; value table: row-sparse gradients + LazyRowAdam (only rows read in the step are updated, values and Adam state of unread rows unchanged)",
+    "value_lr": 0.0024,
+    "eng_value_lr": null,
+    "value_state": "fp32",
+    "value_device": "gpu",
+    "weight_decay": 0.1,
+    "warmup_frac": 0.05,
+    "min_lr_ratio": 0.1,
+    "clip": 1.0,
+    "eval_every_tokens": 2000000.0,
+    "log_every": 10,
+    "sample_windows": 64,
+    "mem_query_norm": "batchnorm",
+    "mem_score_scale_init": null,
+    "data": "wikipedia",
+    "extra_val": "wikitext103",
+    "mem_impl": "triton",
+    "abort_ref": null,
+    "abort_at_tokens": 100000000.0,
+    "stop_after_tokens": null,
+    "abort_max_rel": 0.05,
+    "no_save": false,
+    "ckpt_every_tokens": 4000000.0,
+    "resume": true,
+    "keep_ckpt": false,
+    "skip_nonfinite": true,
+    "max_skipped_steps": 20,
+    "total_steps": 366,
+    "warmup_steps": 18,
+    "tokens_per_step": 32768,
+    "grad_accum": 8,
+    "total_tokens": 11993088,
+    "eval_every_steps": 61,
+    "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
+    "precision": "bf16 autocast, fp32 weights / optimizer state"
+  },
+  "model_config": {
+    "vocab_size": 50304,
+    "d_model": 384,
+    "n_layers": 12,
+    "n_heads": 6,
+    "ffn_hidden": 1024,
+    "max_seq_len": 1024,
+    "rope_theta": 10000.0,
+    "norm_eps": 1e-05,
+    "init_std": 0.02,
+    "mem_layers": [
+      2,
+      6,
+      10
+    ],
+    "mem_n_keys": 1024,
+    "mem_heads": 4,
+    "mem_knn": 32,
+    "mem_k_dim": 256,
+    "mem_v_dim": -1,
+    "mem_query_norm": "batchnorm",
+    "mem_swilu": true,
+    "mem_value_impl": "embedding_bag",
+    "mem_keys_weight_decay": true,
+    "mem_score_scale": "none",
+    "mem_score_scale_init": 1.0,
+    "mem_share_values": true,
+    "mem_round_layers": [],
+    "mem_value_grad": "row_sparse",
+    "mem_impl": "triton",
+    "eng_layers": [],
+    "eng_orders": [
+      2,
+      3
+    ],
+    "eng_heads": 8,
+    "eng_head_dim": 24,
+    "eng_rows": 524287,
+    "eng_conv_kernel": 4,
+    "eng_hash_seed": 0,
+    "eng_impl": "triton",
+    "eng_value_grad": "row_sparse"
+  },
+  "params": {
+    "total": 444895872,
+    "embedding": 19316736,
+    "non_embedding": 425579136,
+    "memory_values": 402653184,
+    "dense_body": 22925952,
+    "active_non_embedding_per_token": 23073408,
+    "bn_running_stats": 6144
+  },
+  "value_table_memory": {
+    "table_bytes": 1610612736,
+    "gradient_bytes": 1610612736,
+    "moment_bytes": 3221225472,
+    "scale_bytes": 0,
+    "touched_bytes": 1048576,
+    "step_bytes": 4,
+    "total_bytes": 6443499524
+  },
+  "macs_per_token": {
+    "attn_proj": 7077888,
+    "attn_scores": 4718592.0,
+    "ffn": 10616832,
+    "memory": 5358720,
+    "engram": 0,
+    "lm_head": 19316736,
+    "total": 47088768.0
+  },
+  "data": {
+    "dataset": "wikipedia",
+    "data_dir": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/data/wikipedia_en_gpt2",
+    "source": "wikimedia/wikipedia 20231101.en (HF parquet, 41 files)",
+    "tokenizer": "tiktoken/gpt2",
+    "vocab_size": 50257,
+    "seed": 20231101,
+    "val_frac": 0.0003,
+    "train_frac": 0.125,
+    "articles_in_dump": 6407814,
+    "doc_format": "title + '\\n\\n' + text + <|endoftext|>",
+    "wikitext_val_test_titles": 122,
+    "wikitext_titles_found_and_excluded": 14,
+    "splits": {
+      "validation": {
+        "n_tokens": 1484010,
+        "n_articles": 1917,
+        "n_candidate_articles": 1917,
+        "candidate_tokens": 1484010,
+        "n_words": 990651
+      },
+      "train": {
+        "n_tokens": 505000000,
+        "n_articles": 689951,
+        "n_candidate_articles": 800138,
+        "candidate_tokens": 584857875,
+        "n_words": null
+      }
+    },
+    "extra_val": "wikitext103"
+  },
+  "checkpoint": {
+    "step": 366,
+    "tokens": 11993088,
+    "saved": "2026-10-15T21:54:23",
+    "save_s": 10.9,
+    "gib": 4.988
+  },
+  "finished": "2026-10-15T21:54:45",
+  "duration_s": 335.8,
+  "train_time_s": 199.3,
+  "results": {
+    "val_loss": 5.728450138869635,
+    "val_ppl": 307.49232846978833,
+    "val_word_ppl": 5331.02133160452,
+    "val2_dataset": "wikitext103",
+    "val2_loss": 6.921972257203581,
+    "val2_ppl": 1014.3185200918576,
+    "val2_word_ppl": 2614.352437026935,
+    "train_tok_s_mean": 60442.59684629314,
+    "train_tok_s_median": 60534.62335302161,
+    "peak_train_vram_gib": 10.508130550384521,
+    "weights_gib_fp32": 1.6573662757873535,
+    "decode_b1_tok_s": 177.99257154938644,
+    "decode_peak_vram_gib": 2.310891628265381,
+    "prefill_tok_s": 274128.5502082921,
+    "prefill_peak_vram_gib": 3.894784450531006,
+    "mem_val": {
+      "usage": 0.8200569152832031,
+      "kl": 2.648358899932182,
+      "top1pct_share": 0.46638660147108274,
+      "eff_entries_per_head": 31.373372846492696,
+      "top1_weight": 0.051600638917584526
+    },
+    "mem_val_per_layer": [
+      {
+        "usage": 0.1988840103149414,
+        "kl": 4.377638806388662,
+        "top1pct_share": 0.818730936352138,
+        "eff_entries_per_head": 31.33201975933782,
+        "top1_weight": 0.05210718081064749
+      },
+      {
+        "usage": 0.4669055938720703,
+        "kl": 3.4692459975901517,
+        "top1pct_share": 0.6380700858283205,
+        "eff_entries_per_head": 31.46979909946427,
+        "top1_weight": 0.0494407386173473
+      },
+      {
+        "usage": 0.5700969696044922,
+        "kl": 3.2073902990435332,
+        "top1pct_share": 0.579712512483078,
+        "eff_entries_per_head": 31.318299680676002,
+        "top1_weight": 0.053253997324758794
+      }
+    ],
+    "mem_train_usage_total": 1.0,
+    "mem_score_scale_per_head": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mem_score_scale_per_layer_head": [
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    ],
+    "mem_key_norm_mean": 0.4073658585548401
+  }
+}

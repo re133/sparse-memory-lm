@@ -3472,3 +3472,111 @@ für wahrscheinlicher.
 - **Was das nicht zeigen kann:** ein Seed pro Modell, eine Beziehung, eine Größe, 200 vorgeführte Paare; eine Runde
   mehr mit eigenen Gewichten, keine Schleife mit geteilten Gewichten oder mehreren Runden. Ob die verketten würden,
   bleibt offen.
+
+## Schritt 13: Hält der Vorteil der Tabelle mit sechsmal so vielen Tokens? (LONG, Kriterien vor den Läufen festgelegt, 2026-10-14)
+
+**Frage:** Alle Vergleiche bisher sind bei 500 M Tokens. Das ist wenig für die dichten Modelle: D-200M hat 2,5 Tokens
+pro Parameter gesehen, D-400M 1,3 (Chinchilla-optimal sind etwa 20). Der naheliegende Einwand: Mit mehr Training holen
+die dichten Modelle auf, und der Vorteil der Tabelle schrumpft. Mit einem einmaligen IONOS-Guthaben trainiere ich
+dieselben Modelle auf 3 B Tokens und messe die gleichwertige dichte Größe noch einmal.
+
+**Daten:** `wikipedia_1500m`, 1,5 B Trainings-Tokens aus demselben Dump (breiteres Artikelband; die ersten 505 M Tokens
+sind bytegleich mit `wikipedia`). Der Validierungssatz ist bytegleich mit allen bisherigen Läufen. sha256 aller drei
+Dateien in `cloud/data_sha256.txt`, auch auf der Storage Box geprüft. 3 B Tokens sind genau 2 Epochen: 91.552 Schritte
+zu 32.768 Tokens, jedes Fenster zweimal, in der zweiten Epoche in neuer Reihenfolge.
+
+**Modelle und Rezept:** unverändert aus Schritt 1 und 1b. Dieselben Presets, AdamW (0,9 / 0,95), LR 6e-4, Tabellen-LR
+2,4e-3, Warmup 5 % (jetzt 150 M Tokens), Kosinus auf 10 %, Weight Decay 0,1, Clip 1,0, bf16, Seed 0, Daten-Seed 1234,
+Triton-Kernel für B. Nur `--data` und `--tokens` ändern sich, und ausgewertet wird alle 50 M Tokens statt alle 10 M.
+Bewusst nicht geändert, obwohl schneller oder vielleicht besser: Lernrate pro Größe, größere Mikro-Batches (sie ändern
+die BatchNorm-Statistik der Query), `--compile`, `--fused_ce`. Jedes davon würde die Zahlen mit allem Bisherigen
+unvergleichbar machen.
+
+**Reihenfolge** (der Budget-Wächter lässt in dieser Reihenfolge zu und hört beim ersten Lauf auf, der nicht mehr passt):
+B-16M, D-100M, D-200M, D-50M, B-1M, A, B-4M, D-400M. B-16M und seine dichten Nachbarn aus Schritt 1 kommen zuerst;
+D-400M braucht es nur, falls B-16M besser als D-200M wird.
+
+**Neu im Code, ohne Änderung an der Rechnung** (Commit: unten beim Start der Läufe notiert):
+- Checkpoints alle 500 M Tokens und `--resume`. Ein Lauf, der von einem Checkpoint weiterläuft, endet mit denselben
+  Gewichten, Metriken und Logs wie einer, der nie angehalten hat, auf der CPU bitgleich (`tests/test_resume.py`). Ein
+  Lauf, der abstürzt oder hängt, setzt beim letzten Checkpoint wieder an, höchstens dreimal. Nach einem Neustart der VM
+  startet ein `@reboot`-Eintrag Setup und Queue neu, die die Läufe dann fortsetzen (ohne GPU getestet, nicht mit einem
+  echten Neustart).
+- `--skip_nonfinite`: Ein Schritt mit nicht endlicher Gradientennorm wird übersprungen, statt in die Gewichte zu
+  gelangen. Jeder wird in `run-info.json` festgehalten und hier berichtet; mehr als 20 gelten als divergiert.
+- torch fest auf 2.11.0+cu128, wie in allen Cloud-Läufen bisher.
+
+**Ablauf:** eine IONOS H200 NVL (`cloud/setup_dense.sh`, `scripts/run_dense.py`). Die Läufe kommen nacheinander, nicht
+parallel, damit jede Geschwindigkeit ein Wert für einen Lauf allein ist (Schritt 1: vier Läufe gleichzeitig waren nicht
+schneller als nacheinander). Probelauf: jedes Modell 3 M Tokens allein, nach der Hälfte mit Checkpoint angehalten und
+fortgesetzt. Budget-Wächter mit meinem restlichen Guthaben als Deckel; nach jedem Lauf gehen seine Dateien auf die Storage Box, per
+sha256 geprüft (`model.pt`; der Checkpoint nur bei einem Lauf, der nicht fertig wurde, damit er woanders weiterlaufen
+kann).
+
+**Auswertung (festgelegt, vor den Läufen im Code: `scripts/dense_equiv.py --step13`, an erfundenen Läufen getestet in
+`tests/test_dense_equiv.py`; auf den alten Läufen ergibt es weiter 60 / 83 / 114 M):** wie in Schritt 1, mit den Läufen
+bei 3 B Tokens. Dichte Punkte
+A, D-50M … D-400M, soweit gelaufen; für B-16M, B-1M und B-4M die gleichwertige dichte Größe N_eq durch stückweise lineare
+Interpolation von log PPL über log N zwischen den beiden benachbarten dichten Punkten; Sensitivitätsbereich durch
+Verschieben von B und beiden Nachbarn um ±0,4 %; der Fit als Vergleichswert; Einordnung wie in Schritt 1 (besser als das
+größte dichte Modell: nur „> N_max“).
+
+**Schranken, pro Modell:**
+1. Ein Modell zählt nur, wenn es mit endlichem Loss und höchstens 20 übersprungenen Schritten fertig geworden ist.
+2. Es muss bei 3 B Tokens besser sein als bei 500 M (Schritt 1 und die Cloud-Läufe von Stufe 1b). Wenn nicht, ist bei
+   seinem langen Training etwas schiefgegangen, zum Beispiel Überanpassung in der zweiten Epoche.
+   - Ein dichtes Modell, das an Schranke 1 oder 2 scheitert, fällt aus der Reihe; die B-Modelle werden dann zwischen
+     den verbleibenden dichten Modellen eingeordnet. Ein B-Modell, das scheitert, verliert nur sein eigenes Urteil.
+     Jedes Scheitern wird berichtet.
+3. Die verbleibenden dichten Punkte werden mit der Größe besser. Sonst gibt es kein N_eq und kein Urteil.
+4. Ein B-Modell wird zwischen seine beiden Nachbarn unter den dichten Modellen gesetzt, die zählen. Ist es besser als
+   das größte, ist nur „> N_max“ bekannt; das zählt als unteres Ende seines Bereichs.
+
+**Kriterien** (B-16M ist das Hauptergebnis; B-1M und B-4M folgen derselben Regel als Nebenergebnisse). N_eq bei 3 B mit
+Bereich gegen N_eq bei 500 M mit Bereich (B-16M 114 M, 106–123 M; B-4M 83 M, 79–88 M; B-1M 60 M, 57–63 M):
+- **„Der Vorteil wächst“:** Das untere Ende des 3-B-Bereichs liegt über dem oberen Ende des 500-M-Bereichs.
+- **„Der Vorteil schrumpft“:** Das obere Ende des 3-B-Bereichs liegt unter dem unteren Ende des 500-M-Bereichs.
+- Sonst **„der Vorteil hält“**.
+
+**Ohne Urteil berichtet:**
+- die Kurven aller Modelle über die Tokens, und ob die zweite Epoche einen Sprung oder Überanpassung zeigt (Validierung
+  gegen Trainings-Loss);
+- N_eq auf WikiText-103 als Nebenwert;
+- gleiche Trainingszeit: tok/s allein auf der H200 NVL und Trainingsstunden jedes Laufs, Val-PPL gegen
+  Trainingsstunden für alle fertigen Läufe, und wo B-16M bei gleicher Trainingszeit gegenüber den dichten Punkten liegt
+  (log-log-Interpolation über die Stunden). Zu Hause lag B-1M bei gleicher Zeit nur 3 % vor A;
+- Nutzung der Tabelle (Usage, KL, Anteil der obersten 1 % der Zeilen) und Lesezugriffe pro Zeile (Median, gegen 4.232
+  für B-16M bei 500 M Tokens);
+- die Kosten.
+
+**Erwartung (vorher notiert):** Die großen dichten Modelle sind bei 500 M weiter von der Sättigung entfernt als B-16M,
+deshalb erwarte ich, dass sie mehr von sechsmal so vielen Tokens haben und N_eq von B-16M eher schrumpft. Dagegen spricht:
+Die Zeilen von B-16M wurden in 500 M Tokens im Median nur 4.232-mal gelesen und bekommen jetzt etwa sechsmal so viele
+Zugriffe, die Tabelle könnte also auch gewinnen. Ich tippe auf „hält“ oder „schrumpft“, eher nicht „wächst“.
+
+**Was das nicht zeigen kann:**
+- Ein Seed pro Modell. Die Streuung von 0,4 % stammt von B-1M und A bei 500 M Tokens.
+- Die LR ist wie bisher nicht pro Größe getunt. Das lässt die Tabelle eher zu gut aussehen.
+- 3 B Tokens sind für D-200M und D-400M immer noch weniger als Chinchilla (15 und 7,5 Tokens pro Parameter).
+- Zwei Epochen über 1,5 B Tokens, nicht 3 B frische Tokens. Ein GPU-Typ.
+
+**Vor den Läufen geprüft (2026-10-15, RX 9070):**
+- **Tests:** die ganze Suite auf der GPU, 549 bestanden, 7 übersprungen (hier kein `transformers`, Triton-CPU-Interpreter,
+  ein Test, der > 60 GB braucht); ohne GPU 366 bestanden. Neu: `tests/test_resume.py` (Lazy-Adam-Zustand für jede
+  Momentspeicherung auf CPU und GPU, Triton eingeschlossen; Absturz und Fortsetzen eines winzigen Trainingslaufs auf der
+  CPU bitgleich; Checkpoint eines anderen Laufs abgelehnt; übersprungene Schritte) und `tests/test_dense_equiv.py` (die
+  Auswertung oben an erfundenen Läufen).
+- **Fortsetzen mit dem echten Modell** (`scripts/check_resume.py` → `runs/resume_check/check_resume.json`): B-1M mit
+  Triton-Kerneln, 12 M Tokens, Checkpoints alle 4 M. Zwei Läufe ohne Unterbrechung liegen im Val-Loss bis zu 0,25 %
+  auseinander (die Kernel summieren nicht in fester Reihenfolge). Ein dritter Lauf, nach seinem Checkpoint bei 4 M Tokens
+  per SIGKILL beendet und noch einmal, während er den bei 8 M schrieb, behielt seinen Checkpoint bei 4 M heil, räumte die
+  halb geschriebene Datei weg, setzte zweimal bei 4 M wieder an und endete normal. Er liegt bis zu 0,47 % vom ersten
+  Lauf entfernt, aber dieser größte Abstand ist bei 4 M Tokens, vor dem ersten Abbruch; nach dem Fortsetzen schrumpft er
+  auf 0,25–0,29 %. Das Fortsetzen verschiebt die Kurve also nicht über das Rauschen hinaus.
+- **Probelauf** genau so, wie die Queue ihn startet: bei 1,5 M Tokens mit Checkpoint angehalten (5,0 GB, 11 s), bis 3 M
+  fortgesetzt.
+- **Geschwindigkeit der Sicherung:** mit `--skip_nonfinite` trainiert B-1M mit 60.553 tok/s gegen 60.499 ohne, A mit
+  91.703 gegen 91.910 (−0,2 %). Beides im Rauschen.
+- **Dieselben Argumente wie die 500-M-Läufe:** jeder Queue-Befehl durch den Parser von `train.py` aufgelöst und mit der
+  Trainingskonfiguration seines 500-M-Gegenstücks verglichen: außer Daten, Tokens, Auswertungsabstand und den neuen
+  Checkpoint-Schaltern nur Felder, die es damals nicht gab, mit ihrem alten Verhalten.

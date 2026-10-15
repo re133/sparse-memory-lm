@@ -1,0 +1,193 @@
+{
+ "kill": {
+  "after_first_kill_ckpt_step": true,
+  "second_kill": "writing ckpt at 8M",
+  "ckpt_step_after_second_kill": 122,
+  "tmp_files_left": [
+   "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/resume_check/K/ckpt.pt.tmp83462"
+  ]
+ },
+ "curve": {
+  "rows": [
+   {
+    "step": 0,
+    "R1": 10.871314857807677,
+    "R2": 10.871314857807677,
+    "K": 10.871314857807677,
+    "noise_rel": 0.0,
+    "K_rel": 0.0
+   },
+   {
+    "step": 61,
+    "R1": 7.082678622944093,
+    "R2": 7.064749215276248,
+    "K": 7.100874500920364,
+    "noise_rel": 0.0025314444749424602,
+    "K_rel": 0.0025690672900681726
+   },
+   {
+    "step": 122,
+    "R1": 6.456047297684484,
+    "R2": 6.447520746951069,
+    "K": 6.4864740053773895,
+    "noise_rel": 0.0013207076002174345,
+    "K_rel": 0.004712900369211708
+   },
+   {
+    "step": 183,
+    "R1": 6.136465846030025,
+    "R2": 6.123862596525906,
+    "K": 6.15509457061747,
+    "noise_rel": 0.0020538286727812085,
+    "K_rel": 0.0030357415904948967
+   },
+   {
+    "step": 244,
+    "R1": 5.929393206959656,
+    "R2": 5.918670713049026,
+    "K": 5.946416462087057,
+    "noise_rel": 0.0018083627677187083,
+    "K_rel": 0.002870994473333268
+   },
+   {
+    "step": 305,
+    "R1": 5.801347099059983,
+    "R2": 5.79180421763283,
+    "K": 5.817027603206079,
+    "noise_rel": 0.001644942332221335,
+    "K_rel": 0.0027029074244905803
+   },
+   {
+    "step": 366,
+    "R1": 5.736370189154587,
+    "R2": 5.728450138869635,
+    "K": 5.750555196433382,
+    "noise_rel": 0.0013806727989636464,
+    "K_rel": 0.0024728193632993804
+   }
+  ],
+  "max_noise_rel": 0.0025314444749424602,
+  "max_K_rel": 0.004712900369211708,
+  "ok": true,
+  "resumes": [
+   {
+    "at_step": 122,
+    "at_tokens": 3997696,
+    "time": "2026-10-15T21:56:52",
+    "git": {
+     "commit": "b3b90882bda08d8db7a1827fa0cf1d2a1cb335a6",
+     "dirty": true,
+     "dirty_files": [
+      "?? scripts/check_resume.py"
+     ]
+    },
+    "hardware_before": {
+     "gpu": "AMD Radeon RX 9070",
+     "gpu_arch": "gfx1201",
+     "gpu_mem_gib": 15.92,
+     "torch": "2.14.1",
+     "hip": "7.2.53211",
+     "cuda": null,
+     "python": "3.14.8",
+     "kernel": "7.2.9-2-cachyos",
+     "triton": "3.5.1",
+     "cpu": "AMD Ryzen 9 5900XT 16-Core Processor",
+     "ram_gib": 125.7,
+     "gpu_state_at_start": [
+      "GPU[0]\t\t: GPU use (%): 85",
+      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 15"
+     ]
+    }
+   },
+   {
+    "at_step": 122,
+    "at_tokens": 3997696,
+    "time": "2026-10-15T21:58:29",
+    "git": {
+     "commit": "b3b90882bda08d8db7a1827fa0cf1d2a1cb335a6",
+     "dirty": true,
+     "dirty_files": [
+      "?? scripts/check_resume.py"
+     ]
+    },
+    "hardware_before": {
+     "gpu": "AMD Radeon RX 9070",
+     "gpu_arch": "gfx1201",
+     "gpu_mem_gib": 15.92,
+     "torch": "2.14.1",
+     "hip": "7.2.53211",
+     "cuda": null,
+     "python": "3.14.8",
+     "kernel": "7.2.9-2-cachyos",
+     "triton": "3.5.1",
+     "cpu": "AMD Ryzen 9 5900XT 16-Core Processor",
+     "ram_gib": 125.7,
+     "gpu_state_at_start": [
+      "GPU[0]\t\t: GPU use (%): 83",
+      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 36"
+     ]
+    }
+   }
+  ],
+  "status": "done",
+  "ckpt_left": false,
+  "final_val_ppl": {
+   "R1": 309.93735275035107,
+   "R2": 307.49232846978833,
+   "K": 314.36514625219786
+  }
+ },
+ "preflight_first_part": {
+  "status": "done",
+  "ckpt": true
+ },
+ "preflight": {
+  "status": "done",
+  "resumes": [
+   {
+    "at_step": 46,
+    "at_tokens": 1507328,
+    "time": "2026-10-15T22:03:43",
+    "git": {
+     "commit": "b3b90882bda08d8db7a1827fa0cf1d2a1cb335a6",
+     "dirty": true,
+     "dirty_files": [
+      "?? scripts/check_resume.py"
+     ]
+    },
+    "hardware_before": {
+     "gpu": "AMD Radeon RX 9070",
+     "gpu_arch": "gfx1201",
+     "gpu_mem_gib": 15.92,
+     "torch": "2.14.1",
+     "hip": "7.2.53211",
+     "cuda": null,
+     "python": "3.14.8",
+     "kernel": "7.2.9-2-cachyos",
+     "triton": "3.5.1",
+     "cpu": "AMD Ryzen 9 5900XT 16-Core Processor",
+     "ram_gib": 125.7,
+     "gpu_state_at_start": [
+      "GPU[0]\t\t: GPU use (%): 85",
+      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 15"
+     ]
+    }
+   }
+  ],
+  "checkpoint": {
+   "step": 91,
+   "tokens": 2981888,
+   "saved": "2026-10-15T22:04:31",
+   "save_s": 11.2,
+   "gib": 4.988
+  },
+  "ckpt_left": false,
+  "tok_s_median": 60667.91985807464
+ },
+ "speed": {
+  "S-B-1M-skip": 60552.53589264847,
+  "S-B-1M-noskip": 60498.73311947904,
+  "S-A-skip": 91702.85095585893,
+  "S-A-noskip": 91909.59378780035
+ }
+}

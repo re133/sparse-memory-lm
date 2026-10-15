@@ -3299,3 +3299,104 @@ training; here the model sees every fact 64 times. I think "does not chain" is m
   continue from.
 - **What this can't show:** one seed per model, one relation, one size, 200 demonstrated pairs; one round more with
   its own weights, not a loop with shared weights or several rounds. Whether those would chain stays open.
+
+## Step 13: does the table's advantage hold with six times the tokens? (LONG, criteria fixed before the runs, 2026-10-14)
+
+**Question:** every comparison so far is at 500 M tokens. That's little for the dense models: D-200M saw 2.5 tokens
+per parameter, D-400M 1.3 (Chinchilla-optimal is about 20). The obvious objection: with more training the dense models
+catch up and the table's advantage shrinks. With a one-time IONOS credit I train the same models on 3 B tokens and
+measure the equivalent dense size again.
+
+**Data:** `wikipedia_1500m`, 1.5 B training tokens from the same dump (wider article band; the first 505 M tokens are
+byte-identical to `wikipedia`). The validation set is byte-identical to all earlier runs. sha256 of all three files in
+`cloud/data_sha256.txt`, also checked on the storage box. 3 B tokens are exactly 2 epochs: 91,552 steps of 32,768
+tokens, every window twice, in a new order in the second epoch.
+
+**Models and recipe:** unchanged from steps 1 and 1b. Same presets, AdamW (0.9 / 0.95), LR 6e-4, table LR 2.4e-3,
+warmup 5% (now 150 M tokens), cosine to 10%, weight decay 0.1, clip 1.0, bf16, seed 0, data seed 1234, Triton kernels
+for B. Only `--data` and `--tokens` change, and evaluations come every 50 M tokens instead of 10 M. Deliberately not
+changed, although faster or maybe better: learning rate per size, larger micro-batches (they change the BatchNorm
+statistics of the query), `--compile`, `--fused_ce`. Each would make the numbers incomparable with everything before.
+
+**Order** (the budget gate admits in this order and stops at the first run that doesn't fit):
+B-16M, D-100M, D-200M, D-50M, B-1M, A, B-4M, D-400M. B-16M and its dense neighbours from step 1 come first; D-400M is
+only needed if B-16M ends up better than D-200M.
+
+**New in the code, no change to the math** (commit: noted below at the start of the runs):
+- Checkpoints every 500 M tokens and `--resume`. A run continued from a checkpoint ends with the same weights, metrics
+  and logs as one that never stopped, bit for bit on the CPU (`tests/test_resume.py`). A run that crashes or stalls
+  resumes from its last checkpoint, at most 3 times. After a reboot of the VM an `@reboot` entry starts setup and queue
+  again, which then resume the runs (tested without a GPU, not on a real reboot).
+- `--skip_nonfinite`: a step with a non-finite gradient norm is skipped instead of reaching the weights. Each one is
+  recorded in `run-info.json` and reported here; more than 20 count as diverged.
+- torch pinned to 2.11.0+cu128, as in every cloud run so far.
+
+**Execution:** one IONOS H200 NVL (`cloud/setup_dense.sh`, `scripts/run_dense.py`). The runs go one after another, not
+in parallel, so every speed is a single-run value (step 1: four runs at once were not faster than one after another).
+Preflight: every model 3 M tokens alone, stopped halfway with a checkpoint and resumed. Budget gate with my remaining
+credit as the cap; after every run its files go to the storage box, checked by sha256 (`model.pt`; the checkpoint only
+for a run that didn't finish, so it can be continued elsewhere).
+
+**Evaluation (fixed, in code before the runs: `scripts/dense_equiv.py --step13`, tested on made-up runs in
+`tests/test_dense_equiv.py`; on the old runs it still gives 60 / 83 / 114 M):** as in step 1, with the runs at 3 B
+tokens. Dense points A, D-50M …
+D-400M as far as they ran; for B-16M, B-1M and B-4M the equivalent dense size N_eq by piecewise linear interpolation of
+log PPL over log N between the two neighbouring dense points; sensitivity range from shifting B and both neighbours by
+±0.4%; the fit as comparison value; bracketing as in step 1 (better than the largest dense model: only "> N_max").
+
+**Gates, per model:**
+1. A model only counts if it finished with finite loss and at most 20 skipped steps.
+2. It must be better at 3 B tokens than at 500 M (step 1 and the cloud runs of stage 1b). If not, something went
+   wrong with its long training, for example overfitting in the second epoch.
+   - A dense model that fails gate 1 or 2 drops out of the ladder; the B models are then placed between the dense
+     models that remain. A B model that fails loses only its own verdict. Every failure is reported.
+3. The remaining dense points get better with size. Otherwise there is no N_eq and no verdict.
+4. A B model is placed between its two neighbours among the dense models that count. If it is better than the largest
+   one, only "> N_max" is known, which counts as the lower end of its range.
+
+**Criteria** (B-16M is the main result; B-1M and B-4M follow the same rule as side results). N_eq at 3 B with its range
+against N_eq at 500 M with its range (B-16M 114 M, 106–123 M; B-4M 83 M, 79–88 M; B-1M 60 M, 57–63 M):
+- **"The advantage grows":** the lower end of the 3 B range lies above the upper end of the 500 M range.
+- **"The advantage shrinks":** the upper end of the 3 B range lies below the lower end of the 500 M range.
+- Otherwise **"the advantage holds"**.
+
+**Reported without a verdict:**
+- the curves of all models over the tokens, and whether the second epoch shows a jump or overfitting (validation
+  against training loss);
+- N_eq on WikiText-103 as a side value;
+- equal training time: tok/s alone on the H200 NVL and training hours of every run, val PPL against training hours for
+  all finished runs, and where B-16M lies against the dense points at the same training time (log-log interpolation
+  over hours). At home, at equal time, B-1M was only 3% ahead of A;
+- usage of the table (usage, KL, share of the top 1% of rows) and reads per row (median, against 4,232 for B-16M at
+  500 M tokens);
+- the cost.
+
+**Expectation (noted beforehand):** the big dense models are further from saturation at 500 M than B-16M, so I expect
+them to gain more from six times the tokens, and N_eq of B-16M rather to shrink. Against that: B-16M's rows got a median
+of only 4,232 reads in 500 M tokens and now get about six times as many, so the table might gain too. I'd guess "holds"
+or "shrinks", rather not "grows".
+
+**What this can't show:**
+- One seed per model. The spread of 0.4% comes from B-1M and A at 500 M tokens.
+- The LR isn't tuned per size, as before. That rather makes the table look too good.
+- 3 B tokens are still short of Chinchilla for D-200M and D-400M (15 and 7.5 tokens per parameter).
+- Two epochs over 1.5 B tokens, not 3 B fresh tokens. One GPU type.
+
+**Checked before the runs (2026-10-15, RX 9070):**
+- **Tests:** the whole suite on the GPU, 549 passed, 7 skipped (no `transformers` here, Triton CPU interpreter, one
+  test that needs > 60 GB); without the GPU 366 passed. New: `tests/test_resume.py` (lazy Adam state for every moment
+  storage on CPU and GPU, Triton included; crash and resume of a tiny training run bit for bit on the CPU; checkpoint of
+  another run refused; skipped steps) and `tests/test_dense_equiv.py` (the evaluation above on made-up runs).
+- **Resuming with the real model** (`scripts/check_resume.py` → `runs/resume_check/check_resume.json`): B-1M with
+  Triton kernels, 12 M tokens, checkpoints every 4 M. Two runs without a stop differ by up to 0.25% in val loss (the
+  kernels don't sum in a fixed order). A third run, killed with SIGKILL after its checkpoint at 4 M tokens and once more
+  while it was writing the one at 8 M, kept its checkpoint at 4 M intact, cleaned up the half-written file, resumed
+  twice from 4 M and ended normally. It lies up to 0.47% from the first run, but that largest gap is at 4 M tokens,
+  before the first kill; after resuming it shrinks to 0.25–0.29%. So resuming doesn't move the curve beyond the noise.
+- **Preflight** exactly as the queue starts it: stopped at 1.5 M tokens with a checkpoint (5.0 GB, 11 s), resumed to
+  3 M.
+- **Speed of the guard:** with `--skip_nonfinite` B-1M trains at 60,553 tok/s against 60,499 without, A at 91,703
+  against 91,910 (−0.2%). Both within noise.
+- **Same arguments as the 500 M runs:** every queue command resolved through `train.py`'s own parser and compared with
+  the training configuration of its 500 M counterpart: apart from data, tokens, evaluation interval and the new
+  checkpoint flags only fields that didn't exist back then, at their old behaviour.
