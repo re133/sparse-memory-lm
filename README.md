@@ -4,6 +4,10 @@
 ![Developed on Radeon RX 9070](https://img.shields.io/badge/developed%20on-Radeon%20RX%209070-ED1C24)
 ![Also runs on](https://img.shields.io/badge/also%20runs%20on-Instinct%20MI350X%20%C2%B7%20H100%20%C2%B7%20H200-555)
 
+> **No time? [Here's the two-minute version →](https://re133.github.io/sparse-memory-lm/)**
+>
+> New (18 Oct 2026): with six times the training data the table's advantage grew instead of shrinking.
+
 What happens if you give a tiny language model a really big lookup table?
 
 I trained a small Llama-style model (21M parameters) and added a product-key memory to it: a table with up to

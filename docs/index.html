@@ -3,10 +3,158 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>sparse-memory-lm</title>
-<meta http-equiv="refresh" content="0; url=explorer/">
+<title>sparse-memory-lm in short</title>
+<meta name="description" content="A tiny language model with a huge lookup table: what it's worth, in two minutes.">
+<style>
+:root {
+  --bg: #fbfaf7; --surface: #ffffff; --ink: #1d1d1b; --ink-2: #4a4945; --muted: #7a7872; --line: #e4e1da;
+  --accent: #c2410c; --accent-soft: #fdeee6; --old: #b9b5ac; --good: #15803d; --warn: #a16207;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141412; --surface: #1d1c1a; --ink: #f1efe9; --ink-2: #c9c6be; --muted: #8f8c84; --line: #34332f;
+    --accent: #fb8a4c; --accent-soft: #3a2418; --old: #5d5a54; --good: #4ade80; --warn: #facc15;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141412; --surface: #1d1c1a; --ink: #f1efe9; --ink-2: #c9c6be; --muted: #8f8c84; --line: #34332f;
+  --accent: #fb8a4c; --accent-soft: #3a2418; --old: #5d5a54; --good: #4ade80; --warn: #facc15;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 17px/1.6 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+main { max-width: 760px; margin: 0 auto; padding: 48px 16px 64px; }
+h1 { font-size: clamp(28px, 6vw, 40px); line-height: 1.15; margin: 0 0 12px; letter-spacing: -0.02em; }
+h2 { font-size: 22px; margin: 48px 0 12px; letter-spacing: -0.01em; }
+p { margin: 0 0 14px; color: var(--ink-2); }
+a { color: var(--accent); }
+.lead { font-size: 20px; color: var(--ink); }
+.date { color: var(--muted); font-size: 14px; margin-bottom: 28px; }
+.cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin: 28px 0 8px; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; }
+.card b { display: block; font-size: 32px; line-height: 1.1; color: var(--ink); letter-spacing: -0.02em; }
+.card span { font-size: 14px; color: var(--ink-2); line-height: 1.45; display: block; margin-top: 6px; }
+.news { background: var(--accent-soft); border-radius: 12px; padding: 18px 20px; margin-top: 12px; }
+.news p { color: var(--ink); }
+.news p:last-child { margin-bottom: 0; }
+.tag { display: inline-block; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--accent); margin-bottom: 6px; }
+figure { margin: 24px 0 6px; }
+figcaption { font-size: 14px; color: var(--muted); margin-top: 6px; }
+.chart { display: grid; gap: 14px; }
+.chart .row { display: grid; grid-template-columns: 92px 1fr; align-items: center; gap: 10px; }
+.chart .name { font-size: 14px; color: var(--ink-2); }
+.chart .bars { display: grid; gap: 4px; }
+.chart .bar { display: flex; align-items: center; gap: 8px; }
+.chart .bar span { height: 16px; border-radius: 4px; display: block; }
+.chart .bar b { font-size: 14px; color: var(--ink); white-space: nowrap; }
+.chart .old { background: var(--old); }
+.chart .new { background: var(--accent); }
+.legend { display: flex; gap: 18px; font-size: 14px; color: var(--ink-2); margin-top: 4px; flex-wrap: wrap; }
+.legend i { display: inline-block; width: 12px; height: 12px; border-radius: 3px; margin-right: 6px; vertical-align: -1px; }
+ul { padding-left: 0; list-style: none; margin: 0; }
+li { padding: 10px 0 10px 30px; border-top: 1px solid var(--line); position: relative; color: var(--ink-2); }
+li:last-child { border-bottom: 1px solid var(--line); }
+li::before { position: absolute; left: 4px; top: 10px; font-weight: 700; }
+.yes li::before { content: "✓"; color: var(--good); }
+.but li::before { content: "!"; color: var(--warn); left: 9px; }
+li strong { color: var(--ink); }
+.links { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 16px; }
+.links a { text-decoration: none; border: 1px solid var(--line); background: var(--surface); color: var(--ink);
+  padding: 9px 14px; border-radius: 999px; font-size: 15px; }
+.links a:hover { border-color: var(--accent); color: var(--accent); }
+.links a.main { background: var(--accent); border-color: var(--accent); color: #fff; }
+footer { margin-top: 48px; font-size: 14px; color: var(--muted); }
+</style>
 </head>
 <body>
-<p><a href="explorer/">Table explorer</a> · <a href="https://github.com/re133/sparse-memory-lm">Code on GitHub</a></p>
+<main>
+
+<h1>A tiny language model with a huge lookup table</h1>
+<p class="lead">Short answer: yes, the table is worth it. And the more the model trains, the more it's worth.</p>
+<p class="date">The two-minute version · by Leon Fechner · last updated 18 October 2026</p>
+
+<p>I took a small language model (21M parameters) and gave it a table with up to 16.8 million learned vectors. For
+every token (roughly a word) it only looks up a few hundred of them, so it barely computes more than before. Then I
+trained normal models of different sizes on exactly the same data, to see how big a normal model has to be to keep
+up.</p>
+
+<div class="cards">
+  <div class="card"><b>7×</b><span>The 21M model with the table is as good as a normal model with about 152M parameters.</span></div>
+  <div class="card"><b>¼</b><span>of the compute per token that a normal model this good needs.</span></div>
+  <div class="card"><b>+33%</b><span>more "worth" after six times the training (114M → 152M).</span></div>
+</div>
+
+<h2>Newest result: six times the training</h2>
+<div class="news">
+  <span class="tag">18 October 2026</span>
+  <p>The obvious objection: with more training, the normal models catch up and the table becomes pointless. So I
+  trained everything again on 3 billion instead of 500 million tokens. I wrote down the rule for "grows", "holds" and
+  "shrinks" before the runs, and my own guess was "holds" or "shrinks".</p>
+  <p><strong>It grew, for all three table sizes.</strong></p>
+</div>
+
+<figure>
+  <div class="chart" role="img" aria-label="Size of a normal model that is just as good, after 500M and after 3B training tokens: 1M rows 60M to 67M, 4M rows 83M to 104M, 16.8M rows 114M to 152M">
+    <div class="row"><div class="name">1M rows</div><div class="bars">
+      <div class="bar"><span class="old" style="width:37.5%" title="1M rows, 500M tokens: about 60M"></span><b>60M</b></div>
+      <div class="bar"><span class="new" style="width:41.9%" title="1M rows, 3B tokens: about 67M"></span><b>67M</b></div>
+    </div></div>
+    <div class="row"><div class="name">4M rows</div><div class="bars">
+      <div class="bar"><span class="old" style="width:51.9%" title="4M rows, 500M tokens: about 83M"></span><b>83M</b></div>
+      <div class="bar"><span class="new" style="width:65.0%" title="4M rows, 3B tokens: about 104M"></span><b>104M</b></div>
+    </div></div>
+    <div class="row"><div class="name">16.8M rows</div><div class="bars">
+      <div class="bar"><span class="old" style="width:71.2%" title="16.8M rows, 500M tokens: about 114M"></span><b>114M</b></div>
+      <div class="bar"><span class="new" style="width:95.0%" title="16.8M rows, 3B tokens: about 152M"></span><b>152M</b></div>
+    </div></div>
+  </div>
+  <div class="legend"><span><i style="background:var(--old)"></i>after 500M tokens</span><span><i style="background:var(--accent)"></i>after 3B tokens</span></div>
+  <figcaption>How big a normal model has to be to match the 21M model with its table (parameters without
+  embeddings, Wikipedia text).</figcaption>
+</figure>
+
+<h2>What else works</h2>
+<ul class="yes">
+  <li><strong>The table doesn't have to sit on the GPU.</strong> From normal RAM or even an NVMe SSD the model still
+  writes 114 to 154 tokens per second on my PC.</li>
+  <li><strong>It trains on a gaming card.</strong> The 16.8M table trained on my 16 GB Radeon RX 9070, with the table
+  in RAM, and came out as good as on a big H200. It just took 7.7 times as long.</li>
+  <li><strong>It helps to remember facts.</strong> Facts about made-up people, seen only a few times in training,
+  stuck clearly better with the table than in a normal model with twice the compute.</li>
+  <li><strong>Same code on AMD and NVIDIA.</strong> The kernels run unchanged on a Radeon RX 9070, an AMD Instinct
+  MI350X and NVIDIA H100/H200.</li>
+</ul>
+
+<h2>The catch</h2>
+<ul class="but">
+  <li><strong>Training takes longer.</strong> On an H200 a normal model gets to the same quality in 19 to 27% less
+  time. Looking things up in the table isn't free.</li>
+  <li><strong>Not faster in use yet.</strong> On an H200 it doesn't write text faster than a normal model of the
+  same quality. It computes much less, but at this small size computing isn't the bottleneck.</li>
+  <li><strong>It mostly helps on text like its training data.</strong> On a differently formatted text set
+  (WikiText-103) the advantage is much smaller.</li>
+  <li><strong>Still small.</strong> The biggest normal model I compared against has 400M parameters, and every
+  model was trained once.</li>
+  <li><strong>Bolting a table onto a finished model didn't work</strong> (tried on Qwen3.5-0.8B).</li>
+</ul>
+
+<h2>What's next</h2>
+<p>The real question is whether this holds at a size people actually use: a model around 1 billion parameters with a
+table of tens of millions of rows. That needs bigger GPUs than I can rent. If you have some to spare, AMD Instinct or
+anything else, I'd love to hear from you: fechner.leon [at] protonmail.com, or open an issue.</p>
+
+<div class="links">
+  <a class="main" href="https://github.com/re133/sparse-memory-lm">Code and full write-up</a>
+  <a href="https://github.com/re133/sparse-memory-lm/blob/main/REPORT.md">Lab notebook (every number)</a>
+  <a href="explorer/">Look inside the table</a>
+  <a href="https://huggingface.co/fechyy/sparse-memory-lm-B-16M">Model on Hugging Face</a>
+</div>
+
+<footer>By Leon Fechner · Every success criterion was written down before its run, and the results are published whatever they
+turned out to be.</footer>
+</main>
 </body>
 </html>
