@@ -1,0 +1,8 @@
+70d02cfc51c59161d926ef5f5b37bb2be1cb90697d3244021e482a55f70d3bb2  runs/long/B-16M-long-s0/model.pt
+fb022901272f039932e4669bbac78bc6f54f3732c5dcd5970bc474df31aece57  runs/long/D-100M-long-s0/model.pt
+1d0aaef35e378e3191132f1ca5c33dc49544fd02b2a47beb53ecb1ff588c29bb  runs/long/D-200M-long-s0/model.pt
+16926e0fc8dee9689342a5d6c8a7c410ed9480a0c4e2a6640405dc6863b1a0b9  runs/long/D-50M-long-s0/model.pt
+8f85e970ad7e92b19a67fe2081002e6b7ad1466b69a08228f94fdbf1d4f8a2c3  runs/long/B-1M-long-s0/model.pt
+4c3fad232a6a45549748e52b6484263138ae2796eaf2a2a1ef2eaa10b3de90c1  runs/long/A-long-s0/model.pt
+21803faae2e6f53969c84dce48f5a5ea53c5dd24d96b789da3f99c648e6a1aa4  runs/long/B-4M-long-s0/model.pt
+7427a0646c508db8af8f47d181c0f55be685601b815473b3ace6ce4722a12108  runs/long/D-400M-long-s0/model.pt

@@ -1,0 +1,74 @@
+2026-10-16 20:23:14 dense queue start (vm): cap 175.0 € at 3.57 €/h = 49.02 h, uptime 0.41 h, checkpoints every 500e6 tokens
+2026-10-16 20:23:14 ntfy: Dense-Läufe: Setup fertig, Probelauf startet (Instanz 0.41 h)
+2026-10-16 20:23:14 start B-16M-long-s0: -m smlm.train --model B-16M-sparse --out_dir /workspace/AngryAnt/runs/long_preflight/B-16M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --mem_impl triton --value_lr 2.4e-3 --ckpt_every_tokens 1.5e6 --stop_after_tokens 1.5e6 --keep_ckpt
+2026-10-16 20:27:44 start B-16M-long-s0: -m smlm.train --model B-16M-sparse --out_dir /workspace/AngryAnt/runs/long_preflight/B-16M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --mem_impl triton --value_lr 2.4e-3 --ckpt_every_tokens 1.5e6 --resume
+2026-10-16 20:33:34 preflight B-16M-long-s0: 147363 tok/s alone, peak 100.9 GiB, checkpoint 72.828 GiB saved in 150.5 s, resumed ok
+2026-10-16 20:33:35 start D-100M-long-s0: -m smlm.train --model D-100M --out_dir /workspace/AngryAnt/runs/long_preflight/D-100M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --stop_after_tokens 1.5e6 --keep_ckpt
+2026-10-16 20:34:45 start D-100M-long-s0: -m smlm.train --model D-100M --out_dir /workspace/AngryAnt/runs/long_preflight/D-100M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --resume
+2026-10-16 20:35:55 preflight D-100M-long-s0: 213709 tok/s alone, peak 11.7 GiB, checkpoint 1.54 GiB saved in 3.1 s, resumed ok
+2026-10-16 20:35:55 start D-200M-long-s0: -m smlm.train --model D-200M --out_dir /workspace/AngryAnt/runs/long_preflight/D-200M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --stop_after_tokens 1.5e6 --keep_ckpt
+2026-10-16 20:37:15 start D-200M-long-s0: -m smlm.train --model D-200M --out_dir /workspace/AngryAnt/runs/long_preflight/D-200M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --resume
+2026-10-16 20:38:35 preflight D-200M-long-s0: 145787 tok/s alone, peak 15.7 GiB, checkpoint 2.838 GiB saved in 5.6 s, resumed ok
+2026-10-16 20:38:35 start D-50M-long-s0: -m smlm.train --model D-50M --out_dir /workspace/AngryAnt/runs/long_preflight/D-50M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --stop_after_tokens 1.5e6 --keep_ckpt
+2026-10-16 20:39:45 start D-50M-long-s0: -m smlm.train --model D-50M --out_dir /workspace/AngryAnt/runs/long_preflight/D-50M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --resume
+2026-10-16 20:40:55 preflight D-50M-long-s0: 310083 tok/s alone, peak 9.2 GiB, checkpoint 0.914 GiB saved in 1.5 s, resumed ok
+2026-10-16 20:40:55 start B-1M-long-s0: -m smlm.train --model B-1M-sparse --out_dir /workspace/AngryAnt/runs/long_preflight/B-1M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --mem_impl triton --value_lr 2.4e-3 --ckpt_every_tokens 1.5e6 --stop_after_tokens 1.5e6 --keep_ckpt
+2026-10-16 20:42:15 start B-1M-long-s0: -m smlm.train --model B-1M-sparse --out_dir /workspace/AngryAnt/runs/long_preflight/B-1M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --mem_impl triton --value_lr 2.4e-3 --ckpt_every_tokens 1.5e6 --resume
+2026-10-16 20:43:45 preflight B-1M-long-s0: 212950 tok/s alone, peak 10.4 GiB, checkpoint 4.988 GiB saved in 11.5 s, resumed ok
+2026-10-16 20:43:45 start A-long-s0: -m smlm.train --model A --out_dir /workspace/AngryAnt/runs/long_preflight/A-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --stop_after_tokens 1.5e6 --keep_ckpt
+2026-10-16 20:44:45 start A-long-s0: -m smlm.train --model A --out_dir /workspace/AngryAnt/runs/long_preflight/A-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --resume
+2026-10-16 20:45:45 preflight A-long-s0: 387175 tok/s alone, peak 7.8 GiB, checkpoint 0.453 GiB saved in 0.5 s, resumed ok
+2026-10-16 20:45:45 start B-4M-long-s0: -m smlm.train --model B-4M-sparse --out_dir /workspace/AngryAnt/runs/long_preflight/B-4M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --mem_impl triton --value_lr 2.4e-3 --ckpt_every_tokens 1.5e6 --stop_after_tokens 1.5e6 --keep_ckpt
+2026-10-16 20:47:35 start B-4M-long-s0: -m smlm.train --model B-4M-sparse --out_dir /workspace/AngryAnt/runs/long_preflight/B-4M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --mem_impl triton --value_lr 2.4e-3 --ckpt_every_tokens 1.5e6 --resume
+2026-10-16 20:50:05 preflight B-4M-long-s0: 186437 tok/s alone, peak 28.5 GiB, checkpoint 18.57 GiB saved in 44.2 s, resumed ok
+2026-10-16 20:50:05 start D-400M-long-s0: -m smlm.train --model D-400M --out_dir /workspace/AngryAnt/runs/long_preflight/D-400M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --stop_after_tokens 1.5e6 --keep_ckpt
+2026-10-16 20:51:45 start D-400M-long-s0: -m smlm.train --model D-400M --out_dir /workspace/AngryAnt/runs/long_preflight/D-400M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --resume
+2026-10-16 20:53:35 preflight D-400M-long-s0: 83731 tok/s alone, peak 15.2 GiB, checkpoint 5.151 GiB saved in 11.0 s, resumed ok
+2026-10-16 20:53:35 push skipped (SMLM_NO_PUSH): Cloud dense: preflight
+2026-10-16 20:53:35 budget gate: admitted ['B-16M-long-s0', 'D-100M-long-s0', 'D-200M-long-s0', 'D-50M-long-s0', 'B-1M-long-s0', 'A-long-s0', 'B-4M-long-s0', 'D-400M-long-s0'], dropped [], projected 42.42 h ≈ 151.44 €
+2026-10-16 20:53:35 ntfy: Budget-Wächter: laufen B-16M-long, D-100M-long, D-200M-long, D-50M-long, B-1M-long, A-long, B-4M-long, D-400M-long; Hochrechnung 42.4 h ≈ 151 €
+2026-10-16 20:53:35 start B-16M-long-s0: -m smlm.train --model B-16M-sparse --out_dir /workspace/AngryAnt/runs/long/B-16M-long-s0 --data wikipedia_1500m --tokens 3e9 --extra_val wikitext103 --eval_every_tokens 50e6 --seed 0 --data_seed 1234 --ckpt_every_tokens 500e6 --resume --skip_nonfinite --mem_impl triton --value_lr 2.4e-3
+2026-10-17 03:19:06 end B-16M-long-s0 status=done val_ppl 14.444
+2026-10-17 03:19:06 push skipped (SMLM_NO_PUSH): Cloud dense: B-16M-long-s0 done, val PPL 14.444
+2026-10-17 03:28:21 backup ok: 9 files verified on storagebox:smlm
+2026-10-17 03:28:22 ntfy: B-16M-long-s0 done, val PPL 14.444; Instanz 7.50 h ≈ 26.77 €
+2026-10-17 03:28:22 start D-100M-long-s0: -m smlm.train --model D-100M --out_dir /workspace/AngryAnt/runs/long/D-100M-long-s0 --data wikipedia_1500m --tokens 3e9 --extra_val wikitext103 --eval_every_tokens 50e6 --seed 0 --data_seed 1234 --ckpt_every_tokens 500e6 --resume --skip_nonfinite
+2026-10-17 07:27:22 end D-100M-long-s0 status=done val_ppl 15.368
+2026-10-17 07:27:22 push skipped (SMLM_NO_PUSH): Cloud dense: D-100M-long-s0 done, val PPL 15.368
+2026-10-17 07:27:45 backup ok: 6 files verified on storagebox:smlm
+2026-10-17 07:27:45 ntfy: D-100M-long-s0 done, val PPL 15.368; Instanz 11.49 h ≈ 41.02 €
+2026-10-17 07:27:45 start D-200M-long-s0: -m smlm.train --model D-200M --out_dir /workspace/AngryAnt/runs/long/D-200M-long-s0 --data wikipedia_1500m --tokens 3e9 --extra_val wikitext103 --eval_every_tokens 50e6 --seed 0 --data_seed 1234 --ckpt_every_tokens 500e6 --resume --skip_nonfinite
+2026-10-17 13:17:16 end D-200M-long-s0 status=done val_ppl 13.856
+2026-10-17 13:17:16 push skipped (SMLM_NO_PUSH): Cloud dense: D-200M-long-s0 done, val PPL 13.856
+2026-10-17 13:17:59 backup ok: 6 files verified on storagebox:smlm
+2026-10-17 13:18:00 ntfy: D-200M-long-s0 done, val PPL 13.856; Instanz 17.33 h ≈ 61.86 €
+2026-10-17 13:18:00 start D-50M-long-s0: -m smlm.train --model D-50M --out_dir /workspace/AngryAnt/runs/long/D-50M-long-s0 --data wikipedia_1500m --tokens 3e9 --extra_val wikitext103 --eval_every_tokens 50e6 --seed 0 --data_seed 1234 --ckpt_every_tokens 500e6 --resume --skip_nonfinite
+2026-10-17 16:03:30 end D-50M-long-s0 status=done val_ppl 17.330
+2026-10-17 16:03:30 push skipped (SMLM_NO_PUSH): Cloud dense: D-50M-long-s0 done, val PPL 17.330
+2026-10-17 16:03:34 backup ok: 6 files verified on storagebox:smlm
+2026-10-17 16:03:35 ntfy: D-50M-long-s0 done, val PPL 17.330; Instanz 20.09 h ≈ 71.71 €
+2026-10-17 16:03:35 start B-1M-long-s0: -m smlm.train --model B-1M-sparse --out_dir /workspace/AngryAnt/runs/long/B-1M-long-s0 --data wikipedia_1500m --tokens 3e9 --extra_val wikitext103 --eval_every_tokens 50e6 --seed 0 --data_seed 1234 --ckpt_every_tokens 500e6 --resume --skip_nonfinite --mem_impl triton --value_lr 2.4e-3
+2026-10-17 20:12:05 end B-1M-long-s0 status=done val_ppl 16.449
+2026-10-17 20:12:05 push skipped (SMLM_NO_PUSH): Cloud dense: B-1M-long-s0 done, val PPL 16.449
+2026-10-17 20:13:11 backup ok: 9 files verified on storagebox:smlm
+2026-10-17 20:13:11 ntfy: B-1M-long-s0 done, val PPL 16.449; Instanz 24.25 h ≈ 86.56 €
+2026-10-17 20:13:11 start A-long-s0: -m smlm.train --model A --out_dir /workspace/AngryAnt/runs/long/A-long-s0 --data wikipedia_1500m --tokens 3e9 --extra_val wikitext103 --eval_every_tokens 50e6 --seed 0 --data_seed 1234 --ckpt_every_tokens 500e6 --resume --skip_nonfinite
+2026-10-17 22:24:41 end A-long-s0 status=done val_ppl 20.516
+2026-10-17 22:24:41 push skipped (SMLM_NO_PUSH): Cloud dense: A-long-s0 done, val PPL 20.516
+2026-10-17 22:24:43 backup ok: 6 files verified on storagebox:smlm
+2026-10-17 22:24:43 ntfy: A-long-s0 done, val PPL 20.516; Instanz 26.44 h ≈ 94.39 €
+2026-10-17 22:24:43 start B-4M-long-s0: -m smlm.train --model B-4M-sparse --out_dir /workspace/AngryAnt/runs/long/B-4M-long-s0 --data wikipedia_1500m --tokens 3e9 --extra_val wikitext103 --eval_every_tokens 50e6 --seed 0 --data_seed 1234 --ckpt_every_tokens 500e6 --resume --skip_nonfinite --mem_impl triton --value_lr 2.4e-3
+2026-10-18 03:19:13 end B-4M-long-s0 status=done val_ppl 15.268
+2026-10-18 03:19:13 push skipped (SMLM_NO_PUSH): Cloud dense: B-4M-long-s0 done, val PPL 15.268
+2026-10-18 03:26:34 backup ok: 9 files verified on storagebox:smlm
+2026-10-18 03:26:34 ntfy: B-4M-long-s0 done, val PPL 15.268; Instanz 31.47 h ≈ 112.35 €
+2026-10-18 03:26:34 start D-400M-long-s0: -m smlm.train --model D-400M --out_dir /workspace/AngryAnt/runs/long/D-400M-long-s0 --data wikipedia_1500m --tokens 3e9 --extra_val wikitext103 --eval_every_tokens 50e6 --seed 0 --data_seed 1234 --ckpt_every_tokens 500e6 --resume --skip_nonfinite
+2026-10-18 13:33:34 end D-400M-long-s0 status=done val_ppl 12.699
+2026-10-18 13:33:34 push skipped (SMLM_NO_PUSH): Cloud dense: D-400M-long-s0 done, val PPL 12.699
+2026-10-18 13:34:18 backup ok: 6 files verified on storagebox:smlm
+2026-10-18 13:34:18 ntfy: D-400M-long-s0 done, val PPL 12.699; Instanz 41.60 h ≈ 148.51 €
+2026-10-18 13:35:08 push skipped (SMLM_NO_PUSH): Cloud dense: queue finished, checkpoint manifest
+2026-10-18 13:40:37 backup ok: 110 files verified on storagebox:smlm
+2026-10-18 13:40:38 backup ok: 1 files verified on storagebox:smlm
+2026-10-18 13:40:38 QUEUE DONE, backup verified
+2026-10-18 13:40:38 ntfy: Fertig: Checkpoints auf der Storage Box geprüft (Instanz 41.70 h ≈ 148.88 €). Claude prüft das Backup von zu Hause und meldet sich; erst dann die Instanz löschen.

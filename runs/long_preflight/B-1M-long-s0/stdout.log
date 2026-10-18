@@ -1,0 +1,162 @@
+===== 2026-10-16 20:40:55 start -m smlm.train --model B-1M-sparse --out_dir /workspace/AngryAnt/runs/long_preflight/B-1M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --mem_impl triton --value_lr 2.4e-3 --ckpt_every_tokens 1.5e6 --stop_after_tokens 1.5e6 --keep_ckpt
+{"model_name": "B-1M-sparse", "params": {"total": 444895872, "embedding": 19316736, "non_embedding": 425579136, "memory_values": 402653184, "dense_body": 22925952, "active_non_embedding_per_token": 23073408, "bn_running_stats": 6144}, "seeds": {"init_seed": 0, "data_seed": 1234}, "value_table_memory": {"table_bytes": 1610612736, "gradient_bytes": 1610612736, "moment_bytes": 3221225472, "scale_bytes": 0, "touched_bytes": 1048576, "step_bytes": 4, "total_bytes": 6443499524}}
+steps=91 warmup=5 eval_every=46 accum=8 ckpt_every=46
+[eval] step 0 tokens 0.0M val_ppl 52646.726 train_loss  usage 1.000 kl 0.561
+[eval] step 46 tokens 1.5M val_ppl 1571.868 train_loss 8.2091 usage 0.036 kl 5.828
+[ckpt] step 46 saved in 2.8 s (4.988 GiB)
+{
+ "val_loss": 7.360019876111347,
+ "val_ppl": 1571.8678052667515,
+ "val_word_ppl": 61415.18007505517,
+ "val2_dataset": "wikitext103",
+ "val2_loss": 8.09039599906193,
+ "val2_ppl": 3262.979451219773,
+ "val2_word_ppl": 9867.62518187356,
+ "train_tok_s_mean": 212634.29058397093,
+ "train_tok_s_median": 212634.29058397093,
+ "peak_train_vram_gib": 10.389630794525146,
+ "weights_gib_fp32": 1.6573662757873535,
+ "decode_b1_tok_s": 322.0426857592388,
+ "decode_peak_vram_gib": 2.222177028656006,
+ "prefill_tok_s": 973022.6385271369,
+ "prefill_peak_vram_gib": 3.805795192718506,
+ "mem_val": {
+  "usage": 0.03647899627685547,
+  "kl": 5.82754092325276,
+  "top1pct_share": 0.9962570121851237,
+  "eff_entries_per_head": 28.094853570680243,
+  "top1_weight": 0.11188681260823705
+ },
+ "mem_val_per_layer": [
+  {
+   "usage": 0.0164947509765625,
+   "kl": 6.7978866371607705,
+   "top1pct_share": 0.9998805916102935,
+   "eff_entries_per_head": 27.700874826757286,
+   "top1_weight": 0.13019594022909972
+  },
+  {
+   "usage": 0.0104522705078125,
+   "kl": 6.932097035386123,
+   "top1pct_share": 0.999997499383427,
+   "eff_entries_per_head": 28.10568787014653,
+   "top1_weight": 0.10587215507447693
+  },
+  {
+   "usage": 0.009981155395507812,
+   "kl": 7.043275703632636,
+   "top1pct_share": 1.0,
+   "eff_entries_per_head": 28.47799801513691,
+   "top1_weight": 0.0995923425211345
+  }
+ ],
+ "mem_train_usage_total": 1.0,
+ "mem_score_scale_per_head": [
+  1.0,
+  1.0,
+  1.0,
+  1.0
+ ],
+ "mem_score_scale_per_layer_head": [
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ]
+ ],
+ "mem_key_norm_mean": 0.40738794207572937
+}
+===== 2026-10-16 20:42:15 start -m smlm.train --model B-1M-sparse --out_dir /workspace/AngryAnt/runs/long_preflight/B-1M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --mem_impl triton --value_lr 2.4e-3 --ckpt_every_tokens 1.5e6 --resume
+[resume] from /workspace/AngryAnt/runs/long_preflight/B-1M-long-s0/ckpt.pt: step 46/91
+{"model_name": "B-1M-sparse", "params": {"total": 444895872, "embedding": 19316736, "non_embedding": 425579136, "memory_values": 402653184, "dense_body": 22925952, "active_non_embedding_per_token": 23073408, "bn_running_stats": 6144}, "seeds": {"init_seed": 0, "data_seed": 1234}, "value_table_memory": {"table_bytes": 1610612736, "gradient_bytes": 1610612736, "moment_bytes": 3221225472, "scale_bytes": 0, "touched_bytes": 1048576, "step_bytes": 4, "total_bytes": 6443499524}}
+steps=91 warmup=5 eval_every=46 accum=8 ckpt_every=46
+[eval] step 91 tokens 3.0M val_ppl 1219.496 train_loss 7.2137 usage 0.064 kl 5.357
+[ckpt] step 91 saved in 11.5 s (4.988 GiB)
+{
+ "val_loss": 7.106192745372948,
+ "val_ppl": 1219.4957655582007,
+ "val_word_ppl": 41989.53660776148,
+ "val2_dataset": "wikitext103",
+ "val2_loss": 7.881120057697612,
+ "val2_ppl": 2646.8355085416174,
+ "val2_word_ppl": 7778.458206886403,
+ "train_tok_s_mean": 212655.76322573723,
+ "train_tok_s_median": 212949.88976316893,
+ "peak_train_vram_gib": 10.389630794525146,
+ "weights_gib_fp32": 1.6573662757873535,
+ "decode_b1_tok_s": 319.59024256383503,
+ "decode_peak_vram_gib": 2.222177028656006,
+ "prefill_tok_s": 974017.3152727825,
+ "prefill_peak_vram_gib": 3.805795192718506,
+ "mem_val": {
+  "usage": 0.0637807846069336,
+  "kl": 5.356654157660211,
+  "top1pct_share": 0.9760217614077812,
+  "eff_entries_per_head": 29.0034352296946,
+  "top1_weight": 0.0982567950399605
+ },
+ "mem_val_per_layer": [
+  {
+   "usage": 0.02311992645263672,
+   "kl": 6.266784405792936,
+   "top1pct_share": 0.9989872344945347,
+   "eff_entries_per_head": 28.739497421580033,
+   "top1_weight": 0.11084244559681698
+  },
+  {
+   "usage": 0.021248817443847656,
+   "kl": 6.48429596627938,
+   "top1pct_share": 0.9995141223031666,
+   "eff_entries_per_head": 29.244552667386113,
+   "top1_weight": 0.08476695785536702
+  },
+  {
+   "usage": 0.020853042602539062,
+   "kl": 6.604707334016985,
+   "top1pct_share": 0.9996124307534523,
+   "eff_entries_per_head": 29.026255600117654,
+   "top1_weight": 0.09916098166769752
+  }
+ ],
+ "mem_train_usage_total": 1.0,
+ "mem_score_scale_per_head": [
+  1.0,
+  1.0,
+  1.0,
+  1.0
+ ],
+ "mem_score_scale_per_layer_head": [
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ],
+  [
+   1.0,
+   1.0,
+   1.0,
+   1.0
+  ]
+ ],
+ "mem_key_norm_mean": 0.40712058544158936
+}

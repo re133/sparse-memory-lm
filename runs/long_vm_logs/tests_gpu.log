@@ -1,0 +1,12 @@
+..............................................................s......... [ 29%]
+........................................................................ [ 58%]
+........................................................................ [ 88%]
+.............................                                            [100%]
+=============================== warnings summary ===============================
+tests/test_kernels.py::test_pk_select_backward[4096-4-512-32]
+  /workspace/AngryAnt/tests/test_kernels.py:175: UserWarning: Converting a tensor with requires_grad=True to a scalar may lead to unexpected behavior.
+  Consider using tensor.detach() first. (Triggered internally at /pytorch/torch/csrc/autograd/generated/python_variable_methods.cpp:836.)
+    torch.testing.assert_close(d1.float(), e1, rtol=2 ** -7, atol=2 ** -8 * float(ds.abs().max()))
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+244 passed, 1 skipped, 1 warning in 102.67s (0:01:42)

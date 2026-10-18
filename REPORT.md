@@ -3322,7 +3322,7 @@ statistics of the query), `--compile`, `--fused_ce`. Each would make the numbers
 B-16M, D-100M, D-200M, D-50M, B-1M, A, B-4M, D-400M. B-16M and its dense neighbours from step 1 come first; D-400M is
 only needed if B-16M ends up better than D-200M.
 
-**New in the code, no change to the math** (commit: noted below at the start of the runs):
+**New in the code, no change to the math** (the runs used commit `b978b07`):
 - Checkpoints every 500 M tokens and `--resume`. A run continued from a checkpoint ends with the same weights, metrics
   and logs as one that never stopped, bit for bit on the CPU (`tests/test_resume.py`). A run that crashes or stalls
   resumes from its last checkpoint, at most 3 times. After a reboot of the VM an `@reboot` entry starts setup and queue
@@ -3400,3 +3400,86 @@ or "shrinks", rather not "grows".
 - **Same arguments as the 500 M runs:** every queue command resolved through `train.py`'s own parser and compared with
   the training configuration of its 500 M counterpart: apart from data, tokens, evaluation interval and the new
   checkpoint flags only fields that didn't exist back then, at their old behaviour.
+
+### Result of step 13 (2026-10-16 to 2026-10-18, one IONOS H200 NVL, `scripts/dense_equiv.py --step13` → `report/long/dense_equiv.json`, `scripts/long_extras.py` → `report/long/extras.json`)
+
+- **All gates passed. All three tables: "the advantage grows".** All eight runs finished, with no skipped step and no
+  restart. Every model is better than at 500 M tokens, and the dense points get better with size (A 20.52, D-50M
+  17.33, D-100M 15.37, D-200M 13.86, D-400M 12.70).
+
+| | Val PPL 500 M → 3 B | N_eq at 500 M (range) | N_eq at 3 B (range) | Fit at 3 B | Verdict |
+|---|---:|---:|---:|---:|---|
+| B-1M | 21.84 → 16.45 | 60 M (57–63 M) | 67 M (64–70 M) | 66 M | grows |
+| B-4M | 20.80 → 15.27 | 83 M (79–88 M) | 104 M (98–110 M) | 104 M | grows |
+| B-16M | 19.96 → 14.44 | 114 M (106–123 M) | 152 M (144–161 M) | 149 M | grows |
+
+  Per token B-16M computes 56.5 M MACs in the forward pass. D-100M computes 148.7 M and D-200M 270.7 M.
+- **My expectation was wrong.** I had guessed "holds" or "shrinks". The dense models did not catch up. With six times
+  the tokens the table is worth more dense parameters, not fewer, at all three sizes.
+- **Without a verdict:**
+  - **Curves and the second epoch** (`report/long/curves.png`):
+    - In no run did val loss ever go up between two evaluations.
+    - When the second epoch starts, train loss drops in every model, because it sees the same text again. The gap
+      between val and train loss then widens, and it widens with the size of the table. The dense models go from
+      0.052–0.055 to 0.060–0.068 at the end. B-1M goes 0.055 → 0.074, B-4M 0.055 → 0.089, and B-16M 0.059 → 0.109.
+      So the table remembers the repeated text more than a dense model does.
+    - Val doesn't get worse because of it, but the table gains less in the second half. From 1.0 to 1.75 B tokens
+      B-16M's val curve stays within 1.3% of D-200M's. Over the second epoch it falls back to 4.2% behind. Val PPL
+      gain from 1.5 to 3 B tokens: B-16M 18.5%, D-100M 20.1%, D-200M 21.4%.
+    - With 3 B fresh tokens instead of two epochs the table might come out better. That's a guess, these runs can't
+      show it.
+  - **WikiText-103:**
+    - N_eq with the same interpolation goes from 48 to 59 M for B-1M, from 65 to 82 M for B-4M and from 95 to 102 M
+      for B-16M (500 M → 3 B tokens; no range computed).
+    - So it grows here too, but much less. On this text the table is worth far less than on the Wikipedia val set:
+      102 M against 152 M for B-16M.
+    - Val PPL on WikiText-103: dense 59.98 / 47.69 / 39.16 / 33.70 / 30.46 (A to D-400M), B-1M 45.50, B-4M 41.32,
+      B-16M 38.94.
+  - **Equal training time:**
+
+    | Run | tok/s alone on the H200 NVL | Training hours |
+    |---|---:|---:|
+    | A | 389 k | 2.14 |
+    | D-50M | 308 k | 2.70 |
+    | D-100M | 213 k | 3.91 |
+    | D-200M | 146 k | 5.72 |
+    | D-400M | 84 k | 9.95 |
+    | B-1M | 206 k | 4.04 |
+    | B-4M | 176 k | 4.74 |
+    | B-16M | 138 k | 6.04 |
+
+    At equal time the dense models win at every size:
+
+    | Run | Its val PPL | Dense val PPL in the same hours | Dense hours for the same val PPL | Its hours |
+    |---|---:|---:|---:|---:|
+    | B-1M | 16.45 | 15.22 | 3.17 | 4.04 |
+    | B-4M | 15.27 | 14.58 | 4.00 | 4.74 |
+    | B-16M | 14.44 | 13.74 | 4.91 | 6.04 |
+
+    So on this GPU a B model needs 19–27% more training time than a dense model of the same quality, although it
+    computes only a fraction per token. The time goes into reading and updating the table.
+  - **Table:** usage, KL and the share of the top 1% of rows on the val set (last evaluation), and the median of reads
+    per row in training, each at 500 M → 3 B tokens:
+
+    | | Usage | KL | Top 1% | Median reads per row |
+    |---|---|---|---|---|
+    | B-1M | 100.0% → 100.0% | 0.62 → 0.55 | 11.8% → 10.9% | 115,554 → 767,400 |
+    | B-4M | 99.7% → 99.97% | 0.99 → 0.73 | 18.9% → 14.4% | 23,192 → 170,864 |
+    | B-16M | 91.3% → 97.6% | 1.35 → 0.95 | 23.4% → 17.6% | 4,232 → 38,513 |
+
+    - All three tables got exactly six times the reads (1.15 × 10¹² in total each).
+    - The median went up 6.6× (B-1M), 7.4× (B-4M) and 9.1× (B-16M). The bigger the table, the more the extra reads
+      went to rows that had been rare before, and the more evenly it is used.
+  - **Cost:**
+    - About 42 instance hours on one H200 NVL at 3.57 €/h with VAT, so about 150 €. The budget projection at the
+      start had said 42.4 h and 151 €.
+    - Setup and preflight took 0.8 h of that.
+    - It was paid from a one-time IONOS credit.
+- **How I read it:**
+  - The objection was that the dense models catch up with more training. Up to 3 B tokens they don't. The table's
+    advantage gets bigger, and it does so at all three sizes.
+  - Three things keep it in proportion:
+    1. On WikiText-103 the advantage is much smaller and grows only a little.
+    2. On the H200 the table still costs more training time than a dense model of the same quality.
+    3. In the second epoch the table remembers the repeated training text noticeably more than the dense models do.
+  - And it is still small: one seed per model, two epochs over 1.5 B tokens, the largest dense model 400 M.

@@ -1,0 +1,25 @@
+2026-10-16 20:19:05 [setup] start (kit /workspace/smlm-cloud-kit, repo /workspace/AngryAnt)
+2026-10-16 20:19:05 [setup] installed /etc/cron.d/smlm-setup (setup + queue again after a reboot)
+2026-10-16 20:19:05 [setup] watchdog armed (vm): stop or ntfy at uptime 176110 s (cap 175 € at 3.57 €/h, now 883 s)
+name, driver_version, memory.total [MiB]
+NVIDIA H200 NVL, 615.71.09, 143771 MiB
+git@github.com: Permission denied (publickey).
+fatal: Could not read from remote repository.
+
+Please make sure you have the correct access rights
+and the repository exists.
+2026-10-16 20:19:06 [setup] FAILED: line 135
+RUNPOD_POD_ID / RUNPOD_API_KEY not found - not running on a Runpod Pod? Cannot stop automatically.
+2026-10-16 20:19:35 [setup] start (kit /workspace/smlm-cloud-kit, repo /workspace/AngryAnt)
+2026-10-16 20:19:35 [setup] watchdog armed (vm): stop or ntfy at uptime 176110 s (cap 175 € at 3.57 €/h, now 913 s)
+name, driver_version, memory.total [MiB]
+NVIDIA H200 NVL, 615.71.09, 143771 MiB
+2026-10-16 20:19:38 [setup] repo at b978b07
+torch 2.11.0+cu128 cuda 12.8 NVIDIA H200 NVL 139.8 GiB
+2026-10-16 20:21:25 [setup] wikipedia_en_gpt2_1500m from the storage box, sha256 ok
+2026-10-16 20:21:28 [setup] data from the storage box, sha256 ok
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+244 passed, 1 skipped, 1 warning in 102.67s (0:01:42)
+2026-10-16 20:23:14 [setup] plain VM: nothing stops by itself; after the backup check from home the instance is deleted by hand
+2026-10-16 20:23:14 [setup] queue started: tmux attach -t queue   (log: /workspace/AngryAnt/runs/cloud_dense/queue.log)
+2026-10-16 20:24:44 [setup] queue alive after 90 s

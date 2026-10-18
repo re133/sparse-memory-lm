@@ -9,7 +9,8 @@ What happens if you give a tiny language model a really big lookup table?
 I trained a small Llama-style model (21M parameters) and added a product-key memory to it: a table with up to
 16.8 million learned vectors, of which the model only reads a few hundred per token. Then I measured what that is
 actually worth, what it costs, and whether the table even has to sit in GPU memory. Most of this ran on my own PC
-(Radeon RX 9070). The big runs were on rented cloud GPUs, about 70 dollars in total.
+(Radeon RX 9070). The big runs were on rented cloud GPUs, about 70 dollars, plus about 150 € of a one-time IONOS
+credit for the longest runs.
 
 Before every run I wrote down what would count as a success. Some things worked out, some didn't. Both are in
 here. The full lab notebook with every criterion, every number and every mishap is [REPORT.md](REPORT.md)
@@ -23,6 +24,10 @@ here. The full lab notebook with every criterion, every number and every mishap 
 
 - **Training from scratch:** the 16.8M-row table makes the 21M model about as good as a normal 114M model trained
   on the same data. Per token it does roughly a third of the compute.
+- **More data, bigger advantage:** with six times the tokens (3B instead of 500M) the dense models didn't catch up.
+  The same table is now worth about 152M dense parameters, and the 1M and 4M tables gained too. I had expected the
+  opposite. On other text (WikiText-103) the gain is much smaller, and on an H200 the table still needs 19 to 27%
+  more training time than a dense model of the same quality ([below](#six-times-the-tokens)).
 - **Bigger keeps helping:** going from 1M to 4M to 16M rows gives about 1.4x "equivalent model size" per step, and
   it isn't flattening out yet.
 - **Product keys beat an n-gram table of the same size:** an Engram-style model, which picks its rows by the last
@@ -154,6 +159,32 @@ not a confidence interval.
 - **Memory:** B-16M needed about 101 GB of GPU memory to train. With the table in RAM it trains on my 16 GB card
   too, see below.
 - **Other text:** on WikiText-103, which is formatted differently, the advantage is smaller (B-16M ~ 95M).
+
+### Six times the tokens
+
+The obvious objection to the table above: 500M tokens is little for the big dense models (D-400M saw 1.3 tokens per
+parameter), so with more training they should catch up. I trained all eight models again from scratch on 3B tokens
+(two epochs over 1.5B Wikipedia tokens, same recipe, same val set), on one rented H200. The rule for "grows",
+"holds" or "shrinks" was in the repo before the runs started, and my guess was "holds" or "shrinks".
+
+| Model | Val PPL 500M → 3B | As good as dense at 500M | As good as dense at 3B | Verdict |
+|---|---|---|---|---|
+| B-1M | 21.84 → 16.45 | ~60M (57 to 63M) | ~67M (64 to 70M) | grows |
+| B-4M | 20.80 → 15.27 | ~83M (79 to 88M) | ~104M (98 to 110M) | grows |
+| B-16M | 19.96 → 14.44 | ~114M (106 to 123M) | ~152M (144 to 161M) | grows |
+
+![Six times the tokens](report/long/dense_equiv.png)
+
+**Catches:**
+- **Equal time:** on the H200, a dense model reaches the same quality in 19 to 27% less training time. The table
+  saves compute per token, but reading and updating it costs time.
+- **Other text:** on WikiText-103 the equivalent size of B-16M only goes from ~95M to ~102M.
+- **Repeated text:** in the second epoch the table memorises the training text more than the dense models do (the
+  gap between train and val loss doubles for B-16M). Val still improves the whole way, but the table gains less in
+  the second half. Fresh tokens might suit it better. These runs can't tell.
+- One seed per model, and the largest dense model has 400M parameters.
+
+![Curves and equal time](report/long/curves.png)
 
 ### Product keys against an n-gram table (Engram)
 
@@ -416,8 +447,9 @@ More in [docs/rocm-issues](docs/rocm-issues/README.md).
 
 ## What's next
 
-Everything here ran on one gaming GPU and about 70 dollars of rented cloud time. The question I'd really like to
-answer is whether the table still pays off at a size people actually use: a model around 1B parameters, a table
+Everything here ran on one gaming GPU, about 70 dollars of rented cloud time and a one-time cloud credit. Going from
+500M to 3B tokens made the table's advantage bigger, not smaller. The question I'd really like to answer is whether
+that continues at a size people actually use: a model around 1B parameters, a table
 with tens of millions of rows, trained on tens of billions of tokens. That's beyond what I can rent. It needs a
 multi-GPU machine for a good while, and the table with its optimizer state doesn't fit on one GPU anymore (B-16M
 already needed 101 GB; at home it trains with the table in RAM, but 7.7 times slower).

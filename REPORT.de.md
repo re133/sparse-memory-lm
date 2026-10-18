@@ -3496,7 +3496,7 @@ unvergleichbar machen.
 B-16M, D-100M, D-200M, D-50M, B-1M, A, B-4M, D-400M. B-16M und seine dichten Nachbarn aus Schritt 1 kommen zuerst;
 D-400M braucht es nur, falls B-16M besser als D-200M wird.
 
-**Neu im Code, ohne Änderung an der Rechnung** (Commit: unten beim Start der Läufe notiert):
+**Neu im Code, ohne Änderung an der Rechnung** (die Läufe liefen mit Commit `b978b07`):
 - Checkpoints alle 500 M Tokens und `--resume`. Ein Lauf, der von einem Checkpoint weiterläuft, endet mit denselben
   Gewichten, Metriken und Logs wie einer, der nie angehalten hat, auf der CPU bitgleich (`tests/test_resume.py`). Ein
   Lauf, der abstürzt oder hängt, setzt beim letzten Checkpoint wieder an, höchstens dreimal. Nach einem Neustart der VM
@@ -3580,3 +3580,91 @@ Zugriffe, die Tabelle könnte also auch gewinnen. Ich tippe auf „hält“ oder
 - **Dieselben Argumente wie die 500-M-Läufe:** jeder Queue-Befehl durch den Parser von `train.py` aufgelöst und mit der
   Trainingskonfiguration seines 500-M-Gegenstücks verglichen: außer Daten, Tokens, Auswertungsabstand und den neuen
   Checkpoint-Schaltern nur Felder, die es damals nicht gab, mit ihrem alten Verhalten.
+
+### Ergebnis von Schritt 13 (2026-10-16 bis 2026-10-18, eine IONOS H200 NVL, `scripts/dense_equiv.py --step13` → `report/long/dense_equiv.json`, `scripts/long_extras.py` → `report/long/extras.json`)
+
+- **Alle Schranken bestanden. Alle drei Tabellen: „Der Vorteil wächst“.** Alle acht Läufe sind fertig geworden, ohne
+  übersprungenen Schritt und ohne Neustart. Jedes Modell ist besser als bei 500 M Tokens, und die dichten Punkte werden
+  mit der Größe besser (A 20,52, D-50M 17,33, D-100M 15,37, D-200M 13,86, D-400M 12,70).
+
+| | Val-PPL 500 M → 3 B | N_eq bei 500 M (Bereich) | N_eq bei 3 B (Bereich) | Fit bei 3 B | Urteil |
+|---|---:|---:|---:|---:|---|
+| B-1M | 21,84 → 16,45 | 60 M (57–63 M) | 67 M (64–70 M) | 66 M | wächst |
+| B-4M | 20,80 → 15,27 | 83 M (79–88 M) | 104 M (98–110 M) | 104 M | wächst |
+| B-16M | 19,96 → 14,44 | 114 M (106–123 M) | 152 M (144–161 M) | 149 M | wächst |
+
+  Pro Token rechnet B-16M im Vorwärtslauf 56,5 M MACs. D-100M rechnet 148,7 M und D-200M 270,7 M.
+- **Meine Erwartung lag daneben.** Ich hatte auf „hält“ oder „schrumpft“ getippt. Die dichten Modelle haben nicht
+  aufgeholt. Mit sechsmal so vielen Tokens ist die Tabelle mehr dichte Parameter wert, nicht weniger, und das bei allen
+  drei Größen.
+- **Ohne Urteil:**
+  - **Kurven und die zweite Epoche** (`report/long/curves.png`):
+    - In keinem Lauf ist der Val-Loss zwischen zwei Auswertungen je gestiegen.
+    - Wenn die zweite Epoche beginnt, fällt der Trainings-Loss bei jedem Modell, weil es denselben Text noch einmal
+      sieht. Danach wird der Abstand zwischen Val- und Trainings-Loss größer, und zwar umso mehr, je größer die Tabelle
+      ist. Die dichten Modelle gehen von 0,052–0,055 auf 0,060–0,068 am Ende. B-1M geht von 0,055 auf 0,074, B-4M von
+      0,055 auf 0,089 und B-16M von 0,059 auf 0,109. Die Tabelle merkt sich den wiederholten Text also stärker als ein
+      dichtes Modell.
+    - Val wird dadurch nicht schlechter, aber die Tabelle gewinnt in der zweiten Hälfte weniger dazu. Von 1,0 bis
+      1,75 B Tokens bleibt die Val-Kurve von B-16M innerhalb von 1,3 % an der von D-200M. Über die zweite Epoche fällt
+      sie auf 4,2 % dahinter zurück. Gewinn an Val-PPL von 1,5 bis 3 B Tokens: B-16M 18,5 %, D-100M 20,1 %, D-200M
+      21,4 %.
+    - Mit 3 B frischen Tokens statt zwei Epochen käme die Tabelle vielleicht besser weg. Das ist eine Vermutung, diese
+      Läufe können es nicht zeigen.
+  - **WikiText-103:**
+    - N_eq mit derselben Interpolation steigt bei B-1M von 48 auf 59 M, bei B-4M von 65 auf 82 M und bei B-16M von 95
+      auf 102 M (500 M → 3 B Tokens; ohne Bereich gerechnet).
+    - Es wächst also auch hier, aber viel weniger. Auf diesem Text ist die Tabelle deutlich weniger wert als auf dem
+      Wikipedia-Val-Satz: 102 M gegen 152 M bei B-16M.
+    - Val-PPL auf WikiText-103: dicht 59,98 / 47,69 / 39,16 / 33,70 / 30,46 (A bis D-400M), B-1M 45,50, B-4M 41,32,
+      B-16M 38,94.
+  - **Gleiche Trainingszeit:**
+
+    | Lauf | tok/s allein auf der H200 NVL | Trainingsstunden |
+    |---|---:|---:|
+    | A | 389 k | 2,14 |
+    | D-50M | 308 k | 2,70 |
+    | D-100M | 213 k | 3,91 |
+    | D-200M | 146 k | 5,72 |
+    | D-400M | 84 k | 9,95 |
+    | B-1M | 206 k | 4,04 |
+    | B-4M | 176 k | 4,74 |
+    | B-16M | 138 k | 6,04 |
+
+    Bei gleicher Zeit gewinnen die dichten Modelle bei jeder Größe:
+
+    | Lauf | Eigene Val-PPL | Dichte Val-PPL in denselben Stunden | Dichte Stunden für dieselbe Val-PPL | Eigene Stunden |
+    |---|---:|---:|---:|---:|
+    | B-1M | 16,45 | 15,22 | 3,17 | 4,04 |
+    | B-4M | 15,27 | 14,58 | 4,00 | 4,74 |
+    | B-16M | 14,44 | 13,74 | 4,91 | 6,04 |
+
+    Auf dieser GPU braucht ein B-Modell also 19–27 % mehr Trainingszeit als ein dichtes Modell gleicher Qualität,
+    obwohl es pro Token nur einen Bruchteil rechnet. Die Zeit geht ins Lesen und Aktualisieren der Tabelle.
+  - **Tabelle:** Usage, KL und Anteil der obersten 1 % der Zeilen auf dem Val-Satz (letzte Auswertung) sowie der Median
+    der Lesezugriffe pro Zeile im Training, jeweils bei 500 M → 3 B Tokens:
+
+    | | Usage | KL | Oberste 1 % | Median Zugriffe pro Zeile |
+    |---|---|---|---|---|
+    | B-1M | 100,0 % → 100,0 % | 0,62 → 0,55 | 11,8 % → 10,9 % | 115.554 → 767.400 |
+    | B-4M | 99,7 % → 99,97 % | 0,99 → 0,73 | 18,9 % → 14,4 % | 23.192 → 170.864 |
+    | B-16M | 91,3 % → 97,6 % | 1,35 → 0,95 | 23,4 % → 17,6 % | 4.232 → 38.513 |
+
+    - Alle drei Tabellen bekamen genau sechsmal so viele Zugriffe (jeweils 1,15 × 10¹² insgesamt).
+    - Der Median stieg um das 6,6-fache (B-1M), 7,4-fache (B-4M) und 9,1-fache (B-16M). Je größer die Tabelle, desto
+      mehr gingen die zusätzlichen Zugriffe an Zeilen, die vorher selten waren, und desto gleichmäßiger wird sie
+      genutzt.
+  - **Kosten:**
+    - Etwa 42 Instanzstunden auf einer H200 NVL zu 3,57 €/h mit MwSt., also etwa 150 €. Die Hochrechnung des
+      Budget-Wächters am Anfang lag bei 42,4 h und 151 €.
+    - Davon gingen 0,8 h auf Setup und Probelauf.
+    - Bezahlt wurde es aus einem einmaligen IONOS-Guthaben.
+- **Wie ich es lese:**
+  - Der Einwand war, dass die dichten Modelle mit mehr Training aufholen. Bis 3 B Tokens tun sie das nicht. Der Vorteil
+    der Tabelle wird größer, und zwar bei allen drei Größen.
+  - Drei Dinge rücken das zurecht:
+    1. Auf WikiText-103 ist der Vorteil viel kleiner und wächst nur wenig.
+    2. Auf der H200 kostet die Tabelle weiterhin mehr Trainingszeit als ein dichtes Modell gleicher Qualität.
+    3. In der zweiten Epoche merkt sich die Tabelle den wiederholten Trainingstext deutlich stärker als die dichten
+       Modelle.
+  - Und es ist weiterhin klein: ein Seed pro Modell, zwei Epochen über 1,5 B Tokens, das größte dichte Modell 400 M.

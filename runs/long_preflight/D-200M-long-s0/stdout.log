@@ -1,0 +1,46 @@
+===== 2026-10-16 20:35:55 start -m smlm.train --model D-200M --out_dir /workspace/AngryAnt/runs/long_preflight/D-200M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --stop_after_tokens 1.5e6 --keep_ckpt
+{"model_name": "D-200M", "params": {"total": 253920256, "embedding": 51511296, "non_embedding": 202408960, "memory_values": 0, "dense_body": 202408960, "active_non_embedding_per_token": 202408960, "bn_running_stats": 0}, "seeds": {"init_seed": 0, "data_seed": 1234}, "value_table_memory": {"table_bytes": 0, "gradient_bytes": 0, "moment_bytes": 0, "scale_bytes": 0, "touched_bytes": 0, "step_bytes": 0, "total_bytes": 0}}
+steps=91 warmup=5 eval_every=46 accum=4 ckpt_every=46
+[eval] step 0 tokens 0.0M val_ppl 59873.876 train_loss  
+[eval] step 46 tokens 1.5M val_ppl 1752.220 train_loss 8.0603 
+[ckpt] step 46 saved in 1.1 s (2.838 GiB)
+{
+ "val_loss": 7.468638751599263,
+ "val_ppl": 1752.2198549337484,
+ "val_word_ppl": 72267.14687867707,
+ "val2_dataset": "wikitext103",
+ "val2_loss": 8.134605734086266,
+ "val2_ppl": 3410.4711711363293,
+ "val2_word_ppl": 10376.213618455353,
+ "train_tok_s_mean": 146545.88069573377,
+ "train_tok_s_median": 146545.88069573377,
+ "peak_train_vram_gib": 15.693471908569336,
+ "weights_gib_fp32": 0.9459266662597656,
+ "decode_b1_tok_s": 321.52110792164365,
+ "decode_peak_vram_gib": 2.281993865966797,
+ "prefill_tok_s": 525410.9907539275,
+ "prefill_peak_vram_gib": 3.968120574951172
+}
+===== 2026-10-16 20:37:15 start -m smlm.train --model D-200M --out_dir /workspace/AngryAnt/runs/long_preflight/D-200M-long-s0 --data wikipedia_1500m --tokens 3e6 --extra_val wikitext103 --eval_every_tokens 1.5e6 --seed 0 --data_seed 1234 --skip_nonfinite --ckpt_every_tokens 1.5e6 --resume
+[resume] from /workspace/AngryAnt/runs/long_preflight/D-200M-long-s0/ckpt.pt: step 46/91
+{"model_name": "D-200M", "params": {"total": 253920256, "embedding": 51511296, "non_embedding": 202408960, "memory_values": 0, "dense_body": 202408960, "active_non_embedding_per_token": 202408960, "bn_running_stats": 0}, "seeds": {"init_seed": 0, "data_seed": 1234}, "value_table_memory": {"table_bytes": 0, "gradient_bytes": 0, "moment_bytes": 0, "scale_bytes": 0, "touched_bytes": 0, "step_bytes": 0, "total_bytes": 0}}
+steps=91 warmup=5 eval_every=46 accum=4 ckpt_every=46
+[eval] step 91 tokens 3.0M val_ppl 1245.102 train_loss 7.2683 
+[ckpt] step 91 saved in 5.6 s (2.838 GiB)
+{
+ "val_loss": 7.1269724216987465,
+ "val_ppl": 1245.1016120822903,
+ "val_word_ppl": 43317.15316249714,
+ "val2_dataset": "wikitext103",
+ "val2_loss": 7.940563271347649,
+ "val2_ppl": 2808.9422594731786,
+ "val2_word_ppl": 8322.245455179798,
+ "train_tok_s_mean": 145956.739297648,
+ "train_tok_s_median": 145786.6343212393,
+ "peak_train_vram_gib": 15.693471908569336,
+ "weights_gib_fp32": 0.9459266662597656,
+ "decode_b1_tok_s": 320.02942150487,
+ "decode_peak_vram_gib": 2.281993865966797,
+ "prefill_tok_s": 525900.8478663731,
+ "prefill_peak_vram_gib": 3.968120574951172
+}

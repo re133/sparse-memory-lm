@@ -1,0 +1,208 @@
+{
+ "phase": "end",
+ "peaks": {
+  "B-16M-long-s0": 100.91404485702515,
+  "D-100M-long-s0": 11.675775527954102,
+  "D-200M-long-s0": 15.693471908569336,
+  "D-50M-long-s0": 9.168670654296875,
+  "B-1M-long-s0": 10.389630794525146,
+  "A-long-s0": 7.806224822998047,
+  "B-4M-long-s0": 28.515607357025146,
+  "D-400M-long-s0": 15.170495986938477
+ },
+ "runs_end": {
+  "B-16M-long-s0": "done",
+  "D-100M-long-s0": "done",
+  "D-200M-long-s0": "done",
+  "D-50M-long-s0": "done",
+  "B-1M-long-s0": "done",
+  "A-long-s0": "done",
+  "B-4M-long-s0": "done",
+  "D-400M-long-s0": "done"
+ },
+ "cap_h": 49.02,
+ "preflight_tok_s": {
+  "B-16M-long-s0": 147363.30819589255,
+  "D-100M-long-s0": 213708.7375609588,
+  "D-200M-long-s0": 145786.6343212393,
+  "D-50M-long-s0": 310083.4306209897,
+  "B-1M-long-s0": 212949.88976316893,
+  "A-long-s0": 387174.7927057004,
+  "B-4M-long-s0": 186437.46077338717,
+  "D-400M-long-s0": 83731.33641158785
+ },
+ "preflight_ckpt_s": {
+  "B-16M-long-s0": 150.5,
+  "D-100M-long-s0": 3.1,
+  "D-200M-long-s0": 5.6,
+  "D-50M-long-s0": 1.5,
+  "B-1M-long-s0": 11.5,
+  "A-long-s0": 0.5,
+  "B-4M-long-s0": 44.2,
+  "D-400M-long-s0": 11.0
+ },
+ "admitted": [
+  "B-16M-long-s0",
+  "D-100M-long-s0",
+  "D-200M-long-s0",
+  "D-50M-long-s0",
+  "B-1M-long-s0",
+  "A-long-s0",
+  "B-4M-long-s0",
+  "D-400M-long-s0"
+ ],
+ "dropped": [],
+ "projected_hours": 42.42,
+ "projected_cost_usd": 151.44,
+ "runs": {
+  "B-16M-long-s0": {
+   "model": "B-16M-sparse",
+   "status": "done",
+   "val_ppl": 14.443731585010845,
+   "val2_ppl": 38.9364568181062,
+   "params": {
+    "total": 6494130816,
+    "embedding": 19316736,
+    "non_embedding": 6474814080,
+    "memory_values": 6442450944,
+    "dense_body": 32363136,
+    "active_non_embedding_per_token": 32510592,
+    "bn_running_stats": 6144
+   },
+   "train_tok_s_median": 137669.82333725225,
+   "preflight_tok_s": 147363.30819589255,
+   "preflight_peak_vram_gib": 100.91404485702515
+  },
+  "D-100M-long-s0": {
+   "model": "D-100M",
+   "status": "done",
+   "val_ppl": 15.368132131235564,
+   "val2_ppl": 39.16486151453855,
+   "params": {
+    "total": 137746176,
+    "embedding": 38633472,
+    "non_embedding": 99112704,
+    "memory_values": 0,
+    "dense_body": 99112704,
+    "active_non_embedding_per_token": 99112704,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": 213425.43856886894,
+   "preflight_tok_s": 213708.7375609588,
+   "preflight_peak_vram_gib": 11.675775527954102
+  },
+  "D-200M-long-s0": {
+   "model": "D-200M",
+   "status": "done",
+   "val_ppl": 13.856086546972152,
+   "val2_ppl": 33.704721374910726,
+   "params": {
+    "total": 253920256,
+    "embedding": 51511296,
+    "non_embedding": 202408960,
+    "memory_values": 0,
+    "dense_body": 202408960,
+    "active_non_embedding_per_token": 202408960,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": 145622.9497857943,
+   "preflight_tok_s": 145786.6343212393,
+   "preflight_peak_vram_gib": 15.693471908569336
+  },
+  "D-50M-long-s0": {
+   "model": "D-50M",
+   "status": "done",
+   "val_ppl": 17.33003255734661,
+   "val2_ppl": 47.69063333247617,
+   "params": {
+    "total": 81769600,
+    "embedding": 32194560,
+    "non_embedding": 49575040,
+    "memory_values": 0,
+    "dense_body": 49575040,
+    "active_non_embedding_per_token": 49575040,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": 308190.62521894905,
+   "preflight_tok_s": 310083.4306209897,
+   "preflight_peak_vram_gib": 9.168670654296875
+  },
+  "B-1M-long-s0": {
+   "model": "B-1M-sparse",
+   "status": "done",
+   "val_ppl": 16.449325270411446,
+   "val2_ppl": 45.49605181809212,
+   "params": {
+    "total": 444895872,
+    "embedding": 19316736,
+    "non_embedding": 425579136,
+    "memory_values": 402653184,
+    "dense_body": 22925952,
+    "active_non_embedding_per_token": 23073408,
+    "bn_running_stats": 6144
+   },
+   "train_tok_s_median": 206264.994545391,
+   "preflight_tok_s": 212949.88976316893,
+   "preflight_peak_vram_gib": 10.389630794525146
+  },
+  "A-long-s0": {
+   "model": "A",
+   "status": "done",
+   "val_ppl": 20.516428994402055,
+   "val2_ppl": 59.98297167037913,
+   "params": {
+    "total": 40560000,
+    "embedding": 19316736,
+    "non_embedding": 21243264,
+    "memory_values": 0,
+    "dense_body": 21243264,
+    "active_non_embedding_per_token": 21243264,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": 389044.75380891777,
+   "preflight_tok_s": 387174.7927057004,
+   "preflight_peak_vram_gib": 7.806224822998047
+  },
+  "B-4M-long-s0": {
+   "model": "B-4M-sparse",
+   "status": "done",
+   "val_ppl": 15.268423852153877,
+   "val2_ppl": 41.32306083324162,
+   "params": {
+    "total": 1656001152,
+    "embedding": 19316736,
+    "non_embedding": 1636684416,
+    "memory_values": 1610612736,
+    "dense_body": 26071680,
+    "active_non_embedding_per_token": 26219136,
+    "bn_running_stats": 6144
+   },
+   "train_tok_s_median": 175723.2743931887,
+   "preflight_tok_s": 186437.46077338717,
+   "preflight_peak_vram_gib": 28.515607357025146
+  },
+  "D-400M-long-s0": {
+   "model": "D-400M",
+   "status": "done",
+   "val_ppl": 12.698846681683063,
+   "val2_ppl": 30.45722760937709,
+   "params": {
+    "total": 460934400,
+    "embedding": 64389120,
+    "non_embedding": 396545280,
+    "memory_values": 0,
+    "dense_body": 396545280,
+    "active_non_embedding_per_token": 396545280,
+    "bn_running_stats": 0
+   },
+   "train_tok_s_median": 83712.5428005163,
+   "preflight_tok_s": 83731.33641158785,
+   "preflight_peak_vram_gib": 15.170495986938477
+  }
+ },
+ "pod_hours": 41.613,
+ "price_usd_h": 3.57,
+ "cap_usd": 175.0,
+ "est_cost_usd": 148.56,
+ "updated": "2026-10-18 13:35:08"
+}
