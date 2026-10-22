@@ -3792,3 +3792,35 @@ knowledge that is rarer in the training text.
   97–99.8% right but a little less certain (−0.035 to −0.049). Three steps closer, not under my bar.
 - **What this can't show:** as listed with the criteria; the floor is measured for this model, these made-up facts and
   150 writes in a row.
+
+## Step 17: does training move in few directions? (PCAT, a pre-check, criteria fixed before the run, 2026-10-23)
+
+**Why:** An idea for cheaper training: after the first phase, the weights might move along only a few directions;
+then one could optimise only inside that small subspace, where even second-order methods are affordable (Li et al.
+showed this for image networks on CIFAR). Whether that holds for a language model that sees every token once is the
+question here. No subspace training yet, only the pre-check.
+
+**Run** (RX 9070): model A with its 500 M schedule (`smlm.train`, unchanged arguments, seed 0), stopped after the
+evaluation at about 110 M tokens (`--stop_after_tokens 100e6`), the weights saved about every 1 M tokens
+(`--weights_every_tokens 1e6`, new, leaves training unchanged).
+
+**Measure** (`scripts/pcat.py` → `report/pcat/summary.json`): PCA of the weight vectors (all 40.6 M parameters) saved
+between 30 M and 70 M tokens, which gives up to about 40 directions. Then: the share of the squared length of the
+movement from 70 M to 100 M that lies inside them (top 1, 5, 10, 20, all), and the same for each ~1 M step in that
+range.
+
+**Before the criteria:** the measure checked on synthetic paths of 20,000 numbers. A pure random walk: the top 5
+components "explain" 89% of the variance inside the window, but only 0.2% of the later movement lies in the
+subspace. A drift plus noise: 94%. The variance explained, the measure first proposed, can't tell the two apart; the
+share of later movement can.
+
+**Criteria** (share of the movement 70 M → 100 M inside all the directions from 30–70 M):
+- **"Low-dimensional enough to try"**: 50% or more.
+- **"Not low-dimensional"**: under 10%.
+- **"Partly low-dimensional"**: in between.
+- **Reported without a verdict:** top 1 / 5 / 10 / 20, the single ~1 M steps, the explained variance inside the
+  window, a random subspace of the same size (k / 40.6 M), and the share along the one direction the weights moved
+  from 30 M to 70 M (does the subspace say more than "keep going"?).
+
+**What this can't show:** one small dense model, one seed, one stretch of training; a high share is necessary for
+subspace training, not sufficient.

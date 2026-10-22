@@ -358,6 +358,9 @@ def main():
     ap.add_argument("--resume", action="store_true", help="continue from ckpt.pt in --out_dir if there is one "
                     "(same training arguments required), otherwise start from scratch")
     ap.add_argument("--keep_ckpt", action="store_true", help="keep ckpt.pt when the run is done")
+    ap.add_argument("--weights_every_tokens", type=float, default=0, help="also save the weights alone as "
+                    "weights/<tokens>.pt every this many tokens (rounded to whole steps; a trajectory for analysis, "
+                    "never deleted, the time it takes is left out of the throughput); 0 = never")
     ap.add_argument("--skip_nonfinite", action="store_true", help="skip the optimizer step when a gradient norm is "
                     "not finite (logged in run-info.json; costs one GPU sync per step)")
     ap.add_argument("--max_skipped_steps", type=int, default=20, help="with --skip_nonfinite: stop as diverged "
@@ -394,6 +397,8 @@ def main():
     ckpt_every = (max(1, int(round(args.ckpt_every_tokens / stream.tokens_per_step / eval_every))) * eval_every
                   if args.ckpt_every_tokens else 0)
     ckpt_path = os.path.join(args.out_dir, CKPT)
+    weights_every = (max(1, int(round(args.weights_every_tokens / stream.tokens_per_step)))
+                     if args.weights_every_tokens else 0)
     resume_config = {**{k: getattr(args, k) for k in RESUME_KEYS}, "total_steps": total_steps, "micro_bs": micro_bs}
 
     torch.manual_seed(args.seed)
@@ -658,6 +663,13 @@ def main():
             opt.zero_grad(set_to_none=True)
             interval_steps += 1
         steps_since_t += 1
+        if weights_every and (step + 1) % weights_every == 0:
+            t_w = time.perf_counter()
+            os.makedirs(os.path.join(args.out_dir, "weights"), exist_ok=True)
+            torch_save({"step": step + 1, "tokens": (step + 1) * stream.tokens_per_step,
+                        "state_dict": model.state_dict()},
+                       os.path.join(args.out_dir, "weights", f"{(step + 1) * stream.tokens_per_step}.pt"))
+            last_log_t += time.perf_counter() - t_w                 # saving excluded from throughput
         if (step + 1) % args.log_every == 0 or step + 1 == total_steps:
             n_log = (step % args.log_every) + 1
             vals = torch.stack([log_loss, log_gn, log_vgn]).tolist()   # sync point

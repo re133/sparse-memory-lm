@@ -212,3 +212,14 @@ def test_tokens_or_epochs_required(tiny_setup, monkeypatch):
     with pytest.raises(SystemExit):
         train.main()
     assert not os.path.exists(tiny_setup / "f" / "run-info.json")
+
+
+def test_weights_trajectory(tiny_setup, monkeypatch):
+    """--weights_every_tokens keeps numbered weight files at evaluation steps; the last equals model.pt."""
+    out = tiny_setup / "w"
+    run(monkeypatch, out, model="T-dense", extra=("--weights_every_tokens", str(3 * 64)))
+    files = sorted(os.listdir(out / "weights"), key=lambda f: int(f[:-3]))
+    assert [int(f[:-3]) for f in files] == [3 * 64, 6 * 64, 9 * 64, 12 * 64]
+    last = torch.load(out / "weights" / files[-1], weights_only=False)["state_dict"]
+    final = torch.load(out / "model.pt", weights_only=False)["state_dict"]
+    assert all(torch.equal(last[k], final[k]) for k in final)

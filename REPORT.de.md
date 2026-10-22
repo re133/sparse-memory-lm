@@ -4000,3 +4000,35 @@ Artikel der bekannten Personen; ihre Zeilen gelten also als häufig. Das hilft S
   Grenze.
 - **Was das nicht zeigen kann:** wie bei den Kriterien aufgezählt; der Boden ist für dieses Modell, diese
   ausgedachten Fakten und 150 Schreibvorgänge hintereinander gemessen.
+
+## Schritt 17: Bewegt sich das Training in wenigen Richtungen? (PCAT, eine Vorprüfung, Kriterien vor dem Lauf festgelegt, 2026-10-23)
+
+**Frage:** Eine Idee für billigeres Training: Nach der ersten Phase bewegen sich die Gewichte vielleicht nur noch
+entlang weniger Richtungen; dann könnte man nur in diesem kleinen Unterraum optimieren, wo sogar Verfahren zweiter
+Ordnung bezahlbar sind (Li et al. haben das für Bildnetze auf CIFAR gezeigt). Ob das für ein Sprachmodell gilt, das
+jeden Token nur einmal sieht, ist hier die Frage. Noch kein Training im Unterraum, nur die Vorprüfung.
+
+**Lauf** (RX 9070): Modell A mit seinem 500-M-Plan (`smlm.train`, unveränderte Argumente, Seed 0), angehalten nach der
+Auswertung bei etwa 110 M Tokens (`--stop_after_tokens 100e6`), die Gewichte etwa alle 1 M Tokens gespeichert
+(`--weights_every_tokens 1e6`, neu, ändert das Training nicht).
+
+**Messung** (`scripts/pcat.py` → `report/pcat/summary.json`): PCA der zwischen 30 M und 70 M Tokens gespeicherten
+Gewichtsvektoren (alle 40,6 M Parameter), das ergibt bis zu etwa 40 Richtungen. Dann: der Anteil der quadrierten Länge
+der Bewegung von 70 M bis 100 M, der darin liegt (Top 1, 5, 10, 20, alle), und dasselbe für jeden Schritt von ~1 M in
+diesem Bereich.
+
+**Vor den Kriterien:** die Messung an künstlichen Bahnen aus 20.000 Zahlen geprüft. Eine reine Zufallsbewegung: Die
+Top-5-Komponenten „erklären“ 89 % der Varianz im Fenster, aber nur 0,2 % der späteren Bewegung liegen im Unterraum.
+Eine Drift plus Rauschen: 94 %. Die erklärte Varianz, das zuerst vorgeschlagene Maß, kann die beiden nicht trennen; der
+Anteil der späteren Bewegung schon.
+
+**Kriterien** (Anteil der Bewegung 70 M → 100 M in allen Richtungen aus 30–70 M):
+- **„Niedrigdimensional genug für einen Versuch“**: 50 % oder mehr.
+- **„Nicht niedrigdimensional“**: unter 10 %.
+- **„Teilweise niedrigdimensional“**: dazwischen.
+- **Ohne Urteil berichtet:** Top 1 / 5 / 10 / 20, die einzelnen Schritte von ~1 M, die erklärte Varianz im Fenster, ein
+  zufälliger Unterraum gleicher Größe (k / 40,6 M) und der Anteil entlang der einen Richtung, in die sich die Gewichte
+  von 30 M bis 70 M bewegt haben (sagt der Unterraum mehr als „weiter so“?).
+
+**Was das nicht zeigen kann:** ein kleines dichtes Modell, ein Seed, ein Abschnitt des Trainings; ein hoher Anteil ist
+für Training im Unterraum nötig, aber nicht ausreichend.
