@@ -100,8 +100,9 @@ class TableWriter:
     its rows through a small leaf tensor (a copy of those rows) instead of the table, so backward fills exactly the
     rows read; step() adds -lr * gradient to them in the table and remembers their original values for restore()."""
 
-    def __init__(self, model):
+    def __init__(self, model, layers=None):
         self.mems = model.memory_layers()
+        self.layers = layers                    # indices into memory_layers() whose reads are written (None: all)
         self.table = self.mems[0].values.weight
         assert all(m.values.weight is self.table for m in self.mems), "one shared table"
         assert self.table.device.type == "cpu" and self.table.dtype == torch.float32
@@ -111,8 +112,10 @@ class TableWriter:
 
     def _read(self, mem, indices, weights):
         rows, inv = torch.unique(indices.reshape(-1), return_inverse=True)
-        sub = self.table.detach().index_select(0, rows.cpu()).to(indices.device).requires_grad_(True)
-        self.parts.append((rows.cpu(), sub))
+        sub = self.table.detach().index_select(0, rows.cpu()).to(indices.device)
+        if self.layers is None or self.mems.index(mem) in self.layers:
+            sub.requires_grad_(True)
+            self.parts.append((rows.cpu(), sub))
         return F.embedding_bag(inv.view_as(indices), sub, per_sample_weights=weights.to(sub.dtype), mode="sum")
 
     def __enter__(self):

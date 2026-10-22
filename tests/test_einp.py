@@ -69,3 +69,22 @@ def test_several_steps_and_people_restore_exactly():
     w.restore()
     assert torch.equal(m.memory_layers()[0].values.weight.detach(), table0)
     assert not any("read_values" in vars(mem) for mem in m.memory_layers())
+
+
+def test_layer_subset_writes_only_rows_that_layer_reads():
+    m = tiny(2)
+    table0 = m.memory_layers()[0].values.weight.detach().clone()
+    for mem in m.memory_layers():
+        mem.record = True
+    a = art()
+    with torch.no_grad():
+        m(torch.tensor([a["ids"]]))
+    read_last = set(m.memory_layers()[2].last_indices.reshape(-1).tolist())
+    for mem in m.memory_layers():
+        mem.record = False
+    w = TableWriter(m, layers=[2])
+    write_person(m, w, a, steps=1, lr=1.0, device="cpu")
+    changed = set(torch.nonzero((m.memory_layers()[0].values.weight.detach() != table0).any(1)).view(-1).tolist())
+    assert changed and changed <= read_last
+    w.restore()
+    assert torch.equal(m.memory_layers()[0].values.weight.detach(), table0)

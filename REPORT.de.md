@@ -3801,3 +3801,64 @@ andere Modelle oder Seeds, Schreiben in den Kern statt in die Tabelle oder ein e
   vergisst vielleicht weniger; das Dev-Raster hat das nicht gemessen.
 - **Was das nicht zeigen kann:** wie bei den Kriterien aufgezählt: ein Modell, ein Seed, ausgedachte Fakten in einem
   Format, keine umformulierten Fragen, eine Einstellung aus einem kleinen Raster.
+
+## Schritt 15: Fakten in die Tabelle schreiben, ohne die bekannten zu verdrängen (EINP2, Kriterien vor dem Lauf festgelegt, 2026-10-22)
+
+**Frage:** In Schritt 14 blieben die neuen Fakten hängen (98 % richtig), aber die Personen, die das Modell im Training
+gelernt hatte, fielen von etwa 100 % auf 52–79 % richtig. Am Stichwort („… was born in“) lesen die Speicherschichten 2
+und 6 für jede Person fast dieselben Zeilen, und das Schreiben hat diese gemeinsamen Zeilen verbogen. Zwei Fragen:
+Vermeidet eine kleinere Dosis allein das, und schneidet Schreiben nur in die Zeilen von Schicht 10 besser ab (sie liest
+für jede Person eigene Zeilen: Überlappung 0,18)?
+
+**Unverändert gegenüber Schritt 14:** Modell (B-16M-factk), die 150 Testpersonen und die Reihenfolge, in der sie
+geschrieben werden, die 100 nicht geschriebenen Personen, der Artikel, ein Schritt (Kreuzentropie der drei Wert-Tokens,
+−lr × Gradient auf den Zeilen, kein Optimizer-Zustand), die Messung, Val-PPL auf dem ganzen Validierungssatz.
+
+**Zwei Varianten:**
+- **A, alle Zeilen:** die Regel aus Schritt 14, jede Zeile, die der Artikel liest.
+- **B, nur Schicht 10:** nur die Zeilen, die Speicherschicht 10 liest, jede geändert nur um den Gradienten des
+  Lesezugriffs von Schicht 10. Die Tabelle ist geteilt, so eine Zeile kann also auch eine sein, die Schicht 2 und 6
+  anderswo lesen.
+
+**Neu für beide** (`scripts/einp2.py split`, mit festem Seed, `report/einp2/groups.json`):
+- **150 frische Dev-Personen** zum Wählen der Einstellung, ausgedacht wie die aus Schritt 10 (neue Namen, die weder im
+  Trainingstext noch unter den Personen aus Schritt 10 vorkommen, Werte aus denselben Listen). In Schritt 14 kam die
+  Einstellung von 50 Personen; das Vergessen wächst mit jedem Schreibvorgang, deshalb schreibt Dev jetzt so viele
+  Personen wie Test.
+- Die 900 bekannten Personen (16-, 32- oder 64-mal gesehen) aufgeteilt in 300 zum Wählen und 600 für die Messung.
+
+**Einstellung wählen, pro Variante, nur an den Dev-Personen:** Schritte ∈ {1, 4, 16} × lr ∈ {0,1, 1, 10, 100, 1000}.
+Für jede: die 150 Dev-Personen schreiben, dann der Score der Dev-Personen, die Änderung des Scores der 300 bekannten
+Dev-Personen (nachher minus vorher) und die Val-PPL auf den ersten 64 Fenstern; dann die ursprünglichen Zeilen zurück.
+Gewählt: der höchste Dev-Score unter den Einstellungen, deren Änderung bei den bekannten −0,02 oder besser ist und
+deren Val-PPL um höchstens 1 % steigt. Liegt keine in diesem Budget: die Einstellung mit dem kleinsten Verlust bei den
+bekannten.
+
+**Messung** (jede Variante für sich, von der ursprünglichen Tabelle aus): die 150 Testpersonen mit der gewählten
+Einstellung schreiben, dann wie in Schritt 14 der Lift (Änderung des Scores jeder geschriebenen Person minus die
+Änderung der nicht geschriebenen, 95-%-Bootstrap über Personen), der Anteil richtig, die Änderung der 600 bekannten
+Testpersonen (gepaart) und die Val-PPL.
+
+**Kriterien:**
+- **Pro Variante**, wie in Schritt 14: **„schreibt, ohne zu verdrängen“**: Das Intervall des Lifts liegt über 0, die
+  geschriebenen Personen haben mindestens 50 % richtig, die bekannten Testpersonen verlieren höchstens 0,02 und die
+  Val-PPL steigt um höchstens 1 %; **„funktioniert, mit Nebenwirkungen“**: Lift über 0 und mindestens 50 % richtig,
+  aber eine Nebenwirkung über ihrer Grenze; **„bleibt nur schwach hängen“**: Lift über 0, aber weniger als 50 %
+  richtig; **„bleibt nicht hängen“**: sonst.
+- **B gegen A:** Beide werden im selben Budget gewählt, die Frage ist also, wie viel jede darin schreibt. Der Lift von
+  B minus der von A, gepaart über dieselben Personen: **„Schicht 10 schreibt im selben Budget mehr“**, wenn das
+  Intervall über 0 liegt, **„alle Zeilen schreiben mehr“**, wenn darunter, sonst **„kein klarer Unterschied“**.
+- **Ohne Urteil berichtet:** beide Dev-Raster (Score der neuen gegen Verlust der bekannten für jede Einstellung); die
+  Änderung der bekannten bei B minus der bei A an den Testpersonen; der Anteil des Lesegewichts der bekannten
+  Testpersonen am Stichwort, pro Schicht, der auf die Zeilen fällt, die jede Variante für die Testpersonen schreibt
+  (gemessen vor jedem Schreiben); Score nach der Stelle des Satzes im Artikel; die ersten 50 geschriebenen gegen die
+  letzten 50; die Trainingswiederholungen in Schritt 10 mit demselben Score; Zeit pro Person und geänderte Zeilen.
+
+**Was ich erwarte:** A im Budget vermutlich nur mit kleiner Dosis, und dann bleiben die neuen Fakten nur schwach
+hängen. B vergisst bei gleicher Dosis weniger. Aber was Schicht 10 liest, hängt von der Person und vom Kontext vor dem
+Stichwort ab; B bleibt deshalb vielleicht vor allem dort hängen, wo der Satz des Attributs zuerst kam, und weniger als
+zweiter oder dritter Satz.
+
+**Was das nicht zeigen kann:** wie in Schritt 14 (ein Modell, ein Seed, ausgedachte Fakten in einem Format, keine
+umformulierten Fragen), und nur zwei der möglichen Arten, die Zeilen zu wählen. Nur Zeilen schreiben, die ein Fakt viel
+öfter liest als anderer Text (Sparse Memory Finetuning, Lin et al. 2025), kommt als Nächstes, falls B es nicht schafft.

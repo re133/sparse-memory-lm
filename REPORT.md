@@ -3609,3 +3609,57 @@ small grid on 50 people.
   the dev grid didn't measure that.
 - **What this can't show:** as listed with the criteria: one model, one seed, made-up facts in one format, no
   rephrased questions, a setting from a small grid.
+
+## Step 15: writing facts into the table without pushing out the known ones (EINP2, criteria fixed before the run, 2026-10-22)
+
+**Why:** In step 14 the new facts stuck (98% right), but the people the model had learned in training dropped from
+about 100% to 52–79% right. At the cue ("… was born in") memory layers 2 and 6 read nearly the same rows for every
+person, and the writes bent those shared rows. Two questions: does a smaller dose alone avoid that, and does writing
+only into the rows of layer 10 (which reads rows of its own for each person: overlap 0.18) do better?
+
+**Unchanged from step 14:** model (B-16M-factk), the 150 test people and the order they are written in, the 100
+unwritten people, the article, one step (cross entropy of the three value tokens, −lr × gradient on the rows, no
+optimizer state), the measure, val PPL on the whole validation split.
+
+**Two variants:**
+- **A, all rows:** step 14's rule, every row the article reads.
+- **B, layer 10 only:** only the rows memory layer 10 reads, each changed by the gradient of layer 10's read only.
+  The table is shared, so such a row can also be one that layers 2 and 6 read elsewhere.
+
+**New for both** (`scripts/einp2.py split`, seeded, `report/einp2/groups.json`):
+- **150 fresh dev people** to choose the setting, made up the same way as step 10's (new names that occur neither in
+  the training text nor among step 10's people, values from the same lists). In step 14 the setting came from 50
+  people; forgetting builds up with every write, so dev now writes as many people as test.
+- The 900 known people (seen 16, 32 or 64 times) split into 300 for choosing and 600 for the measurement.
+
+**Choosing the setting, per variant, on the dev people only:** steps ∈ {1, 4, 16} × lr ∈ {0.1, 1, 10, 100, 1000}.
+For each: write the 150 dev people, then the dev people's score, the change of the 300 known dev people's score
+(after minus before) and the val PPL on the first 64 windows; then put the original rows back. Chosen: the highest
+dev score among the settings whose known change is −0.02 or better and whose val PPL rises by at most 1%. If none is
+within this budget: the setting with the smallest loss of known score.
+
+**Measure** (each variant on its own, from the original table): write the 150 test people with the chosen setting,
+then as in step 14 the lift (change of each written person's score minus the change of the unwritten, 95% bootstrap
+over people), the share right, the change of the 600 known test people (paired) and the val PPL.
+
+**Criteria:**
+- **Per variant**, as in step 14: **"writes without pushing out"**: the lift's interval lies above 0, the written
+  people get at least 50% right, the known test people lose at most 0.02 and the val PPL rises by at most 1%;
+  **"works, with side effects"**: lift above 0 and at least 50% right, but a side effect over its limit; **"sticks
+  only weakly"**: lift above 0 but less than 50% right; **"doesn't stick"**: otherwise.
+- **B against A:** both are chosen under the same budget, so the question is how much each writes within it. The
+  lift of B minus that of A, paired over the same people: **"layer 10 writes more within the same budget"** if the
+  interval lies above 0, **"all rows write more"** if below, otherwise **"no clear difference"**.
+- **Reported without a verdict:** both dev grids (new score against known loss for every setting); the known change of
+  B minus that of A on the test people; the share of the known test people's read weight at the cue, per layer, that
+  falls on the rows each variant writes for the test people (measured before any write); score by the position of
+  the attribute's sentence in the article; first 50 written against the last 50; the training repetitions in step 10
+  that give the same score; time per person and rows changed.
+
+**What I expect:** A within the budget probably only with a small dose, and then the new facts stick only weakly.
+B forgets less at the same dose. But what layer 10 reads depends on the person and on the context before the cue, so
+B may stick mainly where the attribute's sentence came first and less where it came second or third.
+
+**What this can't show:** as in step 14 (one model, one seed, made-up facts in one format, no rephrased questions),
+and only two of the possible ways to choose the rows. Writing only rows that a fact reads much more often than other
+text (sparse memory finetuning, Lin et al. 2025) comes next if B doesn't do it.
