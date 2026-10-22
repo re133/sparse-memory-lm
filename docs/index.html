@@ -74,7 +74,7 @@ footer { margin-top: 48px; font-size: 14px; color: var(--muted); }
 
 <h1>A tiny language model with a huge lookup table</h1>
 <p class="lead">Short answer: yes, the table is worth it. And the more the model trains, the more it's worth.</p>
-<p class="date">The two-minute version · by Leon Fechner · last updated 18 October 2026</p>
+<p class="date">The two-minute version · by Leon Fechner · last updated 22 October 2026</p>
 
 <p>I took a small language model (21M parameters) and gave it a table with up to 16.8 million learned vectors. For
 every token (roughly a word) it only looks up a few hundred of them, so it barely computes more than before. Then I
@@ -87,7 +87,21 @@ up.</p>
   <div class="card"><b>+33%</b><span>more "worth" after six times the training (114M → 152M).</span></div>
 </div>
 
-<h2>Newest result: six times the training</h2>
+<h2>Newest: writing facts straight into the table</h2>
+<div class="news">
+  <span class="tag">22 October 2026</span>
+  <p>Next idea: train the small model once, and later just <em>write</em> new knowledge into the table instead of
+  training again. I took the finished model and 150 made-up people it had never seen. For each one it read a short
+  profile 16 times in a row, and each time I only nudged the table rows it had read. No optimizer, the rest of the
+  model frozen.</p>
+  <p><strong>The new facts stuck: 98% right afterwards (before: 2%), in under half a second per person.</strong>
+  Normal text didn't get worse at all.</p>
+  <p>The catch: people it had learned in training dropped from about 100% to 52–79% right. Most of the rows a question
+  like "… was born in" reads are the same for every person, so the new facts were written over shared rows. Next I'll
+  try writing only into rows that belong to one person.</p>
+</div>
+
+<h2>Six times the training</h2>
 <div class="news">
   <span class="tag">18 October 2026</span>
   <p>The obvious objection: with more training, the normal models catch up and the table becomes pointless. So I
