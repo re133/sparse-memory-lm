@@ -96,9 +96,10 @@ up.</p>
   model frozen.</p>
   <p><strong>The new facts stuck: 98% right afterwards (before: 2%), in under half a second per person.</strong>
   Normal text didn't get worse at all.</p>
-  <p>The catch: people it had learned in training dropped from about 100% to 52–79% right. Most of the rows a question
-  like "… was born in" reads are the same for every person, so the new facts were written over shared rows. Next I'll
-  try writing only into rows that belong to one person.</p>
+  <p>The catch at first: people it had learned in training dropped from about 100% to 52–79% right, because most of
+  the rows a question like "… was born in" reads are shared by every person. The fix turned out to be a gentler
+  nudge: with a tenth of the step size the new facts are still 99% right, and the known people stay 96–99% right.
+  They are a bit less certain than before, so by my own bar it's close, but not done yet.</p>
 </div>
 
 <h2>Six times the training</h2>

@@ -3663,3 +3663,47 @@ B may stick mainly where the attribute's sentence came first and less where it c
 **What this can't show:** as in step 14 (one model, one seed, made-up facts in one format, no rephrased questions),
 and only two of the possible ways to choose the rows. Writing only rows that a fact reads much more often than other
 text (sparse memory finetuning, Lin et al. 2025) comes next if B doesn't do it.
+
+### Result of step 15 (2026-10-22, RX 9070 with the table in RAM, `scripts/einp2.py` → `report/einp2/summary.json`)
+
+- **Verdicts by the criteria: A "works, with side effects", B "doesn't stick"; B against A: "all rows write more within
+  the same budget".** That last label needs a caveat: on the dev people **no setting of A stayed within the budget**
+  (best: −0.066), so A ran, by the rule, with the setting that lost the least. B stayed within it. The two were not
+  compared at the same forgetting: A forgets about 0.04 more and writes about 0.85 more.
+- **Before any write (shared rows):** the rows B writes for the 150 test people (148,194, only those layer 10 reads)
+  carry 81% of the known people's layer-10 read weight at the cue. Layer 10 reads different rows for two given people
+  (overlap 0.18), but 150 articles together cover most of what anyone reads there. The rows A writes (413,572) carry
+  99.9% of their read weight in layers 2 and 6 and 81% in layer 10.
+- **Dev grids** (150 fresh people; new people right / known people's change):
+
+| Steps, lr | A: all rows | B: layer 10 only |
+|---|---:|---:|
+| 1, 0.1 | 30% / −0.15 | **1% / −0.018** |
+| 4, 0.1 | 96% / −0.087 | 2% / −0.082 |
+| 16, 0.1 | **99% / −0.066** | 27% / −0.19 |
+| 16, 1 (step 14's setting) | 98% / −0.60 | 72% / −0.29 |
+| 16, 10 | 77% / −0.90 | 83% / −0.69 |
+
+  The val PPL stayed within +0.1% for every setting up to lr 10.
+- **A on the test people** (16 steps, lr 0.1): 99% of the new values right (score 0.017 → 0.874), lift **+0.851
+  [+0.836; +0.864]**, about 20 training repetitions. Known people: score **−0.063 [−0.070; −0.056]** (limit −0.02), but
+  still 96% / 98% / 99% right (seen 16 / 32 / 64 times; step 14: 52% / 69% / 79%). Val PPL unchanged (−0.01%). Where
+  the attribute's sentence came first 0.894, second 0.866, third 0.862. First 50 written 0.83, last 50 0.92.
+  0.45 s per person.
+- **B on the test people** (1 step, lr 0.1, the only setting within the budget): lift +0.002 [−0.000; +0.003], 2%
+  right; known people −0.021. Every setting of B that gets at least half of the new values right costs the known people at least 0.29 on dev.
+
+**How I read it:**
+- **The dose was the main problem in step 14, not the place.** With the same 16 passes but a tenth of the step size,
+  the new people are written just as well (99% against 98% right on dev), and the known people lose a tenth as much
+  (−0.066 against −0.60). Step 14's rule picked lr 1 over lr 0.1 by a dev score of 0.909 against 0.907, without
+  looking at the known people; that's why this step's rule includes them.
+- **Writing through layer 10 alone is worse, not better.** Its rows only look private from person to person; over
+  150 articles they cover most of what everyone reads there. And because one read changes less than three, it needs
+  much bigger steps to write anything, which costs the known people more.
+- **Where it stands:** new facts in under half a second each, 99% right, general text unchanged, and the known facts
+  still right 96–99% of the time but less certain (score −0.06, three times the limit I set). That is close, but not
+  "without pushing out" by my own criteria.
+- **Next:** smaller steps with more passes (the grid's trend points there: lr 0.1 beat lr 1 at the same quality), and
+  choosing rows by how specific they are to a fact (sparse memory finetuning).
+- **What this can't show:** as listed with the criteria.

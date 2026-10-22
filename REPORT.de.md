@@ -3862,3 +3862,51 @@ zweiter oder dritter Satz.
 **Was das nicht zeigen kann:** wie in Schritt 14 (ein Modell, ein Seed, ausgedachte Fakten in einem Format, keine
 umformulierten Fragen), und nur zwei der möglichen Arten, die Zeilen zu wählen. Nur Zeilen schreiben, die ein Fakt viel
 öfter liest als anderer Text (Sparse Memory Finetuning, Lin et al. 2025), kommt als Nächstes, falls B es nicht schafft.
+
+### Ergebnis von Schritt 15 (2026-10-22, RX 9070 mit der Tabelle im RAM, `scripts/einp2.py` → `report/einp2/summary.json`)
+
+- **Urteile nach den Kriterien: A „funktioniert, mit Nebenwirkungen“, B „bleibt nicht hängen“; B gegen A: „alle Zeilen
+  schreiben im selben Budget mehr“.** Das letzte Etikett braucht einen Vorbehalt: An den Dev-Personen **blieb keine
+  Einstellung von A im Budget** (beste: −0,066), A lief also nach der Regel mit der Einstellung, die am wenigsten
+  verlor. B blieb darin. Verglichen wurden die beiden also nicht bei gleichem Vergessen: A vergisst etwa 0,04 mehr und
+  schreibt etwa 0,85 mehr.
+- **Vor jedem Schreiben (geteilte Zeilen):** Die Zeilen, die B für die 150 Testpersonen schreibt (148.194, nur die, die
+  Schicht 10 liest), tragen 81 % des Lesegewichts der bekannten Personen in Schicht 10 am Stichwort. Schicht 10 liest
+  für zwei bestimmte Personen verschiedene Zeilen (Überlappung 0,18), aber 150 Artikel zusammen decken das meiste ab,
+  was dort irgendwer liest. Die Zeilen, die A schreibt (413.572), tragen 99,9 % des Lesegewichts in den Schichten 2 und
+  6 und 81 % in Schicht 10.
+- **Dev-Raster** (150 frische Personen; neue Personen richtig / Änderung der bekannten):
+
+| Schritte, lr | A: alle Zeilen | B: nur Schicht 10 |
+|---|---:|---:|
+| 1, 0,1 | 30 % / −0,15 | **1 % / −0,018** |
+| 4, 0,1 | 96 % / −0,087 | 2 % / −0,082 |
+| 16, 0,1 | **99 % / −0,066** | 27 % / −0,19 |
+| 16, 1 (Einstellung aus Schritt 14) | 98 % / −0,60 | 72 % / −0,29 |
+| 16, 10 | 77 % / −0,90 | 83 % / −0,69 |
+
+  Die Val-PPL blieb bei jeder Einstellung bis lr 10 innerhalb von +0,1 %.
+- **A an den Testpersonen** (16 Schritte, lr 0,1): 99 % der neuen Werte richtig (Score 0,017 → 0,874), Lift **+0,851
+  [+0,836; +0,864]**, etwa 20 Trainingswiederholungen. Bekannte Personen: Score **−0,063 [−0,070; −0,056]** (Grenze
+  −0,02), aber noch 96 % / 98 % / 99 % richtig (16-, 32-, 64-mal gesehen; Schritt 14: 52 % / 69 % / 79 %). Val-PPL
+  unverändert (−0,01 %). Wo der Satz des Attributs zuerst kam 0,894, als zweiter 0,866, als dritter 0,862. Die ersten
+  50 geschriebenen 0,83, die letzten 50 0,92. 0,45 s pro Person.
+- **B an den Testpersonen** (1 Schritt, lr 0,1, die einzige Einstellung im Budget): Lift +0,002 [−0,000; +0,003], 2 %
+  richtig; bekannte Personen −0,021. Jede Einstellung von B, die mindestens die Hälfte der neuen Werte richtig hat,
+  kostet die bekannten Personen in Dev mindestens 0,29.
+
+**Wie ich es lese:**
+- **Das Hauptproblem in Schritt 14 war die Dosis, nicht der Ort.** Mit denselben 16 Durchläufen, aber einem Zehntel der
+  Schrittweite werden die neuen Personen genauso gut geschrieben (99 % gegen 98 % richtig in Dev), und die bekannten
+  verlieren ein Zehntel so viel (−0,066 gegen −0,60). Die Regel aus Schritt 14 hat lr 1 statt lr 0,1 gewählt, wegen
+  eines Dev-Scores von 0,909 gegen 0,907, ohne auf die bekannten Personen zu schauen; deshalb zählen sie in der Regel
+  dieses Schritts mit.
+- **Nur über Schicht 10 zu schreiben ist schlechter, nicht besser.** Ihre Zeilen wirken nur von Person zu Person
+  privat; über 150 Artikel decken sie das meiste ab, was dort alle lesen. Und weil ein Lesezugriff weniger ändert als
+  drei, braucht es viel größere Schritte, um überhaupt etwas zu schreiben, und das kostet die bekannten Personen mehr.
+- **Wo es steht:** neue Fakten in unter einer halben Sekunde pro Person, 99 % richtig, allgemeiner Text unverändert,
+  und die bekannten Fakten noch zu 96–99 % richtig, aber unsicherer (Score −0,06, das Dreifache der Grenze, die ich
+  gesetzt hatte). Das ist nah dran, aber nach meinen eigenen Kriterien nicht „ohne zu verdrängen“.
+- **Als Nächstes:** kleinere Schritte mit mehr Durchläufen (der Trend im Raster zeigt dorthin: lr 0,1 schlug lr 1 bei
+  gleicher Qualität), und Zeilen danach wählen, wie spezifisch sie für einen Fakt sind (Sparse Memory Finetuning).
+- **Was das nicht zeigen kann:** wie bei den Kriterien aufgezählt.
