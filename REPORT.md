@@ -3483,3 +3483,83 @@ or "shrinks", rather not "grows".
     2. On the H200 the table still costs more training time than a dense model of the same quality.
     3. In the second epoch the table remembers the repeated training text noticeably more than the dense models do.
   - And it is still small: one seed per model, two epochs over 1.5 B tokens, the largest dense model 400 M.
+
+## Step 14: can new facts be written straight into the table, without training? (EINP, criteria fixed before the run, 2026-10-22)
+
+**Why:** The next phase is about training and using these models at home. One idea: train the small core once for
+language, and later write new knowledge straight into the table, cheaply and at any time, instead of training again.
+The simplest form: change only the table rows that a fact's text reads, with a few plain gradient steps on those rows,
+no optimizer state, everything else frozen. Does a fact stick that way, and what does it cost the rest of the model?
+
+**Model:** B-16M-factk from the addendum to step 10. It learned the made-up people that it saw 1 to 64 times in
+training; the 300 people of level k = 0 it never saw.
+
+**People** (`scripts/einp.py split`, seeded, before any measurement, `report/einp/groups.json`): the 300 k = 0
+people, split into 50 dev (to choose the setting), 150 test (the measurement) and 100 unwritten (the control: the
+score is normalised over the candidate values, so a write could raise a value for everyone, not just for the person
+it was written for).
+
+**Writing a person:**
+- Their article in the training format of step 10: `<|endoftext|>Name\n\n` and the three sentences ("Name was born
+  in 1912.", "Name grew up in Lisbon.", "Name worked as a tailor.") in a seeded random order.
+- One step: one forward pass of the article. The loss is the cross entropy of the three value tokens only, not of the
+  made-up name. The gradient goes only to the table rows read in that pass, and each of them changes by −lr ×
+  gradient. Nothing else in the model changes, and nothing is kept between steps (no optimizer state).
+- S steps per person, the people one after another into the same table (the 150 test people in a fixed, seeded
+  order).
+- The table stays in RAM in fp32, the rest of the model on the RX 9070 with bf16 autocast as in step 10's evaluation,
+  so the rows a prompt reads while being written are the rows it reads while being scored. The writes go into the copy
+  of the table in RAM, never into the checkpoint file.
+
+**Choosing the setting, on the dev people only:** S ∈ {1, 4, 16} × lr ∈ {0.1, 1, 10, 100, 1000}. For each pair: write
+the 50 dev people, score them, measure the val PPL on the first 64 windows of the validation split, then put the
+original rows back. Chosen: the highest dev score among the settings that raise this val PPL by at most 1%; if none
+does, the highest dev score anyway. Ties: fewer steps, then the smaller lr.
+
+**Measure** (after writing the 150 test people with the chosen setting):
+- Step 10's score: per person and attribute the prompt in the training format, `<|endoftext|>Name\n\nName was born
+  in` (or `grew up in`, `worked as a`), and the probability of the true value normalised over all values of the
+  attribute; score of a person = the mean over the three. Also: is the true value the most likely (accuracy)?
+- **Lift:** the change of each person's score (after minus before), mean over the written test people minus mean
+  over the unwritten people, 95% bootstrap over people.
+- **Side effects:** (1) val PPL on the whole validation split (1,449 windows), after against before; (2) the mean
+  score of the 900 people the model saw 16, 32 or 64 times in training (it knows nearly all of them), after minus
+  before, paired bootstrap.
+
+**Before the criteria:** the null test on the unchanged model (`scripts/einp.py null` → `report/einp/null.json`,
+75 s after loading):
+- It reproduces step 10: val PPL 20.069 (training log: 20.069), mean score of the people seen 16 / 32 / 64 times
+  0.841 / 0.944 / 0.972 (step 10: 0.842 / 0.944 / 0.972).
+- The three groups of never-seen people already differ by chance: mean score 0.014 (dev), 0.017 (test), 0.009
+  (unwritten); test minus unwritten +0.008 [+0.002; +0.016], above 0. The scores are skewed (median 0.004 to 0.005,
+  single people up to 0.30, when the true value happens to be one the model guesses anyway), so a few people move a
+  group's mean. That's why the lift is the change per person (after minus before). I had first planned to compare the
+  groups after the writes; with that, the null test alone would have shown a "lift".
+- Rows read at the cue ("… was born in") by different people: overlap 0.82 in layer 2, 0.76 in layer 6, 0.18 in
+  layer 10 (people the model knows: 0.82 / 0.76 / 0.10). In the first two memory layers nearly everyone reads the same
+  rows at the cue; only layer 10 reads rows of its own for each person. A write will also move rows other people read.
+- The prompt against the same place in the article: overlap 0.97 when the attribute's sentence came first (the prompt
+  is the start of the article; not exactly 1 because padded batches round differently in bf16), 0.81 when it came
+  second, 0.72 third.
+
+**Criteria:**
+- **"Writing facts into the table works":** the lift's interval lies above 0, the written test people get at least
+  50% of their values right, the val PPL rises by at most 1%, and the mean score of the known people drops by at most
+  0.02.
+- **"Works, with side effects":** as above, but one of the two side effects is over its limit.
+- **"Sticks only weakly":** the lift's interval lies above 0, but less than 50% right.
+- **"Doesn't stick":** otherwise.
+- **Reported without a verdict:** the whole dev grid (how much each setting writes and what it costs); the score of
+  the written people by the position of the attribute's sentence in the written article (first sentence: the prompt
+  is a word-for-word start of what was written; second or third: the prompt is a different context); the share of a
+  prompt's read weight that falls on rows the writes changed, by the same position; the overlap of the rows read at
+  the cue between different people; the change of the unwritten people's score; the first 50 written people against
+  the last 50 (does a later write push out an earlier one?); how many training repetitions in step 10 give the same
+  score; the time per person and the number of rows changed.
+
+**What I expect, and what this can't show:** I expect a fact to stick where the prompt is the start of what was
+written; that is close to memorising one line. The interesting parts are whether it also works where the prompt is a
+different context, and what it costs the other people and the text. The model can't answer rephrased questions at
+all (it only knows Wikipedia text), so that is not tested; nor real facts in natural text, other models or seeds,
+writing into the core instead of the table, or a separate store next to the model (kNN-LM). The setting comes from a
+small grid on 50 people.

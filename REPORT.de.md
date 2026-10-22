@@ -3668,3 +3668,88 @@ Zugriffe, die Tabelle könnte also auch gewinnen. Ich tippe auf „hält“ oder
     3. In der zweiten Epoche merkt sich die Tabelle den wiederholten Trainingstext deutlich stärker als die dichten
        Modelle.
   - Und es ist weiterhin klein: ein Seed pro Modell, zwei Epochen über 1,5 B Tokens, das größte dichte Modell 400 M.
+
+## Schritt 14: Lassen sich neue Fakten direkt in die Tabelle schreiben, ohne Training? (EINP, Kriterien vor dem Lauf festgelegt, 2026-10-22)
+
+**Frage:** In der nächsten Phase geht es darum, diese Modelle zu Hause zu trainieren und zu nutzen. Eine Idee dafür:
+Den kleinen Kern einmal für Sprache trainieren und neues Wissen später direkt in die Tabelle schreiben, billig und
+jederzeit, statt neu zu trainieren. Die einfachste Form: nur die Tabellenzeilen ändern, die der Text eines Fakts liest,
+mit ein paar einfachen Gradientenschritten auf genau diesen Zeilen, ohne Optimizer-Zustand, alles andere eingefroren.
+Bleibt ein Fakt so hängen, und was kostet das den Rest des Modells?
+
+**Modell:** B-16M-factk aus dem Nachtrag zu Schritt 10. Es hat die ausgedachten Personen gelernt, die es 1- bis 64-mal
+im Training gesehen hat; die 300 Personen der Stufe k = 0 hat es nie gesehen.
+
+**Personen** (`scripts/einp.py split`, mit festem Seed, vor jeder Messung, `report/einp/groups.json`): die 300
+k = 0-Personen, aufgeteilt in 50 Dev (zum Wählen der Einstellung), 150 Test (die Messung) und 100 nicht geschriebene
+(die Kontrolle: der Score ist über die Kandidatenwerte normiert, ein Schreibvorgang könnte also einen Wert für alle
+anheben, nicht nur für die Person, für die er geschrieben wurde).
+
+**Eine Person schreiben:**
+- Ihr Artikel im Trainingsformat von Schritt 10: `<|endoftext|>Name\n\n` und die drei Sätze („Name was born in
+  1912.“, „Name grew up in Lisbon.“, „Name worked as a tailor.“) in einer festen zufälligen Reihenfolge.
+- Ein Schritt: ein Vorwärtsdurchlauf des Artikels. Der Loss ist die Kreuzentropie nur der drei Wert-Tokens, nicht des
+  ausgedachten Namens. Der Gradient geht nur an die Tabellenzeilen, die dabei gelesen wurden, und jede davon ändert
+  sich um −lr × Gradient. Sonst ändert sich nichts am Modell, und zwischen den Schritten bleibt nichts gespeichert
+  (kein Optimizer-Zustand).
+- S Schritte pro Person, die Personen nacheinander in dieselbe Tabelle (die 150 Testpersonen in einer festen,
+  ausgelosten Reihenfolge).
+- Die Tabelle bleibt in fp32 im RAM, der Rest des Modells auf der RX 9070 mit bf16-Autocast wie in der Auswertung von
+  Schritt 10. Ein Prompt liest beim Schreiben also dieselben Zeilen wie beim Bewerten. Geschrieben wird in die Kopie der
+  Tabelle im RAM, nie in die Checkpoint-Datei.
+
+**Einstellung wählen, nur an den Dev-Personen:** S ∈ {1, 4, 16} × lr ∈ {0,1, 1, 10, 100, 1000}. Für jedes Paar: die
+50 Dev-Personen schreiben, bewerten, Val-PPL auf den ersten 64 Fenstern des Validierungssatzes messen, dann die
+ursprünglichen Zeilen zurücklegen. Gewählt wird der höchste Dev-Score unter den Einstellungen, die diese Val-PPL um
+höchstens 1 % erhöhen; schafft das keine, trotzdem der höchste Dev-Score. Gleichstand: weniger Schritte, dann die
+kleinere lr.
+
+**Messung** (nachdem die 150 Testpersonen mit der gewählten Einstellung geschrieben sind):
+- Der Score aus Schritt 10: pro Person und Attribut der Prompt im Trainingsformat, `<|endoftext|>Name\n\nName was born
+  in` (oder `grew up in`, `worked as a`), und die Wahrscheinlichkeit des wahren Werts, normiert über alle Werte des
+  Attributs; Score einer Person = Mittel über die drei. Dazu: Ist der wahre Wert der wahrscheinlichste (Trefferquote)?
+- **Lift:** die Änderung des Scores jeder Person (nachher minus vorher), Mittel über die geschriebenen Testpersonen
+  minus Mittel über die nicht geschriebenen, 95-%-Bootstrap über Personen.
+- **Nebenwirkungen:** (1) Val-PPL auf dem ganzen Validierungssatz (1.449 Fenster), nachher gegen vorher; (2) der
+  mittlere Score der 900 Personen, die das Modell 16-, 32- oder 64-mal im Training gesehen hat (es kennt fast alle),
+  nachher minus vorher, gepaarter Bootstrap.
+
+**Vor den Kriterien:** der Nulltest am unveränderten Modell (`scripts/einp.py null` → `report/einp/null.json`, 75 s
+nach dem Laden):
+- Er reproduziert Schritt 10: Val-PPL 20,069 (Trainingslog: 20,069), mittlerer Score der 16-, 32- und 64-mal gesehenen
+  Personen 0,841 / 0,944 / 0,972 (Schritt 10: 0,842 / 0,944 / 0,972).
+- Die drei Gruppen nie gesehener Personen unterscheiden sich schon zufällig: mittlerer Score 0,014 (Dev), 0,017 (Test),
+  0,009 (nicht geschrieben); Test minus nicht geschrieben +0,008 [+0,002; +0,016], über 0. Die Scores sind schief
+  verteilt (Median 0,004 bis 0,005, einzelne Personen bis 0,30, wenn der wahre Wert zufällig einer ist, den das Modell
+  sowieso rät), ein paar Personen verschieben also das Gruppenmittel. Deshalb ist der Lift die Änderung pro Person
+  (nachher minus vorher). Geplant hatte ich zuerst, die Gruppen nach dem Schreiben zu vergleichen; damit hätte schon
+  der Nulltest allein einen „Lift“ gezeigt.
+- Am Stichwort („… was born in“) gelesene Zeilen verschiedener Personen: Überlappung 0,82 in Schicht 2, 0,76 in Schicht
+  6, 0,18 in Schicht 10 (Personen, die das Modell kennt: 0,82 / 0,76 / 0,10). In den ersten beiden Speicherschichten
+  liest fast jede Person am Stichwort dieselben Zeilen; nur Schicht 10 liest pro Person eigene. Ein Schreibvorgang
+  verschiebt also auch Zeilen, die andere Personen lesen.
+- Der Prompt gegen dieselbe Stelle im Artikel: Überlappung 0,97, wenn der Satz des Attributs zuerst kam (der Prompt
+  ist der Anfang des Artikels; nicht genau 1, weil Batches mit Auffüllung in bf16 anders runden), 0,81 als zweiter,
+  0,72 als dritter Satz.
+
+**Kriterien:**
+- **„Fakten in die Tabelle schreiben funktioniert“:** Das Intervall des Lifts liegt über 0, die geschriebenen
+  Testpersonen haben mindestens 50 % ihrer Werte richtig, die Val-PPL steigt um höchstens 1 %, und der mittlere Score
+  der bekannten Personen fällt um höchstens 0,02.
+- **„Funktioniert, mit Nebenwirkungen“:** wie oben, aber eine der beiden Nebenwirkungen liegt über ihrer Grenze.
+- **„Bleibt nur schwach hängen“:** Das Intervall des Lifts liegt über 0, aber weniger als 50 % richtig.
+- **„Bleibt nicht hängen“:** sonst.
+- **Ohne Urteil berichtet:** das ganze Dev-Raster (wie viel jede Einstellung schreibt und was sie kostet); der Score
+  der geschriebenen Personen nach der Stelle des Satzes im geschriebenen Artikel (erster Satz: der Prompt ist wörtlich
+  der Anfang des Geschriebenen; zweiter oder dritter: der Prompt ist ein anderer Kontext); der Anteil des Lesegewichts
+  eines Prompts, der auf geänderte Zeilen fällt, nach derselben Stelle; die Überlappung der am Stichwort gelesenen
+  Zeilen zwischen verschiedenen Personen; die Änderung der nicht geschriebenen Personen; die ersten 50 geschriebenen
+  Personen gegen die letzten 50 (verdrängt ein späterer Schreibvorgang einen früheren?); wie viele Trainings-
+  wiederholungen in Schritt 10 denselben Score geben; die Zeit pro Person und die Zahl geänderter Zeilen.
+
+**Was ich erwarte, und was das nicht zeigen kann:** Ich erwarte, dass ein Fakt hängen bleibt, wo der Prompt der Anfang
+des Geschriebenen ist; das ist nah am Auswendiglernen einer Zeile. Spannend ist, ob es auch klappt, wo der Prompt ein
+anderer Kontext ist, und was es die anderen Personen und den Text kostet. Umformulierte Fragen kann das Modell gar nicht
+beantworten (es kennt nur Wikipedia-Text), das wird also nicht getestet; ebenso wenig echte Fakten in natürlichem Text,
+andere Modelle oder Seeds, Schreiben in den Kern statt in die Tabelle oder ein eigener Speicher neben dem Modell
+(kNN-LM). Die Einstellung stammt aus einem kleinen Raster an 50 Personen.
