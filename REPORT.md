@@ -3746,3 +3746,49 @@ don't know.
 **What this can't show:** as in step 14 and 15. The idf counts reads during training, which included the known
 people's articles, so their rows count as common; that helps S protect exactly those facts and may not carry over to
 knowledge that is rarer in the training text.
+
+### Result of step 16 (2026-10-23, RX 9070 with the table in RAM, `scripts/einpd.py` → `report/einpd/summary.json`)
+
+- **Verdicts by the criteria: A "works, with side effects", S "works, with side effects"; S against A "not
+  comparable".** On the dev people **neither variant had a setting within the budget**, so both ran with the setting
+  that lost the least, and the comparison rule doesn't apply.
+- **Dev grids** (150 fresh people; new people right, their score / known people's change):
+
+| Setting | A: all rows | S: 1,000 rows per pass | S: 3,000 rows per pass |
+|---|---:|---:|---:|
+| lr 0.01, 16 passes | 74%, 0.30 / −0.037 | | |
+| lr 0.03, 16 passes | 98%, 0.71 / −0.036 | | |
+| lr 0.1, 16 passes | 99%, 0.85 / −0.066 | 99%, 0.83 / −0.041 | 99%, 0.86 / **−0.036** |
+| lr 1, 16 passes | | 98%, 0.89 / −0.32 | 98%, 0.90 / −0.41 |
+| lr 0.01, 64 passes | 98%, 0.77 / **−0.034** | | |
+| lr 0.03, 64 passes | 99%, 0.87 / −0.046 | | |
+| lr 0.1, 64 passes | 99%, 0.92 / −0.074 | 99%, 0.92 / −0.052 | 99%, 0.94 / −0.039 |
+| lr 1, 64 passes | | 98%, 0.93 / −0.31 | 97%, 0.93 / −0.39 |
+
+  Val PPL within +0.05% everywhere.
+- **A on the test people** (lr 0.01, 64 passes): 98% right (score 0.800), lift **+0.778 [+0.762; +0.794]**; known
+  people **−0.035 [−0.041; −0.029]**, still 97% / 99.7% / 99.8% right; 1.8 s per person, 495,921 rows changed.
+- **S on the test people** (3,000 rows, lr 0.1, 16 passes): 99% right (score 0.871), lift **+0.850 [+0.836; +0.863]**;
+  known people **−0.049 [−0.056; −0.043]**, 96.7% / 99.2% / 99.3% right; 0.38 s per person, 218,895 rows changed.
+  The known people's read weight at the cue falls 63% / 53% / 35% on the rows S changed (layers 2 / 6 / 10), against
+  99.9% / 99.9% / 88% for A.
+- Both: val PPL unchanged; the sentence's position matters little (A 0.83 / 0.79 / 0.78, S 0.89 / 0.86 / 0.87); later
+  writes still wear down earlier ones (first 50 against last 50: A 0.74 / 0.85, S 0.84 / 0.91). The checkpoint file is
+  unchanged.
+
+**How I read it:**
+- **There is a floor.** Below about −0.035 the known people's loss doesn't go, whatever the dose: lr 0.01 with 16
+  passes writes the new people only weakly (score 0.30) and still costs 0.037. Smaller steps alone won't get under
+  −0.02.
+- **The specific rows do what they should, as far as they go.** At the same setting (lr 0.1, 16 passes), S writes as
+  well as A with less than half the rows and a little over half the loss on dev (−0.036 against −0.066); on the test
+  people S at 0.38 s per person forgets less than A did in step 15 at the same setting (−0.049 against −0.063). Within
+  S, larger steps cost a lot (lr 1: −0.3 to −0.4).
+- **Part of the floor may not be damage to rows but a shifted expectation**, exploratory and not fixed beforehand: in
+  A, known people whose city is among the 150 written people's cities lost 0.023, those whose city isn't lost 0.073;
+  for the years there is no such difference. Writing 150 people makes their values more likely in general, which
+  takes probability from the others.
+- **Where it stands:** new facts 98–99% right in under 2 s per person, general text unchanged, known facts still
+  97–99.8% right but a little less certain (−0.035 to −0.049). Three steps closer, not under my bar.
+- **What this can't show:** as listed with the criteria; the floor is measured for this model, these made-up facts and
+  150 writes in a row.

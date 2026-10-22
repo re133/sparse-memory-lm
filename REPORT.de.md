@@ -3952,3 +3952,51 @@ neuen Fakten. S ändert weniger Zeilen und sollte pro Durchlauf weniger vergesse
 **Was das nicht zeigen kann:** wie in Schritt 14 und 15. Der idf zählt Lesezugriffe im Training, und dazu gehörten die
 Artikel der bekannten Personen; ihre Zeilen gelten also als häufig. Das hilft S, genau diese Fakten zu schützen, und
 überträgt sich vielleicht nicht auf Wissen, das im Trainingstext seltener ist.
+
+### Ergebnis von Schritt 16 (2026-10-23, RX 9070 mit der Tabelle im RAM, `scripts/einpd.py` → `report/einpd/summary.json`)
+
+- **Urteile nach den Kriterien: A „funktioniert, mit Nebenwirkungen“, S „funktioniert, mit Nebenwirkungen“; S gegen A
+  „nicht vergleichbar“.** An den Dev-Personen **hatte keine der beiden Varianten eine Einstellung im Budget**, beide
+  liefen also mit der Einstellung, die am wenigsten verlor, und die Vergleichsregel greift nicht.
+- **Dev-Raster** (150 frische Personen; neue Personen richtig, ihr Score / Änderung der bekannten):
+
+| Einstellung | A: alle Zeilen | S: 1.000 Zeilen pro Durchlauf | S: 3.000 Zeilen pro Durchlauf |
+|---|---:|---:|---:|
+| lr 0,01, 16 Durchläufe | 74 %, 0,30 / −0,037 | | |
+| lr 0,03, 16 Durchläufe | 98 %, 0,71 / −0,036 | | |
+| lr 0,1, 16 Durchläufe | 99 %, 0,85 / −0,066 | 99 %, 0,83 / −0,041 | 99 %, 0,86 / **−0,036** |
+| lr 1, 16 Durchläufe | | 98 %, 0,89 / −0,32 | 98 %, 0,90 / −0,41 |
+| lr 0,01, 64 Durchläufe | 98 %, 0,77 / **−0,034** | | |
+| lr 0,03, 64 Durchläufe | 99 %, 0,87 / −0,046 | | |
+| lr 0,1, 64 Durchläufe | 99 %, 0,92 / −0,074 | 99 %, 0,92 / −0,052 | 99 %, 0,94 / −0,039 |
+| lr 1, 64 Durchläufe | | 98 %, 0,93 / −0,31 | 97 %, 0,93 / −0,39 |
+
+  Val-PPL überall innerhalb von +0,05 %.
+- **A an den Testpersonen** (lr 0,01, 64 Durchläufe): 98 % richtig (Score 0,800), Lift **+0,778 [+0,762; +0,794]**;
+  bekannte Personen **−0,035 [−0,041; −0,029]**, noch 97 % / 99,7 % / 99,8 % richtig; 1,8 s pro Person, 495.921 Zeilen
+  geändert.
+- **S an den Testpersonen** (3.000 Zeilen, lr 0,1, 16 Durchläufe): 99 % richtig (Score 0,871), Lift **+0,850 [+0,836;
+  +0,863]**; bekannte Personen **−0,049 [−0,056; −0,043]**, 96,7 % / 99,2 % / 99,3 % richtig; 0,38 s pro Person,
+  218.895 Zeilen geändert. Das Lesegewicht der bekannten Personen am Stichwort fällt zu 63 % / 53 % / 35 % auf die
+  Zeilen, die S geändert hat (Schichten 2 / 6 / 10), gegen 99,9 % / 99,9 % / 88 % bei A.
+- Beide: Val-PPL unverändert; die Stelle des Satzes spielt wenig Rolle (A 0,83 / 0,79 / 0,78, S 0,89 / 0,86 / 0,87);
+  spätere Schreibvorgänge nutzen frühere noch ab (erste 50 gegen letzte 50: A 0,74 / 0,85, S 0,84 / 0,91). Die
+  Checkpoint-Datei ist unverändert.
+
+**Wie ich es lese:**
+- **Es gibt einen Boden.** Unter etwa −0,035 geht der Verlust der bekannten Personen nicht, egal bei welcher Dosis: lr
+  0,01 mit 16 Durchläufen schreibt die neuen Personen nur schwach (Score 0,30) und kostet trotzdem 0,037. Kleinere
+  Schritte allein bringen es nicht unter −0,02.
+- **Die spezifischen Zeilen tun, was sie sollen, soweit es geht.** Bei derselben Einstellung (lr 0,1, 16 Durchläufe)
+  schreibt S so gut wie A, mit weniger als der Hälfte der Zeilen und gut der Hälfte des Verlusts in Dev (−0,036 gegen
+  −0,066); an den Testpersonen vergisst S bei 0,38 s pro Person weniger als A in Schritt 15 bei derselben Einstellung
+  (−0,049 gegen −0,063). Innerhalb von S kosten größere Schritte viel (lr 1: −0,3 bis −0,4).
+- **Ein Teil des Bodens ist vielleicht kein Schaden an Zeilen, sondern eine verschobene Erwartung**, explorativ und
+  nicht vorher festgelegt: Bei A verloren bekannte Personen, deren Stadt unter den Städten der 150 geschriebenen
+  Personen ist, 0,023, die anderen 0,073; bei den Jahren gibt es keinen solchen Unterschied. 150 Personen zu schreiben
+  macht ihre Werte allgemein wahrscheinlicher, und das nimmt den anderen Wahrscheinlichkeit weg.
+- **Wo es steht:** neue Fakten zu 98–99 % richtig in unter 2 s pro Person, allgemeiner Text unverändert, bekannte
+  Fakten noch zu 97–99,8 % richtig, aber etwas unsicherer (−0,035 bis −0,049). Drei Schritte näher, nicht unter meiner
+  Grenze.
+- **Was das nicht zeigen kann:** wie bei den Kriterien aufgezählt; der Boden ist für dieses Modell, diese
+  ausgedachten Fakten und 150 Schreibvorgänge hintereinander gemessen.
