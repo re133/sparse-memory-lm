@@ -3563,3 +3563,49 @@ different context, and what it costs the other people and the text. The model ca
 all (it only knows Wikipedia text), so that is not tested; nor real facts in natural text, other models or seeds,
 writing into the core instead of the table, or a separate store next to the model (kNN-LM). The setting comes from a
 small grid on 50 people.
+
+### Result of step 14 (2026-10-22, RX 9070 with the table in RAM, `scripts/einp.py` → `report/einp/summary.json`)
+
+- **Verdict by the criteria: "works, with side effects".** The new facts stick, and well, but they push out facts the
+  model had learned in training.
+- **The setting** (dev grid, 50 people; share of their values right, and the dev val PPL):
+
+| Steps \ lr | 0.1 | 1 | 10 | 100 | 1000 |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 44% | 77% | 45% | 18% | 7% |
+| 4 | 99% | 99% | 85% | 59% | 17% |
+| 16 | 100% | **99%** | 89% | 61% | 13% |
+
+  With lr up to 10 the dev val PPL stayed within +0.06%, lr 100 cost about 1%, lr 1000 17%. Chosen by the rule: 16
+  steps, lr 1 (highest dev score, 0.909; 16 steps with lr 0.1 got 100% right with a score of 0.907).
+- **The written test people:** score 0.017 → 0.861, 98% of their values right (before: 2%). Lift (change of the
+  written people minus that of the unwritten, +0.845 against +0.006) **+0.839 [+0.816; +0.860]**.
+- **It isn't only the written line:** score 0.876 where the attribute's sentence came first (the prompt is the start
+  of what was written), 0.851 where it came second and 0.858 third (the prompt is a different context).
+- That is about what 18 repetitions in training gave this model in step 10.
+- **Cost:** 66 s for the 150 people, 0.44 s each (16 passes of a 30-token article), no optimizer state. 511,579 rows
+  changed in all (3% of the table), about 11,200 per pass.
+- **Side effect 1, general text: none.** Val PPL 20.069 → 20.068.
+- **Side effect 2, the facts it knew: large.** The 900 people seen 16, 32 or 64 times in training: mean score
+  0.919 → 0.339, **−0.58 [−0.59; −0.57]** (limit −0.02). Share right 99.7% / 100% / 100% → 52% / 69% / 79%; the more
+  often the model saw a person in training, the better that person survives.
+- **Later writes also wear down earlier ones:** the first 50 test people written score 0.78, the last 50 0.96.
+- The unwritten people moved by +0.006 [+0.002; +0.010]: hardly any general shift towards the written values.
+- The checkpoint file is unchanged (sha256 as in `runs/factk/checkpoints.sha256`).
+
+**How I read it:**
+- For the new facts, writing works better than I expected: one person in under half a second, no optimizer, and it
+  carries over to a prompt that isn't the written text.
+- But it doesn't write into a free spot. At the cue, memory layers 2 and 6 read nearly the same rows for every person
+  (overlap 0.82 and 0.76 in the null test), and 98% of a prompt's read weight falls on rows the writes changed. So the
+  writes don't put "this person's year" into rows of its own; they bend the shared rows that answer "… was born in"
+  for everyone, and the facts the model knew lose out. Wikipedia text doesn't notice, because those rows only matter
+  in this format.
+- So the table isn't yet a notebook with a free page per fact. Next would be to write only where the reads belong to
+  the person (layer 10 reads its own rows for each person: overlap 0.18), or only rows that the fact reads much more
+  than other text does (as in sparse memory finetuning, Lin et al. 2025), and to include the known facts in the choice
+  of the setting.
+- The setting was chosen without looking at the known facts (as fixed beforehand). A smaller dose might forget less;
+  the dev grid didn't measure that.
+- **What this can't show:** as listed with the criteria: one model, one seed, made-up facts in one format, no
+  rephrased questions, a setting from a small grid.

@@ -3753,3 +3753,51 @@ anderer Kontext ist, und was es die anderen Personen und den Text kostet. Umform
 beantworten (es kennt nur Wikipedia-Text), das wird also nicht getestet; ebenso wenig echte Fakten in natürlichem Text,
 andere Modelle oder Seeds, Schreiben in den Kern statt in die Tabelle oder ein eigener Speicher neben dem Modell
 (kNN-LM). Die Einstellung stammt aus einem kleinen Raster an 50 Personen.
+
+### Ergebnis von Schritt 14 (2026-10-22, RX 9070 mit der Tabelle im RAM, `scripts/einp.py` → `report/einp/summary.json`)
+
+- **Urteil nach den Kriterien: „funktioniert, mit Nebenwirkungen“.** Die neuen Fakten bleiben hängen, und zwar gut,
+  aber sie verdrängen Fakten, die das Modell im Training gelernt hatte.
+- **Die Einstellung** (Dev-Raster, 50 Personen; Anteil ihrer Werte richtig, und die Dev-Val-PPL):
+
+| Schritte \ lr | 0,1 | 1 | 10 | 100 | 1000 |
+|---:|---:|---:|---:|---:|---:|
+| 1 | 44 % | 77 % | 45 % | 18 % | 7 % |
+| 4 | 99 % | 99 % | 85 % | 59 % | 17 % |
+| 16 | 100 % | **99 %** | 89 % | 61 % | 13 % |
+
+  Mit lr bis 10 blieb die Dev-Val-PPL innerhalb von +0,06 %, lr 100 kostete etwa 1 %, lr 1000 17 %. Gewählt nach der
+  Regel: 16 Schritte, lr 1 (höchster Dev-Score, 0,909; 16 Schritte mit lr 0,1 hatten 100 % richtig bei Score 0,907).
+- **Die geschriebenen Testpersonen:** Score 0,017 → 0,861, 98 % ihrer Werte richtig (vorher: 2 %). Lift (Änderung der
+  geschriebenen minus die der nicht geschriebenen, +0,845 gegen +0,006) **+0,839 [+0,816; +0,860]**.
+- **Es ist nicht nur die geschriebene Zeile:** Score 0,876, wo der Satz des Attributs zuerst kam (der Prompt ist der
+  Anfang des Geschriebenen), 0,851 als zweiter und 0,858 als dritter Satz (der Prompt ist ein anderer Kontext).
+- Das entspricht etwa dem, was 18 Wiederholungen im Training diesem Modell in Schritt 10 gebracht haben.
+- **Aufwand:** 66 s für die 150 Personen, 0,44 s pro Person (16 Durchläufe eines Artikels von 30 Tokens), kein
+  Optimizer-Zustand. Insgesamt 511.579 Zeilen geändert (3 % der Tabelle), etwa 11.200 pro Durchlauf.
+- **Nebenwirkung 1, allgemeiner Text: keine.** Val-PPL 20,069 → 20,068.
+- **Nebenwirkung 2, die Fakten, die es kannte: groß.** Die 900 Personen, die es 16-, 32- oder 64-mal im Training gesehen
+  hat: mittlerer Score 0,919 → 0,339, **−0,58 [−0,59; −0,57]** (Grenze −0,02). Anteil richtig 99,7 % / 100 % / 100 % →
+  52 % / 69 % / 79 %; je öfter das Modell eine Person im Training gesehen hat, desto besser übersteht sie es.
+- **Spätere Schreibvorgänge nutzen auch frühere ab:** Die ersten 50 geschriebenen Testpersonen liegen bei 0,78, die
+  letzten 50 bei 0,96.
+- Die nicht geschriebenen Personen haben sich um +0,006 [+0,002; +0,010] bewegt: kaum eine allgemeine Verschiebung zu
+  den geschriebenen Werten.
+- Die Checkpoint-Datei ist unverändert (sha256 wie in `runs/factk/checkpoints.sha256`).
+
+**Wie ich es lese:**
+- Für die neuen Fakten funktioniert das Schreiben besser, als ich erwartet hatte: eine Person in unter einer halben
+  Sekunde, ohne Optimizer, und es überträgt sich auf einen Prompt, der nicht der geschriebene Text ist.
+- Aber es schreibt nicht an eine freie Stelle. Am Stichwort lesen die Speicherschichten 2 und 6 für jede Person fast
+  dieselben Zeilen (Überlappung 0,82 und 0,76 im Nulltest), und 98 % des Lesegewichts eines Prompts fallen auf Zeilen,
+  die das Schreiben geändert hat. Das Schreiben legt also nicht „das Geburtsjahr dieser Person“ in eigene Zeilen,
+  sondern verbiegt die gemeinsamen Zeilen, die für alle „… was born in“ beantworten, und die Fakten, die das Modell
+  kannte, verlieren. Wikipedia-Text merkt davon nichts, weil diese Zeilen nur in diesem Format zählen.
+- Die Tabelle ist also noch kein Notizbuch mit einer freien Seite pro Fakt. Als Nächstes: nur dort schreiben, wo die
+  Lesezugriffe der Person gehören (Schicht 10 liest pro Person eigene Zeilen: Überlappung 0,18), oder nur Zeilen, die
+  der Fakt viel öfter liest als anderer Text (wie beim Sparse Memory Finetuning, Lin et al. 2025), und die bekannten
+  Fakten bei der Wahl der Einstellung mitzählen.
+- Die Einstellung wurde ohne Blick auf die bekannten Fakten gewählt (so vorher festgelegt). Eine kleinere Dosis
+  vergisst vielleicht weniger; das Dev-Raster hat das nicht gemessen.
+- **Was das nicht zeigen kann:** wie bei den Kriterien aufgezählt: ein Modell, ein Seed, ausgedachte Fakten in einem
+  Format, keine umformulierten Fragen, eine Einstellung aus einem kleinen Raster.
