@@ -3910,3 +3910,45 @@ umformulierten Fragen), und nur zwei der möglichen Arten, die Zeilen zu wählen
 - **Als Nächstes:** kleinere Schritte mit mehr Durchläufen (der Trend im Raster zeigt dorthin: lr 0,1 schlug lr 1 bei
   gleicher Qualität), und Zeilen danach wählen, wie spezifisch sie für einen Fakt sind (Sparse Memory Finetuning).
 - **Was das nicht zeigen kann:** wie bei den Kriterien aufgezählt.
+
+## Schritt 16: sanfter schreiben, um im Budget zu bleiben (EINPD, Kriterien vor dem Lauf festgelegt, 2026-10-23)
+
+**Frage:** In Schritt 15 hat „alle Zeilen“ mit 16 Durchläufen bei lr 0,1 die neuen Personen zu 99 % richtig
+geschrieben, und die bekannten waren noch zu 96–99 % richtig, aber ihr Score fiel um 0,063, über die −0,02, die ich
+gesetzt hatte. Ein Zehntel der Schrittweite aus Schritt 14 hatte diesen Verlust bei gleicher Qualität auf ein Zehntel
+gedrückt; der naheliegende nächste Versuch ist also noch sanfter. Und ein zweiter Weg: nur die Zeilen ändern, die zum
+Fakt gehören und nicht zu allem.
+
+**Unverändert gegenüber Schritt 15:** Modell, die 150 frischen Dev-Personen, die 300 / 600 bekannten Personen, die 150
+Testpersonen und ihre Reihenfolge, die 100 nicht geschriebenen Personen, Artikel und Loss, das Budget und die Regel,
+die die Einstellung wählt (höchster Dev-Score, bei dem die bekannten Dev-Personen höchstens 0,02 verlieren und die
+Dev-Val-PPL um höchstens 1 % steigt; sonst der kleinste Verlust), die Messung, die Urteile pro Variante.
+
+**Zwei Varianten** (`scripts/einpd.py`):
+- **A, alle Zeilen, sanfter:** lr ∈ {0,01, 0,03, 0,1} × Durchläufe ∈ {16, 64}. Enthält die Einstellung aus Schritt 15
+  (lr 0,1, 16).
+- **S, nur spezifische Zeilen:** In jedem Durchlauf ändern sich nur die 1.000 oder 3.000 Zeilen (von etwa 11.200, die
+  ein Durchlauf liest) mit dem höchsten tf × idf, wie beim Sparse Memory Finetuning (Lin et al. 2025): tf = wie oft der
+  Durchlauf die Zeile vor dem letzten Wert-Token liest, idf = log(alle Lesezugriffe / (1 + die der Zeile)), gezählt über
+  das ganze Training des Modells (`mem_access_train.npy`). Zeilen, die das Modell ständig liest, zählen wenig; Zeilen,
+  die nur dieser Fakt liest, zählen viel. 1.000 oder 3.000 Zeilen × lr ∈ {0,1, 1} × Durchläufe ∈ {16, 64}.
+
+**Kriterien:**
+- **Pro Variante**, wie in Schritt 15: „schreibt, ohne zu verdrängen“, „funktioniert, mit Nebenwirkungen“, „bleibt nur
+  schwach hängen“, „bleibt nicht hängen“.
+- **S gegen A:** nur, wenn beide eine Einstellung im Dev-Budget haben: der Lift von S minus der von A, gepaart über
+  dieselben Personen: **„die spezifischen Zeilen schreiben im Budget mehr“**, wenn das Intervall über 0 liegt, **„alle
+  Zeilen schreiben mehr“**, wenn darunter, sonst **„kein klarer Unterschied“**. Sind nicht beide im Budget: **„nicht
+  vergleichbar“** (der Vergleich in Schritt 15 war nicht bei gleichem Vergessen; diese Regel vermeidet das).
+- **Ohne Urteil berichtet:** beide Dev-Raster; pro Variante der Anteil des Lesegewichts der bekannten Testpersonen am
+  Stichwort, pro Schicht, der auf die für die Testpersonen geschriebenen Zeilen fällt; Score nach der Stelle des
+  Satzes; die ersten 50 geschriebenen gegen die letzten 50; Trainingswiederholungen mit demselben Score; Zeit pro
+  Person und geänderte Zeilen.
+
+**Was ich erwarte:** A kommt bei lr 0,03 oder 0,01 mit 64 Durchläufen ins Budget und schreibt dabei noch die meisten
+neuen Fakten. S ändert weniger Zeilen und sollte pro Durchlauf weniger vergessen; ob 1.000 Zeilen pro Durchlauf
+überhaupt reichen, um einen Fakt zu schreiben, weiß ich nicht.
+
+**Was das nicht zeigen kann:** wie in Schritt 14 und 15. Der idf zählt Lesezugriffe im Training, und dazu gehörten die
+Artikel der bekannten Personen; ihre Zeilen gelten also als häufig. Das hilft S, genau diese Fakten zu schützen, und
+überträgt sich vielleicht nicht auf Wissen, das im Trainingstext seltener ist.

@@ -100,9 +100,13 @@ class TableWriter:
     its rows through a small leaf tensor (a copy of those rows) instead of the table, so backward fills exactly the
     rows read; step() adds -lr * gradient to them in the table and remembers their original values for restore()."""
 
-    def __init__(self, model, layers=None):
+    def __init__(self, model, layers=None, top=None, idf=None):
         self.mems = model.memory_layers()
         self.layers = layers                    # indices into memory_layers() whose reads are written (None: all)
+        # top: write only the `top` rows with the highest tf * idf among those with a gradient (sparse memory
+        # finetuning, Lin et al. 2025): tf = how often this pass reads the row before its last value token, idf =
+        # a CPU tensor over all rows (rare in background text = high)
+        self.top, self.idf, self.limit = top, idf, None
         self.table = self.mems[0].values.weight
         assert all(m.values.weight is self.table for m in self.mems), "one shared table"
         assert self.table.device.type == "cpu" and self.table.dtype == torch.float32
@@ -115,7 +119,13 @@ class TableWriter:
         sub = self.table.detach().index_select(0, rows.cpu()).to(indices.device)
         if self.layers is None or self.mems.index(mem) in self.layers:
             sub.requires_grad_(True)
-            self.parts.append((rows.cpu(), sub))
+            tf = None
+            if self.top is not None:
+                seen = indices.reshape(-1, indices.shape[-1])[:self.limit]   # positions that get a gradient
+                tf = torch.zeros(len(rows), device=indices.device).index_add_(
+                    0, torch.searchsorted(rows, seen.reshape(-1)), torch.ones(seen.numel(), device=indices.device))
+                tf = tf.cpu()
+            self.parts.append((rows.cpu(), sub, tf))
         return F.embedding_bag(inv.view_as(indices), sub, per_sample_weights=weights.to(sub.dtype), mode="sum")
 
     def __enter__(self):
@@ -130,12 +140,18 @@ class TableWriter:
 
     @torch.no_grad()
     def step(self, lr):
-        rows = torch.cat([r for r, _ in self.parts])
+        rows = torch.cat([r for r, _, _ in self.parts])
         grad = torch.cat([s.grad.float().cpu() if s.grad is not None else torch.zeros_like(s, device="cpu")
-                          for _, s in self.parts])
+                          for _, s, _ in self.parts])
         rows, inv = torch.unique(rows, return_inverse=True)
         g = torch.zeros(len(rows), grad.shape[1]).index_add_(0, inv, grad)
         nz = g.abs().sum(1) > 0                  # rows read only after the last value token get no gradient
+        if self.top is not None:
+            tf = torch.zeros(len(rows)).index_add_(0, inv, torch.cat([t for _, _, t in self.parts]))
+            score = torch.where(nz, tf * self.idf[rows], torch.tensor(-1.0))
+            keep = torch.zeros(len(rows), dtype=torch.bool)
+            keep[score.topk(min(self.top, int(nz.sum()))).indices] = True
+            nz = nz & keep
         rows, g = rows[nz], g[nz]
         new = rows[~self.saved[rows]]
         if len(new):
@@ -159,6 +175,7 @@ def write_person(model, writer, art, steps, lr, device):
     pos = [v["pos"] for v in art["values"].values()]
     tgt = torch.tensor([art["ids"][p] for p in pos], device=device)
     rows = 0
+    writer.limit = max(pos)                  # positions before the last value token (the ones with a gradient)
     for _ in range(steps):
         with writer, torch.autocast("cuda", dtype=torch.bfloat16, enabled=device == "cuda"):
             logits = model(x)

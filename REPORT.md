@@ -3707,3 +3707,42 @@ text (sparse memory finetuning, Lin et al. 2025) comes next if B doesn't do it.
 - **Next:** smaller steps with more passes (the grid's trend points there: lr 0.1 beat lr 1 at the same quality), and
   choosing rows by how specific they are to a fact (sparse memory finetuning).
 - **What this can't show:** as listed with the criteria.
+
+## Step 16: writing more gently, to stay within the budget (EINPD, criteria fixed before the run, 2026-10-23)
+
+**Why:** In step 15, all rows with 16 passes at lr 0.1 wrote 99% of the new people right, and the known people were
+still 96–99% right, but their score dropped by 0.063, over the −0.02 I had set. A tenth of step 14's step size had cut
+that loss tenfold at the same quality, so the obvious next try is gentler still. And a second way: change only the
+rows that belong to the fact rather than to everything.
+
+**Unchanged from step 15:** model, the 150 fresh dev people, the 300 / 600 known people, the 150 test people and
+their order, the 100 unwritten people, the article and the loss, the budget and the rule that chooses the setting
+(highest dev score with the known dev people losing at most 0.02 and the dev val PPL rising at most 1%; if none, the
+smallest loss), the measure, the verdicts per variant.
+
+**Two variants** (`scripts/einpd.py`):
+- **A, all rows, gentler:** lr ∈ {0.01, 0.03, 0.1} × passes ∈ {16, 64}. Includes step 15's setting (lr 0.1, 16).
+- **S, specific rows only:** in each pass only the 1,000 or 3,000 rows (of about 11,200 a pass reads) with the highest
+  tf × idf change, as in sparse memory finetuning (Lin et al. 2025): tf = how often the pass reads the row before the
+  last value token, idf = log(all reads / (1 + the row's reads)), the reads counted over the model's whole training
+  (`mem_access_train.npy`). Rows the model reads all the time count little; rows only this fact reads count a lot.
+  1,000 or 3,000 rows × lr ∈ {0.1, 1} × passes ∈ {16, 64}.
+
+**Criteria:**
+- **Per variant**, as in step 15: "writes without pushing out", "works, with side effects", "sticks only weakly",
+  "doesn't stick".
+- **S against A:** only if both have a setting within the dev budget: the lift of S minus that of A, paired over the
+  same people: **"the specific rows write more within the budget"** if the interval lies above 0, **"all rows write
+  more"** if below, otherwise **"no clear difference"**. If not both are within the budget: **"not comparable"**
+  (step 15's comparison wasn't at the same forgetting; this rule avoids that).
+- **Reported without a verdict:** both dev grids; per variant the share of the known test people's read weight at the
+  cue, per layer, that falls on the rows written for the test people; score by the sentence's position; first 50
+  written against the last 50; training repetitions with the same score; time per person and rows changed.
+
+**What I expect:** A gets within the budget at lr 0.03 or 0.01 with 64 passes and still writes most of the new facts.
+S changes fewer rows and should forget less per pass; whether 1,000 rows per pass are enough to write a fact at all, I
+don't know.
+
+**What this can't show:** as in step 14 and 15. The idf counts reads during training, which included the known
+people's articles, so their rows count as common; that helps S protect exactly those facts and may not carry over to
+knowledge that is rarer in the training text.

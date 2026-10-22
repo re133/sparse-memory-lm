@@ -88,3 +88,21 @@ def test_layer_subset_writes_only_rows_that_layer_reads():
     assert changed and changed <= read_last
     w.restore()
     assert torch.equal(m.memory_layers()[0].values.weight.detach(), table0)
+
+
+def test_top_rows_by_tf_idf():
+    m = tiny(3)
+    table0 = m.memory_layers()[0].values.weight.detach().clone()
+    a = art()
+    full = TableWriter(m)
+    write_person(m, full, a, steps=1, lr=1.0, device="cpu")
+    all_rows = (m.memory_layers()[0].values.weight.detach() != table0).any(1)
+    full.restore()
+    # with top=3 exactly 3 rows change, all of them rows that had a gradient
+    idf = torch.linspace(10.0, 1.0, table0.shape[0])
+    w = TableWriter(m, top=3, idf=idf)
+    write_person(m, w, a, steps=1, lr=1.0, device="cpu")
+    changed = torch.nonzero((m.memory_layers()[0].values.weight.detach() != table0).any(1)).view(-1)
+    assert len(changed) == 3 and set(changed.tolist()) <= set(torch.nonzero(all_rows).view(-1).tolist())
+    w.restore()
+    assert torch.equal(m.memory_layers()[0].values.weight.detach(), table0)
