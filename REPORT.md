@@ -4398,3 +4398,29 @@ are short one-sentence texts about the same three attributes, so this is a narro
   people and text in each step, or only the query and key parts trainable), and a check that the known people stay.
 - **Caveats** as fixed before: one setting, not tuned; one seed; first order only; short one-sentence texts.
 - **Code:** `scripts/einpm.py` as of commit `b5fc349`.
+
+## Step 25: the same, gentler (EINPM 2, criteria fixed before the run, 2026-10-23)
+
+**Why:** In step 24 the write episodes taught the core to read written facts much better, but the fine-tuning itself
+cost the known people more than any write (0.917 → 0.542 before writing) and the text 4.4%. And my damage measure
+missed that: it started from the fine-tuned model's own scores. Here the same once more, with a core that should
+change less, and measured against the original model.
+
+**Fine-tuning** (`scripts/einpm.py train --variant einpm2`): exactly step 24 (the same 600 fresh people, wordings,
+episodes, writes and order) with three changes fixed now, not tuned: AdamW lr 1e-5 instead of 5e-5, 32 known people
+per step instead of 8 (from the same 300), 2 windows of training text instead of 1.
+
+**Measurement:** step 22's test as in step 24, with these criteria:
+- **Known people before any write:** mean change of the 600 known people of the fine-tuned model against the original,
+  before writing. At least −0.035 (step 16's floor): "keeps what it knew"; below: "forgets what it knew".
+- **Damage, now against the original:** the known people after the writes, fine-tuned minus step 22, paired, bootstrap
+  95% interval (both measured from the same original scores): "less damage" above 0, "more damage" below, otherwise
+  "no change in damage".
+- **Carrying over** and **text** as in step 24.
+- **Verdict:** "the model learned to be written into" if damage or carrying over gets better and nothing gets worse
+  (text and the known people before writing included); "a trade-off" if something gets better and something else
+  worse; "not learned" if neither gets better.
+
+Only if it can end before 19:30.
+
+**What this can't show:** as in step 24; and one more setting doesn't map out how much fine-tuning is right.

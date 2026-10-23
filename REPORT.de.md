@@ -4642,3 +4642,32 @@ ist also eine enge Art der Verallgemeinerung.
 - **Vorbehalte** wie vorher festgelegt: eine Einstellung, nicht abgestimmt; ein Seed; nur erste Ordnung; kurze
   Ein-Satz-Texte.
 - **Code:** `scripts/einpm.py` ab Commit `b5fc349`.
+
+## Schritt 25: dasselbe, sanfter (EINPM 2, Kriterien vor dem Lauf festgelegt, 2026-10-23)
+
+**Warum:** In Schritt 24 brachten die Schreib-Episoden dem Kern bei, geschriebene Fakten viel besser zu lesen, aber das
+Nachtraining selbst kostete die bekannten Personen mehr als jedes Schreiben (0,917 → 0,542 vor dem Schreiben) und den
+Text 4,4 %. Und mein Maß für den Schaden übersah das: es ging von den eigenen Werten des nachtrainierten Modells aus.
+Hier dasselbe noch einmal, mit einem Kern, der sich weniger ändern soll, und gemessen gegen das ursprüngliche Modell.
+
+**Nachtraining** (`scripts/einpm.py train --variant einpm2`): genau Schritt 24 (dieselben 600 neuen Personen,
+Formulierungen, Episoden, Schreibvorgänge und Reihenfolge) mit drei Änderungen, jetzt festgelegt, nicht abgestimmt:
+AdamW-lr 1e-5 statt 5e-5, 32 bekannte Personen pro Schritt statt 8 (aus denselben 300), 2 Fenster Trainingstext statt
+1.
+
+**Messung:** der Test aus Schritt 22 wie in Schritt 24, mit diesen Kriterien:
+- **Bekannte Personen vor jedem Schreiben:** mittlere Änderung der 600 bekannten Personen des nachtrainierten Modells
+  gegen das ursprüngliche, vor dem Schreiben. Mindestens −0,035 (der Boden aus Schritt 16): „behält, was es wusste“;
+  darunter: „vergisst, was es wusste“.
+- **Schaden, jetzt gegen das ursprüngliche Modell:** die bekannten Personen nach dem Schreiben, nachtrainiert minus
+  Schritt 22, gepaart, Bootstrap-95-%-Intervall (beide von denselben ursprünglichen Werten aus gemessen): „weniger
+  Schaden“ über 0, „mehr Schaden“ darunter, sonst „Schaden unverändert“.
+- **Übertragen** und **Text** wie in Schritt 24.
+- **Urteil:** „das Modell hat gelernt, beschreibbar zu sein“, wenn Schaden oder Übertragen besser wird und nichts
+  schlechter (Text und die bekannten Personen vor dem Schreiben eingeschlossen); „ein Tausch“, wenn etwas besser und
+  etwas anderes schlechter wird; „nicht gelernt“, wenn keins von beiden besser wird.
+
+Nur wenn es vor 19:30 enden kann.
+
+**Was das nicht zeigen kann:** wie in Schritt 24; und eine weitere Einstellung zeigt noch nicht, wie viel Nachtraining
+richtig ist.
