@@ -321,5 +321,50 @@
   "val2_ppl": 132.3282647452096,
   "commit": "f6bdd7f1cb5090a59c9477c3dcdac04f17485d93",
   "dirty": false
+ },
+ "fast": {
+  "run": "B-16M-host-rowrms-2.4e-3-hot5-gacc-s0",
+  "reference": "B-16M-host-rowrms-2.4e-3-s0",
+  "rel": {
+   "305": 0.015464530387325315,
+   "610": 0.0030297425854624027
+  },
+  "verdict": "differs",
+  "val_ppl": {
+   "305": [
+    486.0318876155325,
+    478.63009792193037
+   ],
+   "610": [
+    193.03093501047067,
+    192.4478675107918
+   ]
+  },
+  "train_tok_s": {
+   "305": [
+    13076.764189228672,
+    9678.864072770195
+   ],
+   "610": [
+    12277.00694302568,
+    8671.899290825759
+   ]
+  },
+  "speed_ratio": {
+   "305": 1.3510639359031686,
+   "610": 1.4157229611757445
+  },
+  "peak_vram_gib": 13.872,
+  "peak_ram_bytes": 32486727680,
+  "step_rows_peak": 4946441,
+  "step_rows_spilled_steps": 24,
+  "train_config": {
+   "hot_rows": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/cloud/B-16M-s0/mem_access_train.npy",
+   "hot_frac": 0.05,
+   "step_rows": 4470000.0,
+   "fused_ce": true
+  },
+  "commit": "117f3aa17686d1bf18a720303fca9f35d3726b40",
+  "dirty": false
  }
 }

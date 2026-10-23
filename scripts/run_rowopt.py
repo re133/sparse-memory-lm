@@ -7,6 +7,7 @@ value (REPORT.md, "Step 18").
   python scripts/run_rowopt.py fast CONFIG                            step 21: part B's run to 20 M with HOT / GACC
                                                                       (CONFIG: gacc, hot5-gacc, hot10, hot5)
   python scripts/run_rowopt.py grow                                   step 23: step 20's B-4M, grown at 40 M tokens
+  python scripts/run_rowopt.py rerun                                  step 21's cause check: part B again to step 305
   python scripts/run_rowopt.py --smoke DIR screen                     part A on 1 M tokens into DIR, no ntfy
 
 Part A: B-1M-sparse as in runs/hampter (Triton, table LR 2.4e-3 for Adam), but a full schedule over 50 M tokens, no
@@ -103,6 +104,14 @@ def main():
         run_shape.COMMON = B4G + ["--value_lr", lr, "--micro_bs", mb] + stop
         run_shape.EST_H = {name: 1.0}
         run_shape.log(f"step 20 start: {name}")
+        result = run_shape.run(name, [], None)
+        run_shape.log(f"QUEUE DONE | {name} {result}")
+    elif argv == ["rerun"]:
+        # step 21's cause check: part B's exact configuration once more, to the evaluation at step 305
+        name = "B-16M-host-rowrms-2.4e-3-s0-rerun"
+        run_shape.COMMON = BIG + ["--stop_after_tokens", "9.9e6", "--value_optim", "rowrms", "--value_lr", "2.4e-3"]
+        run_shape.EST_H = {name: 0.5}
+        run_shape.log(f"step 21 cause check start: {name}")
         result = run_shape.run(name, [], None)
         run_shape.log(f"QUEUE DONE | {name} {result}")
     elif argv == ["grow"]:

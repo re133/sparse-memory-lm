@@ -4169,6 +4169,31 @@ rows read in one step and the number of steps with an overflow (`run-info.json`)
 Everything else as fixed above: rowrms + HOT 5% + GACC with 4.47 M rows, the same criteria. Only the time limit
 changes: the run has to end before 19:30 today.
 
+### Result of step 21 (2026-10-23, RX 9070 + 128 GB, `scripts/rowopt_summary.py fast` → `report/rowopt/summary.json`)
+
+- **Verdict: "differs"**, by the rule fixed before: val PPL 486.03 against 478.63 at step 305 (+1.5%), 193.03 against
+  192.45 at step 610 (+0.3%). The first is outside ±1%.
+- **Faster, less RAM:** 1,610.5 s of training for the 20 M tokens instead of 2,233.9 s (1.39×; 13,080 against 9,680
+  tokens/s at step 305, 12,280 against 8,670 at step 610). Peak RAM of the run's systemd unit 30.3 GiB instead of
+  52.3 GiB. GPU memory 13.9 GiB (part B 6.3).
+- **Less than the benchmark promised:** there rowrms + HOT 5% + GACC was 1.66× rowrms alone (9,720 against 5,870
+  tokens/s); in the run it is 1.39×. The benchmark measured 3 steps on an already trained model.
+- **The buffer overflowed:** the most distinct rows in one step were 4,946,441, 11% more than the 4.47 M (whose
+  estimate came from an Adam run); 24 of the 610 steps overflowed into RAM. Before this afternoon's change the run
+  would have stopped at the first of them.
+- **GPU memory at the edge:** 8 times the allocator reported "memory allocation failed with OOM" (7 in the first two
+  minutes, 1 at the end); each time it freed its cache and went on, the run didn't stop.
+- **Where the difference comes from, as far as I can see without another run:** the training losses of the two runs
+  agree to 1e-4 for the first 160 steps, then drift apart in both directions by up to 0.005 (step 340: 6.023 against
+  6.028). That is what another order of additions does: the same math with other rounding, and the paths separate
+  slowly. A wrong gradient would push one way and grow. At step 305 the curve is steep (val PPL falls by 60% from step
+  305 to 610), so a small shift shows up as 1.5%; at step 610 it's 0.3%. Also different from part B: `--fused_ce`.
+- **Cause check, fixed before it runs:** part B's exact configuration once more, to step 305 (`scripts/run_rowopt.py
+  rerun`, today's code). If this rerun differs from part B by 1% or more at step 305, step 21's difference lies within
+  the spread of an identical run: **"noise of the steep phase"**. If it differs by less than 0.5%, the difference comes
+  from the changes (HOT, GACC, the chunked loss) and needs a closer look before I use them: **"not noise"**. In
+  between: **"unclear"**. Only if it can end before 19:30.
+
 ## Step 22: facts written in other words, asked in the usual ones (EINP3, criteria fixed before the run, 2026-10-23)
 
 **Why:** Steps 14 to 16 wrote each new person's article in the exact training format, and the question was the start

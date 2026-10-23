@@ -4393,6 +4393,33 @@ verschiedene Zeilen ein Schritt höchstens las und in wie vielen Schritten der P
 Alles andere wie oben festgelegt: rowrms + HOT 5 % + GACC mit 4,47 Mio. Zeilen, dieselben Kriterien. Nur die
 Zeitgrenze ändert sich: der Lauf muss heute vor 19:30 enden.
 
+### Ergebnis von Schritt 21 (2026-10-23, RX 9070 + 128 GB, `scripts/rowopt_summary.py fast` → `report/rowopt/summary.json`)
+
+- **Urteil: „differs“**, nach der vorher festgelegten Regel: Val-PPL 486,03 gegen 478,63 bei Schritt 305 (+1,5 %),
+  193,03 gegen 192,45 bei Schritt 610 (+0,3 %). Ersteres liegt außerhalb von ±1 %.
+- **Schneller, weniger RAM:** 1.610,5 s Training für die 20 Mio. Tokens statt 2.233,9 s (1,39×; 13.080 gegen 9.680
+  Tokens/s bei Schritt 305, 12.280 gegen 8.670 bei Schritt 610). RAM-Spitze der systemd-Unit des Laufs 30,3 GiB statt
+  52,3 GiB. GPU-Speicher 13,9 GiB (Teil B 6,3).
+- **Weniger, als der Benchmark versprach:** dort war rowrms + HOT 5 % + GACC 1,66× so schnell wie rowrms allein (9.720
+  gegen 5.870 Tokens/s); im Lauf sind es 1,39×. Der Benchmark maß 3 Schritte an einem schon trainierten Modell.
+- **Der Puffer lief über:** die meisten verschiedenen Zeilen in einem Schritt waren 4.946.441, 11 % mehr als die 4,47
+  Mio. (deren Schätzung aus einem Adam-Lauf stammte); 24 der 610 Schritte liefen in den RAM über. Vor der Änderung von
+  heute Nachmittag wäre der Lauf beim ersten davon stehen geblieben.
+- **GPU-Speicher am Rand:** 8-mal meldete der Allokator „memory allocation failed with OOM“ (7-mal in den ersten zwei
+  Minuten, einmal am Ende); jedes Mal gab er seinen Cache frei und machte weiter, der Lauf brach nicht ab.
+- **Woher der Unterschied kommt, soweit ich es ohne weiteren Lauf sehe:** die Trainingsverluste beider Läufe stimmen
+  in den ersten 160 Schritten auf 1e-4 überein und laufen dann in beide Richtungen um bis zu 0,005 auseinander
+  (Schritt 340: 6,023 gegen 6,028). So sieht eine andere Reihenfolge der Additionen aus: dieselbe Mathematik mit anderer
+  Rundung, und die Wege trennen sich langsam. Ein falscher Gradient würde in eine Richtung drücken und wachsen. Bei
+  Schritt 305 ist die Kurve steil (die Val-PPL fällt von Schritt 305 bis 610 um 60 %), eine kleine Verschiebung zeigt
+  sich also als 1,5 %; bei Schritt 610 sind es 0,3 %. Außerdem anders als in Teil B: `--fused_ce`.
+- **Ursachen-Prüfung, festgelegt bevor sie läuft:** genau die Konfiguration von Teil B noch einmal, bis Schritt 305
+  (`scripts/run_rowopt.py rerun`, Code von heute). Weicht diese Wiederholung bei Schritt 305 um 1 % oder mehr von Teil
+  B ab, liegt der Unterschied von Schritt 21 in der Streuung eines identischen Laufs: **„Rauschen der steilen Phase“**.
+  Weicht sie um weniger als 0,5 % ab, kommt der Unterschied von den Änderungen (HOT, GACC, der stückweise Verlust) und
+  braucht einen genaueren Blick, bevor ich sie nutze: **„kein Rauschen“**. Dazwischen: **„unklar“**. Nur wenn es vor
+  19:30 enden kann.
+
 ## Schritt 22: Fakten in anderen Worten geschrieben, mit den üblichen gefragt (EINP3, Kriterien vor dem Lauf festgelegt, 2026-10-23)
 
 **Frage:** Die Schritte 14 bis 16 schrieben den Artikel jeder neuen Person genau im Trainingsformat, und die Frage war
