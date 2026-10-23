@@ -4516,6 +4516,41 @@ Zeit), gegen die 37,632 aus Schritt 20. Das 1 % ist die Regel aus Schritt 8.
 zu wachsen (die andere übliche Art kopiert vorhandene Blöcke); nur B-4M. Trainingszeit auf demselben PC, aber ein paar
 Stunden nach dem Lauf aus Schritt 20.
 
+### Ergebnis von Schritt 23 (2026-10-23, RX 9070, `scripts/rowopt_summary.py grow` → `report/rowopt/summary.json`)
+
+- **Urteil: „no difference I can measure“:** bei der Trainingszeit, die Schritt 20 für 100 Mio. Tokens brauchte
+  (2.462,8 s), hat der gewachsene Lauf eine Val-PPL von 37,91 gegen 37,63 (+0,7 %, interpoliert zwischen seinen
+  Auswertungen bei 100 und 110 Mio. Tokens; bis dahin hatte er 105,6 Mio. Tokens gesehen).
+- **Die kleine Phase war nur 18 % schneller:** 47.650 Tokens/s vor dem Wachsen, 40.390 danach (Schritt 20: 40.590). Die
+  sechs übersprungenen Blöcke sind ein kleiner Teil der Arbeit; die Ausgabeschicht über 50.304 Tokens, die Attention
+  der anderen sechs Blöcke und die drei Tabellen-Lesungen bleiben. Die 40 Mio. Tokens der kleinen Phase sparten also
+  140 s, 5,7 % der Zeit bis 100 Mio.
+- **Bei gleichen Tokens** liegt das gewachsene Modell zurück: 3,3 % schlechter bei 100 Mio. Tokens (38,87 gegen 37,63),
+  nach 5,7 % weniger Trainingszeit.
+- **WikiText-103 zum selben Zeitpunkt:** 128,27 gegen 132,33 (−3,1 %), ohne Urteil berichtet.
+- **Ein Sprung nach dem Wachsen:** beim Wachsen selbst ändert sich die Ausgabe nicht, in den ersten Schritten danach
+  schon. Der Trainingsverlust geht von 4,27 (Schritte 1.211 bis 1.220) auf 4,55 (1.221 bis 1.230), Gradientennorm 4,3
+  statt 0,8, und ist bei Schritt 1.240 wieder bei 4,30 (Schritt 20: 4,21 und 4,18). Die neuen Blöcke starten mit leerem
+  Adam-Zustand, ihre ersten Updates sind also so groß, wie die Lernrate erlaubt. Ein Warm-up für die neuen Blöcke würde
+  das wahrscheinlich abmildern (nicht ausprobiert).
+- GPU-Speicher 14,74 GiB, wie in Schritt 20.
+
+| Tokens | gewachsen: Val-PPL | Trainingszeit | Schritt 20: Val-PPL | Trainingszeit |
+|---|---:|---:|---:|---:|
+| 40 Mio. (Wachsen) | 76,02 | 840 s | 71,79 | 978 s |
+| 60 Mio. | 52,38 | 1.333 s | 50,25 | 1.471 s |
+| 80 Mio. | 43,62 | 1.827 s | 42,07 | 1.967 s |
+| 100 Mio. | 38,87 | 2.323 s | 37,63 | 2.463 s |
+| 110 Mio. | 37,19 | 2.571 s | – | – |
+| 130 Mio. | 34,38 | 3.067 s | – | – |
+
+- **Was das heißt:** mit diesem Wachsen trainiert B-4M zu Hause nicht schneller; es landet ungefähr dort, wo es sowieso
+  gelandet wäre. Für einen echten Gewinn müsste die kleine Phase viel billiger sein als hier (mehr vom Modell schlafen
+  lassen, oder ein breiteres Modell, das in der Breite wächst), und der Sprung nach dem Wachsen kleiner.
+- **Vorbehalte** wie vorher festgelegt: ein Seed, ein Zeitpunkt und eine Art zu wachsen, 100 bis 130 Mio. Tokens eines
+  Plans über 500 Mio., nur B-4M.
+- **Code:** Commit `b5fc349` (Wachsen ab `f264417`).
+
 ## Schritt 24: das Modell lernt, beschreibbar zu sein (EINPM, Kriterien vor dem Lauf festgelegt, 2026-10-23)
 
 **Warum:** Schritt 22 zeigte zwei Probleme beim Schreiben von Fakten in das fertige Modell. Ein in anderen Worten

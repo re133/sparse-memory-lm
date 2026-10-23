@@ -47,3 +47,6 @@
 2026-10-23 15:19:40 QUEUE DONE | B-16M-host-rowrms-2.4e-3-hot5-gacc-s0 done
 2026-10-23 15:20:26 step 23 start: B-4M-gpu-rowrms-2.4e-3-mb4-grow40-s0
 2026-10-23 15:20:26 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-4M-gpu-rowrms-2.4e-3-mb4-grow40-s0 --model B-4M-sparse --mem_impl triton --seed 0 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --weight_decay 0.1 --no_save --value_optim rowrms --fused_ce --value_lr 2.4e-3 --micro_bs 4 --grow_layers 1,3,5,7,9,11 --grow_at_tokens 39.98e6 --stop_after_tokens 129.9e6
+2026-10-23 16:15:26 end B-4M-gpu-rowrms-2.4e-3-mb4-grow40-s0 rc=0  (0.92 h) val_ppl 34.384
+2026-10-23 16:15:27 ntfy: B-4M-gpu-rowrms-2.4e-3-mb4-grow40-s0 fertig, Val-PPL 34.384, 0.9 h
+2026-10-23 16:15:27 QUEUE DONE | B-4M-gpu-rowrms-2.4e-3-mb4-grow40-s0 done

@@ -4284,6 +4284,40 @@ tokens, tokens per second before and after the growth, WikiText-103 at the same 
 **What this can't show:** one seed; 100 to 130 M tokens of a 500 M schedule; one growth point and one way to grow (the
 other common way copies existing blocks); only B-4M. Training time on the same PC, but a few hours after step 20's run.
 
+### Result of step 23 (2026-10-23, RX 9070, `scripts/rowopt_summary.py grow` → `report/rowopt/summary.json`)
+
+- **Verdict: "no difference I can measure":** at the training time step 20 needed for 100 M tokens (2,462.8 s), the
+  grown run has val PPL 37.91 against 37.63 (+0.7%, interpolated between its evaluations at 100 and 110 M tokens; by
+  then it had seen 105.6 M tokens).
+- **The small phase was only 18% faster:** 47,650 tokens/s before the growth, 40,390 after (step 20: 40,590). The six
+  skipped blocks are a small part of the work; the output layer over 50,304 tokens, the attention of the other six
+  blocks and the three table reads stay. So the 40 M tokens of the small phase saved 140 s, 5.7% of the time to 100 M.
+- **At the same tokens** the grown model is behind: 3.3% worse at 100 M tokens (38.87 against 37.63), after 5.7% less
+  training time.
+- **WikiText-103 at the same time point:** 128.27 against 132.33 (−3.1%), reported without a verdict.
+- **A jump after the growth:** the output doesn't change at the growth itself, but the first steps after it do. The
+  training loss goes from 4.27 (steps 1,211 to 1,220) to 4.55 (1,221 to 1,230), gradient norm 4.3 instead of 0.8, and
+  is back at 4.30 by step 1,240 (step 20: 4.21 and 4.18). The new blocks start with an empty Adam state, so their first
+  updates are as large as the learning rate allows. A warm-up for the new blocks would probably soften this (not
+  tried).
+- GPU memory 14.74 GiB, as in step 20.
+
+| tokens | grown: val PPL | training time | step 20: val PPL | training time |
+|---|---:|---:|---:|---:|
+| 40 M (growth) | 76.02 | 840 s | 71.79 | 978 s |
+| 60 M | 52.38 | 1,333 s | 50.25 | 1,471 s |
+| 80 M | 43.62 | 1,827 s | 42.07 | 1,967 s |
+| 100 M | 38.87 | 2,323 s | 37.63 | 2,463 s |
+| 110 M | 37.19 | 2,571 s | – | – |
+| 130 M | 34.38 | 3,067 s | – | – |
+
+- **What it means:** with this growth, B-4M doesn't train faster at home; it ends about where it would have anyway.
+  For a real gain the small phase would have to be much cheaper than here (more of the model asleep, or a wider model
+  that grows in width), and the jump after the growth would have to be smaller.
+- **Caveats** as fixed before: one seed, one growth point and one way to grow, 100 to 130 M tokens of a 500 M
+  schedule, only B-4M.
+- **Code:** commit `b5fc349` (growth from `f264417`).
+
 ## Step 24: the model learns to be written into (EINPM, criteria fixed before the run, 2026-10-23)
 
 **Why:** Step 22 showed two problems with writing facts into the finished model. A fact written in other words comes
