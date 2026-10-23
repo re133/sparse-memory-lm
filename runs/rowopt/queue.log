@@ -27,3 +27,8 @@
 2026-10-23 05:24:52 ntfy: Schritt 18 Teil A fertig: adam-s0 62.80, rowrms-1.2e-3-s0 63.22, rowrms-2.4e-3-s0 60.45, rowrms-0.6e-3-s0 65.55, adam-s1 61.92, rowadagrad-0.03-s0 61.71, rowadagrad-0.1-s0 61.72, rowadagrad-0.01-s0 65.81
 2026-10-23 05:28:12 step 18 part B start: B-16M-host-rowrms-2.4e-3-s0, stop after 99.9e6 tokens
 2026-10-23 05:28:12 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-16M-host-rowrms-2.4e-3-s0 --value_optim rowrms --value_lr 2.4e-3 --model B-16M-sparse --value_device host --value_state fp32 --mem_impl triton --seed 0 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --weight_decay 0.1 --no_save --stop_after_tokens 99.9e6
+2026-10-23 09:40:42 end B-16M-host-rowrms-2.4e-3-s0 rc=0  (4.21 h) val_ppl 36.731
+2026-10-23 09:40:42 ntfy: B-16M-host-rowrms-2.4e-3-s0 fertig, Val-PPL 36.731, 4.2 h
+2026-10-23 09:40:42 QUEUE DONE | B-16M-host-rowrms-2.4e-3-s0 done
+2026-10-23 09:41:14 step 20 start: B-4M-gpu-rowrms-2.4e-3-mb4-s0-probe
+2026-10-23 09:41:14 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-4M-gpu-rowrms-2.4e-3-mb4-s0-probe --model B-4M-sparse --mem_impl triton --seed 0 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --weight_decay 0.1 --no_save --value_optim rowrms --fused_ce --value_lr 2.4e-3 --micro_bs 4 --stop_after_tokens 0.65e6 --eval_every_tokens 0.655e6

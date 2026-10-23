@@ -3961,6 +3961,37 @@ on the card (HOT).
   was moved into a function, with the same operations. Files that weren't committed at a start were scripts the
   training doesn't import.
 
+### Result of step 18, part B (2026-10-23, RX 9070 + 128 GB, `scripts/rowopt_summary.py b` → `report/rowopt/summary.json`)
+
+- **Verdict by the criteria: rowrms "better than Adam" on B-16M.** Val PPL at step 3,050: 36.731 against 37.433 for
+  step 8's Adam run, 1.9% lower (the "as good" range was ±1%). On WikiText-103: 120.15 against 125.58.
+- **RAM:** peak of the run's systemd unit 56.1 GB (52.3 GiB) instead of ~100.6 GiB. The table with its gradient
+  accumulator and the rest would now fit in a 64 GB PC (not tried).
+- **Speed:** hardly faster. Mean 7,251 against 7,049 tokens/s, training time 14,072 against 14,510 s (−3%), wall time
+  4.17 against 4.27 h. Per stretch between evaluations:
+
+  | step | val PPL rowrms | val PPL Adam (step 8) | difference | tokens/s rowrms | tokens/s Adam |
+  |---:|---:|---:|---:|---:|---:|
+  | 305 | 478.63 | 513.05 | −6.7% | 9,679 | 8,678 |
+  | 610 | 192.45 | 205.80 | −6.5% | 8,672 | 8,640 |
+  | 915 | 103.86 | 111.14 | −6.6% | 7,857 | 8,038 |
+  | 1,220 | 70.15 | 73.07 | −4.0% | 7,238 | 7,330 |
+  | 1,525 | 56.68 | 58.06 | −2.4% | 6,908 | 6,873 |
+  | 1,830 | 49.14 | 50.34 | −2.4% | 6,695 | 6,543 |
+  | 2,135 | 44.56 | 45.59 | −2.3% | 6,551 | 6,347 |
+  | 2,440 | 41.12 | 41.97 | −2.0% | 6,424 | 6,163 |
+  | 2,745 | 38.81 | 39.42 | −1.6% | 6,350 | 6,043 |
+  | 3,050 | 36.73 | 37.43 | −1.9% | 6,292 | 5,938 |
+
+- **Why not the expected 1.2×:** with rowrms the model reads more of its table. On the validation text it reads 84%
+  of the rows at the end against 76% with Adam (step 1,220: 77% against 63%), and the 1% most-read rows get 26% of the
+  reads against 32%. More different rows per step means more to copy and update, which eats the saving in the
+  optimizer step. I didn't count the rows per step in this run, so that part is an explanation, not a measurement.
+- **Caveats:**
+  - The lead shrinks over the run, from 6.7% to 1.9%. Whether it holds over the full 500 M tokens I don't know.
+  - One seed; as in part A, at the same LR rowrms takes a larger step for the table than Adam.
+  - Run from commit `750a29c`, clean tree. During the run nothing else used the GPU or a noticeable part of the CPU.
+
 ## Step 19: at which layer does the bridge become readable? (LENS, criteria fixed before measuring, 2026-10-23)
 
 **Why:** In step 11, B-1M named B after "A's mother was" in every pair, but at the end of the two-hop question its

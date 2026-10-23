@@ -4175,6 +4175,41 @@ den meistgelesenen Zeilen auf der Karte (HOT).
   zeilenweise GPU-Update wanderte in eine Funktion, mit denselben Rechenschritten. Dateien, die beim Start nicht
   committet waren, waren Skripte, die das Training nicht lädt.
 
+### Ergebnis von Schritt 18, Teil B (2026-10-23, RX 9070 + 128 GB, `scripts/rowopt_summary.py b` → `report/rowopt/summary.json`)
+
+- **Urteil nach den Kriterien: rowrms „besser als Adam“ an B-16M.** Val-PPL bei Schritt 3.050: 36,731 gegen 37,433
+  beim Adam-Lauf aus Schritt 8, 1,9 % niedriger (der Bereich „so gut wie“ war ±1 %). Auf WikiText-103: 120,15 gegen
+  125,58.
+- **RAM:** Spitze der systemd-Unit des Laufs 56,1 GB (52,3 GiB) statt ~100,6 GiB. Die Tabelle mit ihrem
+  Gradienten-Akkumulator und dem Rest würde jetzt in einen PC mit 64 GB passen (nicht ausprobiert).
+- **Tempo:** kaum schneller. Im Mittel 7.251 gegen 7.049 Tokens/s, Trainingszeit 14.072 gegen 14.510 s (−3 %),
+  Wandzeit 4,17 gegen 4,27 h. Je Abschnitt zwischen zwei Auswertungen:
+
+  | Schritt | Val-PPL rowrms | Val-PPL Adam (Schritt 8) | Unterschied | Tokens/s rowrms | Tokens/s Adam |
+  |---:|---:|---:|---:|---:|---:|
+  | 305 | 478,63 | 513,05 | −6,7 % | 9.679 | 8.678 |
+  | 610 | 192,45 | 205,80 | −6,5 % | 8.672 | 8.640 |
+  | 915 | 103,86 | 111,14 | −6,6 % | 7.857 | 8.038 |
+  | 1.220 | 70,15 | 73,07 | −4,0 % | 7.238 | 7.330 |
+  | 1.525 | 56,68 | 58,06 | −2,4 % | 6.908 | 6.873 |
+  | 1.830 | 49,14 | 50,34 | −2,4 % | 6.695 | 6.543 |
+  | 2.135 | 44,56 | 45,59 | −2,3 % | 6.551 | 6.347 |
+  | 2.440 | 41,12 | 41,97 | −2,0 % | 6.424 | 6.163 |
+  | 2.745 | 38,81 | 39,42 | −1,6 % | 6.350 | 6.043 |
+  | 3.050 | 36,73 | 37,43 | −1,9 % | 6.292 | 5.938 |
+
+- **Warum nicht die erwarteten 1,2×:** Mit rowrms liest das Modell mehr von seiner Tabelle. Auf dem Validierungstext
+  liest es am Ende 84 % der Zeilen gegen 76 % mit Adam (Schritt 1.220: 77 % gegen 63 %), und das 1 % meistgelesener
+  Zeilen bekommt 26 % der Zugriffe gegen 32 %. Mehr verschiedene Zeilen pro Schritt heißt mehr zu kopieren und
+  zu aktualisieren, und das frisst die Ersparnis im Optimizer-Schritt. Die Zeilen pro Schritt habe ich in diesem Lauf
+  nicht gezählt, das ist also eine Erklärung, keine Messung.
+- **Vorbehalte:**
+  - Der Vorsprung schrumpft über den Lauf, von 6,7 % auf 1,9 %. Ob er über die vollen 500 M Tokens hält, weiß ich
+    nicht.
+  - Ein Seed; wie in Teil A macht rowrms bei gleicher LR einen größeren Schritt für die Tabelle als Adam.
+  - Lauf ab Commit `750a29c`, sauberer Stand. Während des Laufs nutzte nichts anderes die GPU oder einen merklichen
+    Teil der CPU.
+
 ## Schritt 19: Ab welcher Schicht ist die Brücke lesbar? (LENS, Kriterien vor der Messung festgelegt, 2026-10-23)
 
 **Frage:** In Schritt 11 nannte B-1M nach „A's mother was“ in jedem Paar B, aber am Ende der Zwei-Schritt-Frage trug
