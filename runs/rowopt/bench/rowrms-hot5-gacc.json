@@ -1,0 +1,266 @@
+{
+  "args": {
+    "model": "B-16M-sparse",
+    "value_device": "host",
+    "value_state": "fp32",
+    "value_optim": "rowrms",
+    "hot_rows": "runs/factk/B-16M-factk-s0/mem_access_train.npy",
+    "hot_frac": 0.05,
+    "step_rows": 4470000.0,
+    "fused_ce": true,
+    "init_from": "runs/factk/B-16M-factk-s0/model.pt",
+    "device": "cuda",
+    "mem_impl": "triton",
+    "steps": 3,
+    "warmup": 1,
+    "micro_batch": 4,
+    "seq_len": 1024,
+    "accum": 8,
+    "seed": 0,
+    "threads": 0,
+    "lr": 0.0006,
+    "value_lr": 0.0024,
+    "weight_decay": 0.1,
+    "clip": 1.0,
+    "amp": true,
+    "profile_gpu": true,
+    "tiny": false,
+    "data_dir": "data/wikipedia_en_gpt2",
+    "compare": false,
+    "loss_atol": 0.0001,
+    "loss_rtol": 1e-05,
+    "out": "runs/rowopt/bench/rowrms-hot5-gacc.json",
+    "memory_budget": false,
+    "ram_gb": 128,
+    "ram_gib": null,
+    "reserve_gib": 16
+  },
+  "torch": "2.14.1",
+  "hip": "7.2.53211",
+  "device_name": "AMD Radeon RX 9070",
+  "model_config": {
+    "vocab_size": 50304,
+    "d_model": 384,
+    "n_layers": 12,
+    "n_heads": 6,
+    "ffn_hidden": 1024,
+    "max_seq_len": 1024,
+    "rope_theta": 10000.0,
+    "norm_eps": 1e-05,
+    "init_std": 0.02,
+    "mem_layers": [
+      2,
+      6,
+      10
+    ],
+    "mem_n_keys": 4096,
+    "mem_heads": 4,
+    "mem_knn": 32,
+    "mem_k_dim": 256,
+    "mem_v_dim": -1,
+    "mem_query_norm": "batchnorm",
+    "mem_swilu": true,
+    "mem_value_impl": "embedding_bag",
+    "mem_keys_weight_decay": true,
+    "mem_score_scale": "none",
+    "mem_score_scale_init": 1.0,
+    "mem_share_values": true,
+    "mem_round_layers": [],
+    "mem_value_grad": "row_sparse",
+    "mem_impl": "triton",
+    "eng_layers": [],
+    "eng_orders": [
+      2,
+      3
+    ],
+    "eng_heads": 8,
+    "eng_head_dim": 24,
+    "eng_rows": 524287,
+    "eng_conv_kernel": 4,
+    "eng_hash_seed": 0,
+    "eng_impl": "triton",
+    "eng_value_grad": "row_sparse"
+  },
+  "params": {
+    "total": 6494130816,
+    "embedding": 19316736,
+    "non_embedding": 6474814080,
+    "memory_values": 6442450944,
+    "dense_body": 32363136,
+    "active_non_embedding_per_token": 32510592,
+    "bn_running_stats": 6144
+  },
+  "initialization_wall_s": 79.27988110199658,
+  "data_source": {
+    "kind": "read_only_uint16_memmap",
+    "directory": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/data/wikipedia_en_gpt2",
+    "sampling": "uniform windows with replacement, seed + 1"
+  },
+  "value_table_memory": {
+    "table_bytes": 25769803776,
+    "gradient_bytes": 25769803776,
+    "moment_bytes": 134217728,
+    "scale_bytes": 0,
+    "touched_bytes": 16777216,
+    "step_bytes": 4,
+    "total_bytes": 51690602500
+  },
+  "memory": {
+    "rss_bytes": 30657957888,
+    "peak_process_rss_bytes": 52844109824,
+    "peak_vram_allocated_bytes": 14310976512,
+    "peak_vram_reserved_bytes": 15860760576
+  },
+  "value_table_memory_by_device": {
+    "host": {
+      "table_bytes": 25769803776,
+      "gradient_bytes": 25769803776,
+      "moment_bytes": 134217728,
+      "scale_bytes": 0,
+      "touched_bytes": 16777216,
+      "step_bytes": 4,
+      "total_bytes": 51690602500
+    },
+    "device": {
+      "table_bytes": 0,
+      "gradient_bytes": 0,
+      "moment_bytes": 0,
+      "scale_bytes": 0,
+      "touched_bytes": 0,
+      "step_bytes": 0,
+      "total_bytes": 0
+    }
+  },
+  "tokens_per_step": 32768,
+  "warmup_losses": [
+    2.7141361236572266
+  ],
+  "losses": [
+    3.3119311332702637,
+    2.9114937782287598,
+    3.0035929679870605
+  ],
+  "steps": [
+    {
+      "step": 2,
+      "loss": 3.3119311332702637,
+      "wall_s": 3.5413009309995687,
+      "forward_backward_wall_s": 2.5532171090017073,
+      "clip_wall_s": 0.0144475249981042,
+      "cpu_optimizer_wall_s": 0.9705059769985382,
+      "device_optimizer_wall_s": 0.0028620140001294203,
+      "host_phases_s": {
+        "unique": 0.010700723018089775,
+        "indices_d2h": 0.0031878699446679093,
+        "gather": 0.753796899021836,
+        "rows_h2d": 0.3362530519880238,
+        "gradients_d2h": 0.0,
+        "scatter": 0.0357971969715436
+      },
+      "grad_norm": 2.9004967212677,
+      "value_grad_norm": 0.026024872437119484,
+      "touched_rows": 5070770,
+      "rss_bytes": 30641696768
+    },
+    {
+      "step": 3,
+      "loss": 2.9114937782287598,
+      "wall_s": 3.2790949109985377,
+      "forward_backward_wall_s": 2.3635093630000483,
+      "clip_wall_s": 0.013624313003674615,
+      "cpu_optimizer_wall_s": 0.8987966450004023,
+      "device_optimizer_wall_s": 0.002864772999600973,
+      "host_phases_s": {
+        "unique": 0.010606281030050013,
+        "indices_d2h": 0.0026452570091350935,
+        "gather": 0.6799419959861552,
+        "rows_h2d": 0.30539847599720815,
+        "gradients_d2h": 0.0,
+        "scatter": 0.03263678499934031
+      },
+      "grad_norm": 1.4019412994384766,
+      "value_grad_norm": 0.01498803123831749,
+      "touched_rows": 4740239,
+      "rss_bytes": 30649831424
+    },
+    {
+      "step": 4,
+      "loss": 3.0035929679870605,
+      "wall_s": 3.292745530998218,
+      "forward_backward_wall_s": 2.382935091998661,
+      "clip_wall_s": 0.013573052994615864,
+      "cpu_optimizer_wall_s": 0.8930972949965508,
+      "device_optimizer_wall_s": 0.002871682998375036,
+      "host_phases_s": {
+        "unique": 0.010647299997799564,
+        "indices_d2h": 0.0027088250280939974,
+        "gather": 0.6895676609929069,
+        "rows_h2d": 0.30675287701160414,
+        "gradients_d2h": 0.0,
+        "scatter": 0.03273644900764339
+      },
+      "grad_norm": 1.0658971071243286,
+      "value_grad_norm": 0.014963816851377487,
+      "touched_rows": 4710246,
+      "rss_bytes": 30657957888
+    }
+  ],
+  "mean": {
+    "wall_s": 3.371047124332108,
+    "forward_backward_wall_s": 2.4332205213334723,
+    "clip_wall_s": 0.013881630332131559,
+    "cpu_optimizer_wall_s": 0.9207999723318304,
+    "device_optimizer_wall_s": 0.002866156666035143,
+    "host_phases_s": {
+      "gather": 0.7077688520002994,
+      "gradients_d2h": 0.0,
+      "indices_d2h": 0.0028473173272990002,
+      "rows_h2d": 0.31613480166561203,
+      "scatter": 0.03372347699284243,
+      "unique": 0.010651434681979785
+    }
+  },
+  "profiled_extra_step": {
+    "available": true,
+    "gpu_compute_s": 3.154176044000014,
+    "gpu_memcpy_s": 0.6399287430000029,
+    "gpu_memset_s": 0.0,
+    "kernel_events": 14355,
+    "copy_events": 96,
+    "step": {
+      "step": 5,
+      "loss": 3.2184090614318848,
+      "wall_s": 3.3854676929986454,
+      "forward_backward_wall_s": 2.4673576230052277,
+      "clip_wall_s": 0.013714221997361165,
+      "cpu_optimizer_wall_s": 0.9012103869972634,
+      "device_optimizer_wall_s": 0.002901833002397325,
+      "host_phases_s": {
+        "unique": 0.012466372034396045,
+        "indices_d2h": 0.003619379007432144,
+        "gather": 0.706563140025537,
+        "rows_h2d": 0.3165582589790574,
+        "gradients_d2h": 0.0,
+        "scatter": 0.03580782700009877
+      },
+      "grad_norm": 1.1531243324279785,
+      "value_grad_norm": 0.015255199745297432,
+      "touched_rows": 4739479,
+      "rss_bytes": 30679707648
+    },
+    "reason": null,
+    "scope": "One extra training step after timing; aggregate kernel durations, including optimizer and metrics."
+  },
+  "measurement_notes": [
+    "Next-token batches and initialization match across modes; warmup updates are retained.",
+    "Timed steps exclude initialization, input loading/generation/transfers, and the extra profile step.",
+    "Host transfer phases are synchronized staging wall time, including allocation and launch overhead.",
+    "Host phases lie inside forward/backward; do not add them to forward_backward_wall_s.",
+    "Kernel sum is GPU active work in the extra profiled step, not a wall-time residual or a throughput estimate.",
+    "Kernel durations may overlap; kernel, transfer, and CPU times are not an additive wall-time partition.",
+    "Profiler unavailability yields null compute time, never a guessed GPU compute measurement.",
+    "CPU optimizer timing includes dense Adam on CPU; on CUDA only host-resident optimizer parts are counted.",
+    "Peak RSS covers this process from startup; --compare uses fresh subprocesses per mode.",
+    "VRAM peaks include persistent model/optimizer tensors but exclude the extra profiled step."
+  ]
+}

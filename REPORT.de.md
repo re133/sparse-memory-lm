@@ -4346,6 +4346,39 @@ systemd-Einheit des Laufs, die GPU-Speicher-Spitze, wie voll der GACC-Puffer wur
 **Was das nicht zeigen kann:** 20 M von 500 M Tokens; die heißen Zeilen stammen aus einem anderen Lauf mit gleichem
 Seed und gleichen Daten, also dem günstigsten Fall für ein Profil; ein PC (Ryzen 9 5900XT, DDR4, RX 9070 an PCIe 4.0).
 
+### Schritt 21, der Benchmark vor dem Lauf (2026-10-23, RX 9070 + 128 GB, `runs/rowopt/bench/`)
+
+B-16M-factk als Start (mit Adam trainiert), Tabelle im RAM, echte Wikipedia-Batches, `--fused_ce`, 4 Sequenzen pro
+Mikro-Batch, Mittel aus 3 Schritten nach 1 Aufwärmschritt. Alle lasen 4,74 M verschiedene Zeilen pro Schritt. Adam
+zum Vergleich dazugenommen. HOT nutzt die eigenen Lesezahlen von B-16M-factk, der beste Fall.
+
+| Konfiguration | s pro Schritt | Tokens/s | gegen Adam | RAM (Prozess) | GPU-Speicher (reserviert) |
+|---|---:|---:|---:|---:|---:|
+| Adam | 6,43 | 5.090 | 1,00× | 99,2 GiB | 7,3 GiB |
+| rowrms | 5,58 | 5.870 | 1,15× | 51,3 GiB | 7,3 GiB |
+| rowrms + GACC | 3,77 | 8.700 | 1,71× | 28,0 GiB | 15,0 GiB |
+| rowrms + HOT 5 % + GACC | 3,37 | 9.720 | 1,91× | 28,6 GiB | 14,8 GiB |
+| rowrms + HOT 10 % | 4,21 | 7.780 | 1,53× | 52,1 GiB | 12,4 GiB |
+
+Wohin die Zeit geht (s pro Schritt; Kopieren und Addieren passieren innerhalb von Vorwärts/Rückwärts):
+
+| Konfiguration | Zeilen zur GPU (sammeln + kopieren) | Gradienten zurück (kopieren + addieren) | Clip | Optimizer auf der CPU | Vorwärts/Rückwärts gesamt |
+|---|---:|---:|---:|---:|---:|
+| Adam | 0,97 + 0,43 | 0,43 + 1,26 | 0,42 | 1,99 | 4,00 |
+| rowrms | 0,96 + 0,43 | 0,43 + 1,28 | 0,42 | 1,13 | 4,00 |
+| rowrms + GACC | 0,97 + 0,43 | 0 + 0,01 | 0,01 | 1,05 | 2,70 |
+| rowrms + HOT 5 % + GACC | 0,71 + 0,32 | 0 + 0,03 | 0,01 | 0,92 | 2,43 |
+| rowrms + HOT 10 % | 0,57 + 0,26 | 0,25 + 0,75 | 0,32 | 0,87 | 3,01 |
+
+- Die drei gemessenen Verluste sind für alle rowrms-Konfigurationen bis auf 1e-4 gleich (3,312 / 2,912 / 3,004).
+- GACC streicht das Zurückkopieren der Gradienten, das Addieren in den tabellengroßen Akkumulator und den Clip-Durchgang,
+  und damit den 26-GB-Akkumulator im RAM. HOT spart zusätzlich einen Teil des Zeilenkopierens.
+- Der GPU-Speicher mit GACC ist am Rand der 16-GB-Karte (15,0 GiB). Seine Kapazität stammt aus den Lesezugriffen eines
+  Adam-Laufs; mit rowrms liest das Modell mehr von seiner Tabelle (Teil B von Schritt 18), ein Lauf mit rowrms braucht
+  also vielleicht mehr.
+- **Der Lauf selbst passte nicht mehr vor Mittag** und kommt in einer späteren Nacht, mit der schnellsten Konfiguration
+  hier (rowrms + HOT 5 % + GACC). Vorher prüfe ich die GACC-Kapazität unter rowrms.
+
 ## Schritt 22: Fakten in anderen Worten geschrieben, mit den üblichen gefragt (EINP3, Kriterien vor dem Lauf festgelegt, 2026-10-23)
 
 **Frage:** Die Schritte 14 bis 16 schrieben den Artikel jeder neuen Person genau im Trainingsformat, und die Frage war

@@ -4124,6 +4124,38 @@ systemd unit, peak GPU memory, how full the GACC buffer got.
 **What this can't show:** 20 M tokens of 500 M; the hot rows come from another run with the same seed and data, which
 is the best case for a profile; one PC (Ryzen 9 5900XT, DDR4, RX 9070 on PCIe 4.0).
 
+### Step 21, the benchmark before the run (2026-10-23, RX 9070 + 128 GB, `runs/rowopt/bench/`)
+
+B-16M-factk as the start (trained with Adam), table in RAM, real Wikipedia batches, `--fused_ce`, 4 sequences per
+micro-batch, mean of 3 steps after 1 warm-up step. All read 4.74 M different rows per step. Adam added for
+comparison. HOT uses B-16M-factk's own read counts, the best case.
+
+| configuration | s per step | tokens/s | vs Adam | RAM (process) | GPU memory (reserved) |
+|---|---:|---:|---:|---:|---:|
+| Adam | 6.43 | 5,090 | 1.00× | 99.2 GiB | 7.3 GiB |
+| rowrms | 5.58 | 5,870 | 1.15× | 51.3 GiB | 7.3 GiB |
+| rowrms + GACC | 3.77 | 8,700 | 1.71× | 28.0 GiB | 15.0 GiB |
+| rowrms + HOT 5% + GACC | 3.37 | 9,720 | 1.91× | 28.6 GiB | 14.8 GiB |
+| rowrms + HOT 10% | 4.21 | 7,780 | 1.53× | 52.1 GiB | 12.4 GiB |
+
+Where the time goes (s per step; copying and adding happen inside forward/backward):
+
+| configuration | rows to GPU (gather + copy) | gradients back (copy + add) | clip | optimizer on the CPU | forward/backward in total |
+|---|---:|---:|---:|---:|---:|
+| Adam | 0.97 + 0.43 | 0.43 + 1.26 | 0.42 | 1.99 | 4.00 |
+| rowrms | 0.96 + 0.43 | 0.43 + 1.28 | 0.42 | 1.13 | 4.00 |
+| rowrms + GACC | 0.97 + 0.43 | 0 + 0.01 | 0.01 | 1.05 | 2.70 |
+| rowrms + HOT 5% + GACC | 0.71 + 0.32 | 0 + 0.03 | 0.01 | 0.92 | 2.43 |
+| rowrms + HOT 10% | 0.57 + 0.26 | 0.25 + 0.75 | 0.32 | 0.87 | 3.01 |
+
+- The three timed losses are the same for all rowrms configurations to 1e-4 (3.312 / 2.912 / 3.004).
+- GACC removes the gradient copies, the adding into the table-sized accumulator and the clip pass, and with it the
+  26 GB accumulator in RAM. HOT on top saves part of the row copies.
+- GPU memory with GACC is at the edge of the 16 GB card (15.0 GiB). Its capacity comes from the reads of an Adam run;
+  with rowrms the model reads more of its table (part B of step 18), so a run with rowrms may need more.
+- **The run itself didn't fit before noon** and comes in a later night, with the fastest configuration here
+  (rowrms + HOT 5% + GACC). Before that I'll check the GACC capacity under rowrms.
+
 ## Step 22: facts written in other words, asked in the usual ones (EINP3, criteria fixed before the run, 2026-10-23)
 
 **Why:** Steps 14 to 16 wrote each new person's article in the exact training format, and the question was the start
