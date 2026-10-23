@@ -8,6 +8,10 @@ HOT (enable_hot_rows): the most-read rows, ranked by the read counts of an earli
 AutoFDO/Propeller for code), stay on the GPU with their gradient accumulator and row-wise optimizer state; only the
 other rows travel between RAM and GPU. Same math, other summation order. The host copy of a hot row is stale while
 training and is written back by flush(), which state_dict() calls (checkpoints, model.pt).
+
+GACC (enable_step_rows): the gradients of the rows read in a step are summed on the GPU (StepRows) instead of in a
+table-sized accumulator in RAM; the row-wise optimizer gets each row's sum once per step. Saves the host accumulator
+(B-16M: 26 GB), the scatter-add per layer and micro-batch, and the clipping pass over it. Same math.
 """
 import time
 from contextlib import contextmanager
@@ -37,6 +41,7 @@ class HostEmbedding(nn.Embedding):
         self.timings = dict.fromkeys(PHASES, 0.0)
         self._staging = None
         self.hot = None
+        self.step_rows = None
         self.register_state_dict_pre_hook(lambda module, *_: module.flush())
 
     def flush(self):
@@ -109,15 +114,24 @@ class HostEmbedding(nn.Embedding):
             both.index_copy_(0, at_cold, values)
             both.index_copy_(0, at_hot, self.hot.values.index_select(0, slots))
             values = both
+        if self.step_rows is not None:
+            hot = (hot, unique)                   # the step accumulator needs the rows on the device
         return rows, remapped.view_as(indices), values, hot
 
     def accumulate(self, rows, gradient, hot=None):
+        device_rows = None
+        if self.step_rows is not None:
+            hot, device_rows = hot
         if hot is not None:
             # rows are distinct within one call, so index_add_ adds each hot row once per layer and micro-batch
             at_hot, slots, at_cold = hot
             self.hot.acc.index_add_(0, slots, gradient.index_select(0, at_hot))
             self.hot.touched[slots] = True
             gradient = gradient.index_select(0, at_cold)
+        if device_rows is not None:
+            with self.phase("scatter"):
+                self.step_rows.add(device_rows, gradient)
+            return
         with self.phase("gradients_d2h", gradient.device):
             if gradient.is_cuda:
                 cpu = self.staging(rows.numel())
@@ -236,6 +250,71 @@ class HotRows:
         self.touched = torch.zeros(rows.numel(), dtype=torch.bool, device=device)
 
 
+class StepRows:
+    """GACC: gradient sums of the host-table rows read in the current step, on the GPU. A row gets the next free
+    slot when it is first read in the step; every later read (other layers, micro-batches) adds into that slot."""
+
+    def __init__(self, num_rows, dim, capacity, device):
+        self.slot = torch.full((num_rows,), -1, dtype=torch.int32, device=device)
+        self.rows = torch.empty(capacity, dtype=torch.int64, device=device)
+        self.acc = torch.zeros(capacity, dim, dtype=torch.float32, device=device)
+        self.n = self.peak = 0
+
+    def add(self, rows, gradient):
+        """rows: distinct row ids on the device, gradient: one row each."""
+        slots = self.slot[rows]
+        new = (slots < 0).nonzero().squeeze(1)
+        k = new.numel()
+        if self.n + k > self.rows.numel():
+            raise RuntimeError(f"GACC: {self.n + k} rows read in this step, capacity {self.rows.numel()} "
+                               "(raise --step_rows, or keep more rows hot)")
+        if k:
+            ids = torch.arange(self.n, self.n + k, dtype=torch.int32, device=rows.device)
+            fresh = rows.index_select(0, new)
+            self.slot[fresh] = ids
+            self.rows[self.n:self.n + k] = fresh
+            slots[new] = ids
+            self.n += k
+            self.peak = max(self.peak, self.n)
+        self.acc.index_add_(0, slots.long(), gradient)
+
+    def reset(self):
+        self.slot[self.rows[:self.n]] = -1
+        self.acc[:self.n].zero_()
+        self.n = 0
+
+
+class StepStore:
+    """row_store() of a host table with GACC: no table-sized accumulator, gradients sit in `steprows` (and in
+    `hot` for hot rows); grad_scale is set by clipping as for a RowStore."""
+
+    def __init__(self, steprows, hot=None):
+        self.steprows, self.hot, self.grad_scale = steprows, hot, 1.0
+
+    def norm(self):
+        parts = [self.steprows.acc[:self.steprows.n].norm()]
+        if self.hot is not None:
+            parts.append(self.hot.acc.norm())
+        return torch.linalg.vector_norm(torch.stack(parts)).cpu()
+
+    def reset(self, rows=None):
+        self.steprows.reset()
+        if self.hot is not None:
+            self.hot.acc.zero_()
+            self.hot.touched.zero_()
+        self.grad_scale = 1.0
+
+
+def enable_step_rows(model, capacity, device):
+    """GACC for every host table: sum each step's row gradients on `device` in up to `capacity` rows (rows read in
+    one step, hot rows not counted). Needs a row-wise table optimizer. Call after enable_hot_rows, if both."""
+    for module in model.modules():
+        if isinstance(module, HostEmbedding) and module.step_rows is None:
+            module.step_rows = StepRows(module.num_embeddings, module.embedding_dim, capacity, device)
+            module.weight.row_store = StepStore(module.step_rows, module.hot)
+    return model
+
+
 def enable_hot_rows(model, reads, fraction, device):
     """Keep the `fraction` most-read rows of each host table on `device`, ranked by `reads` (read counts per row
     from an earlier run, e.g. its mem_access_train.npy). Needs a row-wise table optimizer (smlm/row_optim.py):
@@ -247,6 +326,8 @@ def enable_hot_rows(model, reads, fraction, device):
             if reads.shape != (module.num_embeddings,):
                 raise ValueError(f"read counts for {reads.shape[0]} rows, the table has {module.num_embeddings}")
             n = int(round(fraction * module.num_embeddings))
+            if module.step_rows is not None:
+                raise ValueError("enable hot rows before the step accumulator")
             module.hot = HotRows(module.weight, torch.argsort(reads, descending=True, stable=True)[:n], device)
             row_store(module.weight).hot = module.hot
     return model

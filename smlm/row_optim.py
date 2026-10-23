@@ -76,7 +76,56 @@ class RowWiseOptimizer(torch.optim.Optimizer):
             v = v / (1 - group["beta2"] ** n.double()).float()
         return group["lr"] / (v.sqrt() + group["eps"])
 
+    def _step_gacc(self, group, p, st, state):
+        # GACC (smlm/host_values.py StepRows): each row read in the step has its summed gradient in a slot on the
+        # GPU. Copy the slots to RAM in chunks, two pinned buffers in turn, so that the copy of the next chunk runs
+        # while the C loop updates the rows of this one.
+        sr = st.steprows
+        n, scale = sr.n, float(st.grad_scale)
+        if n:
+            from .host_optim import rows_library
+            lib = rows_library()
+            rows = sr.rows[:n].cpu()
+            cuda = sr.acc.is_cuda
+            chunk = CHUNK_ROWS * 2
+            if cuda and (getattr(self, "_pinned", None) is None or self._pinned[0].shape[1] != p.shape[1]):
+                self._pinned = [torch.empty((chunk, p.shape[1]), dtype=torch.float32, pin_memory=True)
+                                for _ in range(2)]
+
+            def fetch(i):
+                a, b = i * chunk, min(n, (i + 1) * chunk)
+                if not cuda:
+                    return sr.acc[a:b], None
+                buf = self._pinned[i % 2][:b - a]
+                buf.copy_(sr.acc[a:b], non_blocking=True)
+                done = torch.cuda.Event()
+                done.record()
+                return buf, done
+
+            count = state.get("n")
+            pending = fetch(0)
+            for i in range(-(-n // chunk)):
+                g, done = pending
+                if (i + 1) * chunk < n:
+                    pending = fetch(i + 1)          # its buffer held chunk i - 1, which is finished
+                if done is not None:
+                    done.synchronize()
+                r = rows[i * chunk:i * chunk + g.shape[0]]
+                if lib is not None:
+                    lib.host_rows_rowwise(p.data_ptr(), None, g.data_ptr(), state["v"].data_ptr(),
+                                          0 if count is None else count.data_ptr(), None, r.data_ptr(), r.numel(),
+                                          p.shape[1], scale, group["beta2"], group["eps"], group["lr"],
+                                          KINDS.index(self.kind), torch.get_num_threads())
+                else:
+                    g = g * scale
+                    v, k = self._update_state(group, state, r, g.square().mean(1))
+                    p.index_copy_(0, r, p.index_select(0, r) - self._scale(group, v, k)[:, None] * g)
+        sr.reset()
+        st.grad_scale = 1.0
+
     def _step_rows(self, group, p, st, state):
+        if getattr(st, "steprows", None) is not None:
+            return self._step_gacc(group, p, st, state)
         rows = st.touched.nonzero().squeeze(1)
         if not rows.numel():
             st.grad_scale = 1.0
@@ -86,7 +135,7 @@ class RowWiseOptimizer(torch.optim.Optimizer):
         n = state.get("n")
         scale = float(st.grad_scale)
         if lib is not None and _c_ok(p, st.acc, state["v"], st.touched, rows) and (n is None or n.is_contiguous()):
-            lib.host_rows_rowwise(p.data_ptr(), st.acc.data_ptr(), state["v"].data_ptr(),
+            lib.host_rows_rowwise(p.data_ptr(), st.acc.data_ptr(), None, state["v"].data_ptr(),
                                   0 if n is None else n.data_ptr(), st.touched.data_ptr(), rows.data_ptr(),
                                   rows.numel(), p.shape[1], scale, group["beta2"], group["eps"], group["lr"],
                                   KINDS.index(self.kind), torch.get_num_threads())

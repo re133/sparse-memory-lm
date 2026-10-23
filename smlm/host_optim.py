@@ -47,7 +47,7 @@ def load_rows_library(flags=FLAGS, cache=None):
     lib.host_rows_adam.argtypes = [p, p, p, p, p, p, i64, i64, f32, f32, f32, f32, f32, f32, f32, i32]
     lib.host_rows_add.argtypes = [p, p, p, p, i64, i64, i32]
     lib.host_rows_gather.argtypes = [p, p, p, i64, i64, i32]
-    lib.host_rows_rowwise.argtypes = [p, p, p, p, p, p, i64, i64, f32, f32, f32, f32, i32, i32]
+    lib.host_rows_rowwise.argtypes = [p, p, p, p, p, p, p, i64, i64, f32, f32, f32, f32, i32, i32]
     for fn in (lib.host_rows_adam, lib.host_rows_add, lib.host_rows_gather, lib.host_rows_rowwise):
         fn.restype = None
     return lib
@@ -124,8 +124,8 @@ class HostLazyRowAdam(LazyRowAdam):
         for group in self.param_groups:
             for p in group["params"]:
                 st = row_store(p)
-                if getattr(st, "hot", None) is not None:
-                    raise ValueError("hot rows on the GPU need a row-wise table optimizer (--value_optim)")
+                if getattr(st, "hot", None) is not None or getattr(st, "steprows", None) is not None:
+                    raise ValueError("hot rows and GACC need a row-wise table optimizer (--value_optim)")
                 if self.state_dtype != "fp32":
                     self._step_lowmem(group, p, st)
                     continue

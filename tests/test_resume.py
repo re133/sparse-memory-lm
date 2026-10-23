@@ -258,13 +258,16 @@ def test_pause_and_resume_equals_uninterrupted(tiny_setup, monkeypatch, extra):
                [{k: v for k, v in r.items() if k not in TIMING} for r in rows(b / f)], f
 
 
-def test_hot_rows_train_and_resume_like_rows_in_ram(tiny_setup, monkeypatch):
-    """--hot_rows: same run within float rounding as all rows in RAM; paused and resumed, bit for bit as unpaused."""
+@pytest.mark.parametrize("fast", [("--hot_frac", "0.25"), ("--hot_frac", "0.25", "--step_rows", "64"),
+                                  ("--hot_frac", "0", "--step_rows", "64")])
+def test_hot_rows_train_and_resume_like_rows_in_ram(tiny_setup, monkeypatch, fast):
+    """--hot_rows / --step_rows: same run within float rounding as all rows in RAM; paused and resumed, bit for bit
+    as unpaused."""
     import signal
     reads = tiny_setup / "reads.npy"
     np.save(reads, np.random.default_rng(0).integers(0, 100, 64))
     host = ("--value_device", "host", "--value_optim", "rowrms")
-    hot = host + ("--hot_rows", str(reads), "--hot_frac", "0.25")
+    hot = host + ("--hot_rows", str(reads)) + fast
     run(monkeypatch, tiny_setup / "ram", extra=host)
     run(monkeypatch, tiny_setup / "hot", extra=hot)
     sa = torch.load(tiny_setup / "ram" / "model.pt", weights_only=True)["state_dict"]

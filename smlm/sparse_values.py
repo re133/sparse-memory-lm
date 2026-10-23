@@ -44,6 +44,8 @@ class RowStore:
 def row_store(table):
     """The RowStore attached to a (possibly shared) table parameter; created on first use."""
     st = getattr(table, "row_store", None)
+    if getattr(st, "steprows", None) is not None:          # host table with GACC (smlm/host_values.py StepStore)
+        return st
     if st is None or st.acc.device != table.device or st.acc.shape != table.shape:
         if getattr(table, "host_values", False):
             from .host_optim import HostRowStore

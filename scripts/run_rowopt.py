@@ -3,6 +3,7 @@ value (REPORT.md, "Step 18").
 
   python scripts/run_rowopt.py screen [--deadline 2026-10-23T07:00]   part A: B-1M on 50 M tokens, one run after another
   python scripts/run_rowopt.py big VALUE_OPTIM VALUE_LR [STOP]        part B: B-16M, table in RAM, BIG's arguments
+  python scripts/run_rowopt.py b4g VALUE_LR MICRO_BS [probe]          step 19: B-4M on the card (probe: 20 steps)
   python scripts/run_rowopt.py --smoke DIR screen                     part A on 1 M tokens into DIR, no ntfy
 
 Part A: B-1M-sparse as in runs/hampter (Triton, table LR 2.4e-3 for Adam), but a full schedule over 50 M tokens, no
@@ -39,6 +40,11 @@ BIG = ["--model", "B-16M-sparse", "--value_device", "host", "--value_state", "fp
        "--eval_every_tokens", "10e6", "--data_seed", "1234", "--seq_len", "1024", "--batch_seqs", "32", "--lr", "6e-4",
        "--weight_decay", "0.1", "--no_save"]
 BIG_ADAM = {1525: 58.056, 3050: 37.433}            # runs/big_home/B-16M-host-s0 (Adam, table in RAM), val PPL
+# step 19: the arguments of the H200 run runs/cloud/B-4M-s0, stopped after the evaluation at step 3050
+B4G = ["--model", "B-4M-sparse", "--mem_impl", "triton", "--seed", "0", "--data", "wikipedia", "--tokens", "500e6",
+       "--extra_val", "wikitext103", "--eval_every_tokens", "10e6", "--data_seed", "1234", "--seq_len", "1024",
+       "--batch_seqs", "32", "--lr", "6e-4", "--weight_decay", "0.1", "--no_save", "--value_optim", "rowrms",
+       "--fused_ce"]
 
 
 def done(d):
@@ -78,6 +84,16 @@ def main():
         run_shape.EST_H = {name: 4.5}
         run_shape.log(f"step 18 part B start: {name}, stop after {stop} tokens")
         result = run_shape.run(name, ["--value_optim", optim, "--value_lr", lr], None)
+        run_shape.log(f"QUEUE DONE | {name} {result}")
+    elif len(argv) in (3, 4) and argv[0] == "b4g" and argv[3:] in ([], ["probe"]):
+        lr, mb, probe = argv[1], argv[2], argv[3:] == ["probe"]
+        name = f"B-4M-gpu-rowrms-{lr}-mb{mb}-s0" + ("-probe" if probe else "")
+        stop = ["--stop_after_tokens", "0.6e6", "--eval_every_tokens", "0.6e6"] if probe else [
+            "--stop_after_tokens", "99.9e6"]
+        run_shape.COMMON = B4G + ["--value_lr", lr, "--micro_bs", mb] + stop
+        run_shape.EST_H = {name: 1.0}
+        run_shape.log(f"step 19 start: {name}")
+        result = run_shape.run(name, [], None)
         run_shape.log(f"QUEUE DONE | {name} {result}")
     else:
         sys.exit(__doc__)

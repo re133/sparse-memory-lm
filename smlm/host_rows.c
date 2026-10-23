@@ -7,7 +7,8 @@
  *   host_rows_add     acc[rows[i]] += src[i], touched[rows[i]] = 1 (rows unique within one call)
  *   host_rows_gather  out[i] = table[rows[i]]
  *   host_rows_rowwise one pass per touched row: row-wise RMS or Adagrad (smlm/row_optim.py), accumulator zeroed,
- *                     row untouched
+ *                     row untouched; with src != NULL the gradient of rows[i] is src[i] instead (summed on the GPU,
+ *                     smlm/host_values.py StepRows), and acc / touched are not used
  */
 #include <math.h>
 #include <pthread.h>
@@ -84,7 +85,7 @@ static void rowwise_part(const job_t *j, int64_t begin, int64_t end) {
     const int64_t d = j->width;
     for (int64_t i = begin; i < end; i++) {
         const int64_t r = j->rows[i];
-        float *p = j->p + r * d, *g = j->acc + r * d;
+        float *p = j->p + r * d, *g = j->src ? (float *)j->src + i * d : j->acc + r * d;
         double q = 0.0;
         for (int64_t k = 0; k < d; k++) {
             const float gk = g[k] * j->grad_scale;
@@ -103,6 +104,10 @@ static void rowwise_part(const job_t *j, int64_t begin, int64_t end) {
             denom = sqrtf(vr) + j->eps;
         }
         const float step = j->lr / denom;
+        if (j->src) {
+            for (int64_t k = 0; k < d; k++) p[k] = p[k] - step * (g[k] * j->grad_scale);
+            continue;
+        }
         for (int64_t k = 0; k < d; k++) {
             p[k] = p[k] - step * (g[k] * j->grad_scale);
             g[k] = 0.0f;
@@ -148,10 +153,11 @@ void host_rows_gather(float *out, const float *table, const int64_t *rows, int64
     run(gather_part, &j, n, threads);
 }
 
-void host_rows_rowwise(float *p, float *acc, float *v, int32_t *count, uint8_t *touched, const int64_t *rows,
-                       int64_t n, int64_t width, float grad_scale, float b2, float eps, float lr, int kind,
-                       int threads) {
-    job_t j = {.p = p, .acc = acc, .v = v, .count = count, .touched = touched, .rows = rows, .width = width,
-               .grad_scale = grad_scale, .b2 = b2, .one_minus_b2 = 1.0f - b2, .eps = eps, .lr = lr, .kind = kind};
+void host_rows_rowwise(float *p, float *acc, const float *src, float *v, int32_t *count, uint8_t *touched,
+                       const int64_t *rows, int64_t n, int64_t width, float grad_scale, float b2, float eps, float lr,
+                       int kind, int threads) {
+    job_t j = {.p = p, .acc = acc, .src = src, .v = v, .count = count, .touched = touched, .rows = rows,
+               .width = width, .grad_scale = grad_scale, .b2 = b2, .one_minus_b2 = 1.0f - b2, .eps = eps, .lr = lr,
+               .kind = kind};
     run(rowwise_part, &j, n, threads);
 }

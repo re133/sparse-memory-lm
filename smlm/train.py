@@ -341,6 +341,9 @@ def main():
                     "counts per table row from an earlier run (its mem_access_train.npy); the --hot_frac most-read "
                     "rows stay on the GPU (HOT, smlm/host_values.py), same math")
     ap.add_argument("--hot_frac", type=float, default=0.1)
+    ap.add_argument("--step_rows", type=float, default=0, help="with --value_device host and a row-wise --value_optim: "
+                    "sum each step's row gradients on the GPU in up to this many rows (GACC, smlm/host_values.py) "
+                    "instead of a table-sized accumulator in RAM; same math")
     ap.add_argument("--value_device", choices=["gpu", "host"], default="gpu",
                     help="keep PKM tables and lazy Adam state in host RAM (requires row_sparse PKM)")
     ap.add_argument("--weight_decay", type=float, default=0.1)
@@ -386,8 +389,8 @@ def main():
         ap.error("--ce_chunk_size must be positive")
     if (args.tokens is None) == (args.epochs is None):
         ap.error("give exactly one of --tokens and --epochs")
-    if args.hot_rows and (args.value_device != "host" or args.value_optim == "adam"):
-        ap.error("--hot_rows needs --value_device host and a row-wise --value_optim")
+    if (args.hot_rows or args.step_rows) and (args.value_device != "host" or args.value_optim == "adam"):
+        ap.error("--hot_rows and --step_rows need --value_device host and a row-wise --value_optim")
 
     os.makedirs(args.out_dir, exist_ok=True)
     for f in os.listdir(args.out_dir):
@@ -443,6 +446,9 @@ def main():
     if args.hot_rows:
         from .host_values import enable_hot_rows
         enable_hot_rows(model, np.load(args.hot_rows), args.hot_frac, torch.device(DEVICE))
+    if args.step_rows:
+        from .host_values import enable_step_rows
+        enable_step_rows(model, int(args.step_rows), torch.device(DEVICE))
     if args.compile:
         from .compile import compile_dense
         compile_dense(model)
@@ -583,6 +589,8 @@ def main():
                        dataset=args.extra_val, **loss_options) if args.extra_val else None
         for m in mems:
             m.record = True
+        if args.step_rows:                       # how full the GACC accumulator got in the fullest step so far
+            info["step_rows_peak"] = max(m.values.step_rows.peak for m in mems)
         row = {
             "step": step, "tokens": step * stream.tokens_per_step, "epoch": round(step / stream.steps_per_epoch, 4),
             "lr_mult": lr_multiplier(max(0, step - 1), total_steps, warmup_steps, args.min_lr_ratio) if step else 0.0,

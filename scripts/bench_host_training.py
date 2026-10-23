@@ -232,12 +232,18 @@ def run(args):
     cfg.mem_impl = args.mem_impl
     start = time.perf_counter()
     model = Transformer(cfg)
+    if args.init_from:
+        # a trained model reads its table like late training does, a fresh one like the first steps
+        model.load_state_dict(torch.load(args.init_from, map_location="cpu", mmap=True, weights_only=True)["state_dict"])
     if args.value_device == "host":
         enable_host_values(model, profile=True)
     model.to(device).train()
     if args.hot_rows:
         from smlm.host_values import enable_hot_rows
         enable_hot_rows(model, np.load(args.hot_rows), args.hot_frac, device)
+    if args.step_rows:
+        from smlm.host_values import enable_step_rows
+        enable_step_rows(model, int(args.step_rows), device)
     opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, value_state=args.value_state,
                           value_optim=args.value_optim)
     synchronize(device)
@@ -335,6 +341,8 @@ def main():
     ap.add_argument("--value_optim", choices=["adam", "rowrms", "rowadagrad"], default="adam")
     ap.add_argument("--hot_rows", default=None, help="read counts per row (an earlier run's mem_access_train.npy)")
     ap.add_argument("--hot_frac", type=float, default=0.1)
+    ap.add_argument("--step_rows", type=float, default=0, help="GACC capacity in rows (0: off)")
+    ap.add_argument("--init_from", default=None, help="model.pt of a trained run to start from (else fresh weights)")
     ap.add_argument("--device", choices=["cpu", "cuda"], default="cuda")
     ap.add_argument("--mem_impl", choices=["torch", "triton"], default=None)
     ap.add_argument("--steps", type=int, default=3)
