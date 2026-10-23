@@ -3212,7 +3212,8 @@ in jedem Paar), nur dass es B nicht über die Zeilen findet, die B's Name liest.
   zweiten Schritt genutzt zu werden (Biran et al. 2024, „Hopping Too Late“); in welcher Schicht B entsteht, habe ich
   nicht gemessen. Ein zweiter Lesezugriff in derselben Schicht, der auf dem ersten aufbaut (die Schleifen-Variante,
   die ich mir zu diesem Schritt notiert habe), würde genau auf diese Lücke zielen. (Schritt 12 hat es versucht, er
-  schließt die Lücke nicht; ergänzt am 2026-10-11.)
+  schließt die Lücke nicht; ergänzt am 2026-10-11. Schritt 19 hat gemessen, wo B entsteht: in den Blöcken 8 und 9,
+  vor dem Lesen in Schicht 10, „zu spät“ erklärt es hier also nicht; ergänzt am 2026-10-23.)
 - **Was das nicht zeigen kann:** dass B-1M B nirgends auf dem Weg hält; nur, dass seine Tabellen-Lesezugriffe B nicht
   tragen. Ein Modell, ein Seed, eine Beziehung.
 
@@ -4174,3 +4175,22 @@ der CPU):
 **Was das nicht zeigen kann:** Eine Logit-Lens liest den Residualstrom in den Koordinaten der Ausgabe. Eine Brücke,
 die früher schon da ist, aber noch nicht zur Ausgabeschicht passt, entgeht ihr. „Erst beim oder nach“ heißt also
 „vorher so nicht lesbar“, nicht „nicht vorhanden“. Ein Modell, ein Seed, eine Relation; nur Bs erstes Token.
+
+### Ergebnis von Schritt 19 (2026-10-23, CPU, `scripts/lens.py` → `report/lens/summary.json`)
+
+- **Urteil nach den Kriterien: „B ist vor dem Lesen in Schicht 10 lesbar“.** Die Voraussetzung hält: Nach dem letzten
+  Block ist Bs erstes Token in allen 200 H2-Paaren das wahrscheinlichste der 89 verschiedenen ersten Tokens. Am Eingang
+  des Speicher-Lesens in Schicht 10: **71 % Treffer [64 %; 77 %]**, NULL 3 % [1 %; 6 %].
+- **Wo B entsteht, an der Brücke** (H2, Treffer je Messpunkt): bis Block 7 auf Zufallsniveau (1 %), Block 8 18 %,
+  Block 9 76 %, Eingang des Lesens in Schicht 10 71 %, nach Block 10 100 %. Mittlerer Rang (Median) von Bs erstem Token
+  im ganzen Vokabular: 89 nach Block 6, 10 nach Block 8, ab Block 9 erster.
+- **Ohne Urteil, am Ende der Zwei-Schritt-Frage** (an der Stelle, an der die Antwort nachgeschlagen wird): Auch dort ist
+  die Brücke da. Bs erstes Token am Eingang des Lesens in Schicht 10: 56 % Treffer nach „born in“, 40 % nach „grew up
+  in“, 20 % nach „worked as a“; NULL 1 bis 3 %. Auch hier entsteht es in den Blöcken 8 und 9.
+- **Wie ich es lese:** In diesem Modell kommt die Brücke nicht zu spät. B ist im Residualstrom vor dem Tabellenlesen in
+  Schicht 10 lesbar, an der Brücke und am Ende der Zwei-Schritt-Frage. Trotzdem holte dieses Lesen in Schritt 11 keine
+  von Bs Zeilen. Das Lesen nutzt die Brücke also nicht: Die Anfrage entsteht aus dem Kontext der Frage, und B, so wie
+  das Modell es an dieser Stelle hält, adressiert Bs Fakten in der Tabelle nicht. Das spricht für etwas, das gelernt
+  werden müsste, nicht für fehlende Tiefe. Ausprobieren könnte man Training mit Zwei-Schritt-Beispielen oder ein Lesen,
+  dessen Anfrage Bs Name selbst ist; das zweite Lesen aus Schritt 12 allein hat es nicht geschafft.
+- **Was das nicht zeigen kann:** siehe Kriterien (Logit-Lens, nur das erste Token, ein Modell und eine Relation).

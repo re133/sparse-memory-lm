@@ -3055,7 +3055,8 @@ only that it doesn't find B through the rows that B's name reads. One model, one
   literature is that the bridge is resolved too late in the layers to be used for the second step (Biran et al. 2024,
   "Hopping Too Late"); I didn't measure at which layer B forms. A second read in the same layer, which builds on the
   first (the loop variant I noted with this step), would aim at exactly this gap. (Step 12 tried it, it doesn't close
-  the gap; added on 2026-10-11.)
+  the gap; added on 2026-10-11. Step 19 measured where B forms: in blocks 8 and 9, before the layer-10 read, so
+  "too late" doesn't explain it here; added on 2026-10-23.)
 - **What this can't show:** that B-1M holds B nowhere on the way; only that its table reads don't carry B. One model,
   one seed, one relation.
 
@@ -3959,3 +3960,22 @@ the CPU):
 **What this can't show:** a logit lens reads the residual stream in the output's coordinates. A bridge that already
 exists earlier but isn't yet lined up with the output layer is missed. So "only at or after" means "not readable
 this way before", not "absent". One model, one seed, one relation; only B's first token.
+
+### Result of step 19 (2026-10-23, CPU, `scripts/lens.py` → `report/lens/summary.json`)
+
+- **Verdict by the criteria: "B is readable before the layer-10 read".** The gate holds: after the last block B's
+  first token is the most likely of the 89 distinct first tokens in all 200 H2 pairs. At the input of the layer-10
+  memory read: **71% hits [64%; 77%]**, NULL 3% [1%; 6%].
+- **Where B forms, at the bridge** (H2, hits per probe point): up to block 7 at chance (1%), block 8 18%, block 9 76%,
+  input of the layer-10 read 71%, after block 10 100%. Median rank of B's first token in the whole vocabulary: 89
+  after block 6, 10 after block 8, first from block 9 on.
+- **Without a verdict, at the end of the two-hop question** (the position where the answer is looked up): the bridge
+  is there too. B's first token, at the input of the layer-10 read: 56% hits after "born in", 40% after "grew up in",
+  20% after "worked as a"; NULL 1 to 3%. It also forms in blocks 8 and 9.
+- **How I read it:** in this model the bridge isn't too late. B is readable in the residual stream before the
+  layer-10 table read, at the bridge and at the end of the two-hop question. Yet in step 11 that read fetched none of
+  B's rows. So the read doesn't use the bridge: the query is built from the question's context, and B, as the model
+  holds it at this point, doesn't address B's facts in the table. That points to what is learned, not to depth.
+  Training with two-hop examples, or a read whose query is B's name itself, would be the things to try; the second
+  read of step 12 alone didn't do it.
+- **What this can't show:** see the criteria (logit lens, first token only, one model and relation).
