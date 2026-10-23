@@ -4258,3 +4258,41 @@ tokens, tokens per second before and after the growth, WikiText-103 at the same 
 
 **What this can't show:** one seed; 100 to 130 M tokens of a 500 M schedule; one growth point and one way to grow (the
 other common way copies existing blocks); only B-4M. Training time on the same PC, but a few hours after step 20's run.
+
+## Step 24: the model learns to be written into (EINPM, criteria fixed before the run, 2026-10-23)
+
+**Why:** Step 22 showed two problems with writing facts into the finished model. A fact written in other words comes
+back with the usual question only about half the time (49.6%), and the writes cost the known people 0.095, almost
+three times as much as the word-for-word writes of step 16. The model was trained on text, never on being written
+into. Here its core learns that, in a short fine-tuning with write episodes (my "way 3" from step 14).
+
+**Fine-tuning** (`scripts/einpm.py train`, RX 9070, table in RAM): B-16M-factk as in steps 14 to 22, 150 episodes.
+- In each: 4 fresh made-up people (600 in all, each once; new names that occur neither in the training text nor among
+  the people of steps 10 to 22, values from the same lists), each written from one sentence in one of three wordings
+  that step 22 doesn't use (T4 to T6), with step 22's write (64 steps of 0.01 on the rows read).
+- Then one AdamW step (lr 5e-5, no weight decay, clip 1.0) on everything except the table, with three losses on the
+  written table: the usual questions about the 4 new people, the usual questions about 8 known people from step 15's
+  300 for choosing (the measurement uses the other 600), and one window of 1,024 tokens of training text.
+- Then the table goes back to how it was. First order: the written rows count as constants. Only the core changes;
+  the table at the end is the original one.
+
+**Measurement** (`null`, `test`, `summary`): step 22's test exactly (its 150 test people, texts T1 to T3, order,
+setting 64 steps of 0.01, the 100 unwritten and the 600 known people), on the fine-tuned model, with its own scores
+before writing. Compared with step 22 on the same people, paired, bootstrap 95% intervals:
+- **Damage:** the change of the known people (after minus before writing), fine-tuned minus step 22: "less damage" if
+  the interval lies above 0, "more damage" if below, otherwise "no change in damage".
+- **Carrying over:** the share of right answers of the written people with the usual question, fine-tuned minus step
+  22: "carries over better", "carries over worse" or "no change in carrying over", by the same rule.
+- **Text:** val PPL of the fine-tuned model before any write against the original's: "text unchanged" within ±1%.
+- **Verdict:** "the model learned to be written into" if damage or carrying over gets better and nothing gets worse
+  (the text included); "a trade-off" if something gets better and something else worse; "not learned" if neither
+  gets better.
+
+**Reported without a verdict:** the lift over the unwritten people, accuracy per wording, the known and test people
+before writing (did the fine-tuning change what the model already knew?), the losses over the episodes, the time.
+
+Only if the card is free and it can end before 19:30.
+
+**What this can't show:** one fine-tuning setting (lr, episodes and loss weights fixed beforehand, not tuned); 600
+training people and one seed; first order only. The test wordings T1 to T3 differ from the training wordings, but all
+are short one-sentence texts about the same three attributes, so this is a narrow kind of generalization.

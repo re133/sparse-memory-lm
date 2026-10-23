@@ -4488,3 +4488,49 @@ Zeit), gegen die 37,632 aus Schritt 20. Das 1 % ist die Regel aus Schritt 8.
 **Was das nicht zeigen kann:** ein Seed; 100 bis 130 Mio. Tokens eines Plans über 500 Mio.; ein Zeitpunkt und eine Art
 zu wachsen (die andere übliche Art kopiert vorhandene Blöcke); nur B-4M. Trainingszeit auf demselben PC, aber ein paar
 Stunden nach dem Lauf aus Schritt 20.
+
+## Schritt 24: das Modell lernt, beschreibbar zu sein (EINPM, Kriterien vor dem Lauf festgelegt, 2026-10-23)
+
+**Warum:** Schritt 22 zeigte zwei Probleme beim Schreiben von Fakten in das fertige Modell. Ein in anderen Worten
+geschriebener Fakt kommt mit der üblichen Frage nur etwa jedes zweite Mal zurück (49,6 %), und das Schreiben kostet
+die bekannten Personen 0,095, fast dreimal so viel wie das wörtliche Schreiben in Schritt 16. Das Modell wurde auf
+Text trainiert, nie darauf, beschrieben zu werden. Hier lernt sein Kern das, in einem kurzen Nachtraining mit
+Schreib-Episoden (mein „Weg 3“ aus Schritt 14).
+
+**Nachtraining** (`scripts/einpm.py train`, RX 9070, Tabelle im RAM): B-16M-factk wie in Schritt 14 bis 22, 150
+Episoden.
+- In jeder: 4 neue ausgedachte Personen (600 insgesamt, jede einmal; neue Namen, die weder im Trainingstext noch unter
+  den Personen aus Schritt 10 bis 22 vorkommen, Werte aus denselben Listen), jede aus einem Satz in einer von drei
+  Formulierungen geschrieben, die Schritt 22 nicht verwendet (T4 bis T6), mit dem Schreiben aus Schritt 22 (64 Schritte
+  zu 0,01 auf den gelesenen Zeilen).
+- Dann ein AdamW-Schritt (lr 5e-5, kein Weight Decay, Clip 1,0) auf allem außer der Tabelle, mit drei Verlusten auf
+  der beschriebenen Tabelle: die üblichen Fragen zu den 4 neuen Personen, die üblichen Fragen zu 8 bekannten Personen
+  aus den 300 zum Auswählen aus Schritt 15 (die Messung nimmt die anderen 600) und ein Fenster von 1.024 Tokens
+  Trainingstext.
+- Danach kommt die Tabelle wieder in ihren alten Zustand. Erste Ordnung: die geschriebenen Zeilen gelten als
+  Konstanten. Nur der Kern ändert sich; die Tabelle am Ende ist die ursprüngliche.
+
+**Messung** (`null`, `test`, `summary`): genau der Test aus Schritt 22 (seine 150 Testpersonen, Texte T1 bis T3,
+Reihenfolge, Einstellung 64 Schritte zu 0,01, die 100 nicht geschriebenen und die 600 bekannten Personen), auf dem
+nachtrainierten Modell, mit seinen eigenen Werten vor dem Schreiben. Verglichen mit Schritt 22 an denselben Personen,
+gepaart, Bootstrap-95-%-Intervalle:
+- **Schaden:** die Änderung der bekannten Personen (nach minus vor dem Schreiben), nachtrainiert minus Schritt 22:
+  „weniger Schaden“, wenn das Intervall über 0 liegt, „mehr Schaden“, wenn darunter, sonst „Schaden unverändert“.
+- **Übertragen:** der Anteil richtiger Antworten der geschriebenen Personen auf die übliche Frage, nachtrainiert minus
+  Schritt 22: „überträgt besser“, „überträgt schlechter“ oder „Übertragen unverändert“, nach derselben Regel.
+- **Text:** Val-PPL des nachtrainierten Modells vor jedem Schreiben gegen die des ursprünglichen: „Text unverändert“
+  innerhalb von ±1 %.
+- **Urteil:** „das Modell hat gelernt, beschreibbar zu sein“, wenn Schaden oder Übertragen besser wird und nichts
+  schlechter (der Text eingeschlossen); „ein Tausch“, wenn etwas besser und etwas anderes schlechter wird; „nicht
+  gelernt“, wenn keins von beiden besser wird.
+
+**Ohne Urteil berichtet:** der Lift gegenüber den nicht geschriebenen Personen, Trefferquote pro Formulierung, die
+bekannten und die Testpersonen vor dem Schreiben (hat das Nachtraining verändert, was das Modell schon wusste?), die
+Verluste über die Episoden, die Zeit.
+
+Nur wenn die Karte frei ist und es vor 19:30 enden kann.
+
+**Was das nicht zeigen kann:** eine Einstellung des Nachtrainings (lr, Episoden und Gewichte der Verluste vorher
+festgelegt, nicht abgestimmt); 600 Trainingspersonen und ein Seed; nur erste Ordnung. Die Testformulierungen T1 bis T3
+unterscheiden sich von denen im Training, aber alle sind kurze Ein-Satz-Texte über dieselben drei Eigenschaften; das
+ist also eine enge Art der Verallgemeinerung.
