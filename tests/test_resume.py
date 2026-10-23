@@ -223,3 +223,36 @@ def test_weights_trajectory(tiny_setup, monkeypatch):
     last = torch.load(out / "weights" / files[-1], weights_only=False)["state_dict"]
     final = torch.load(out / "model.pt", weights_only=False)["state_dict"]
     assert all(torch.equal(last[k], final[k]) for k in final)
+
+
+@pytest.mark.parametrize("extra", [(), ("--value_optim", "rowrms"), ("--value_device", "host"),
+                                   ("--value_device", "host", "--value_optim", "rowrms")])
+def test_pause_and_resume_equals_uninterrupted(tiny_setup, monkeypatch, extra):
+    """SIGUSR1 (scripts/heim.py): checkpoint at the next log row, exit 75; --resume ends like a run that never paused,
+    also between two checkpoints of --ckpt_every_tokens and with a row-wise table optimizer."""
+    import signal
+    a, b = tiny_setup / "a", tiny_setup / "b"
+    run(monkeypatch, a, extra=extra)
+    real_batch = smlm_data.TrainStream.batch
+
+    def pausing(self, step):
+        if step == 4:                                 # requested during step 5, saved at the log row of step 8
+            os.kill(os.getpid(), signal.SIGUSR1)
+        return real_batch(self, step)
+    monkeypatch.setattr(smlm_data.TrainStream, "batch", pausing)
+    with pytest.raises(SystemExit) as e:
+        run(monkeypatch, b, extra=extra)
+    assert e.value.code == train.PAUSED
+    info = json.loads((b / "run-info.json").read_text())
+    assert info["status"] == "paused" and info["checkpoint"]["step"] == 8 and info["pauses"][0]["at_step"] == 8
+    monkeypatch.setattr(smlm_data.TrainStream, "batch", real_batch)
+    run(monkeypatch, b, extra=extra)
+    info_a, info_b = (json.loads((x / "run-info.json").read_text()) for x in (a, b))
+    assert info_b["status"] == "done" and info_b["resumes"][0]["at_step"] == 8 and len(info_b["pauses"]) == 1
+    assert info_a["results"]["val_loss"] == info_b["results"]["val_loss"]
+    sa = torch.load(a / "model.pt", weights_only=True)["state_dict"]
+    sb = torch.load(b / "model.pt", weights_only=True)["state_dict"]
+    assert all(torch.equal(sa[k], sb[k]) for k in sa)
+    for f in ("metrics.csv", "train_log.csv"):
+        assert [{k: v for k, v in r.items() if k not in TIMING} for r in rows(a / f)] == \
+               [{k: v for k, v in r.items() if k not in TIMING} for r in rows(b / f)], f

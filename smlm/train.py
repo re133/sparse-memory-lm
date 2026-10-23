@@ -8,6 +8,9 @@ Outputs in --out_dir:
   model.pt             final weights (not in git)
   ckpt.pt              with --ckpt_every_tokens: weights + optimizer state + loop counters at the last checkpoint,
                        for --resume after a crash (removed when the run is done, unless --keep_ckpt)
+
+Pause: SIGUSR1 makes the run write ckpt.pt at the next log row (after the evaluation, if one is due there) and exit
+with code 75 (PAUSED); --resume continues it exactly (scripts/heim.py uses this to step aside for games).
   B only: mem_access_train.npy (reads per entry over the whole training), mem_access_val.npz
           (reads + summed softmax weight per entry on the validation set), mem_index_sample.npz
           (indices / scores / token ids for the first 64k validation tokens, in text order)
@@ -19,6 +22,7 @@ import json
 import math
 import os
 import platform
+import signal
 import subprocess
 import time
 
@@ -37,6 +41,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 DEVICE = os.environ.get("SMLM_TRAIN_DEVICE", "cuda")
 CUDA = DEVICE == "cuda"
 CKPT = "ckpt.pt"
+PAUSED = 75                                    # exit code after a pause request (SIGUSR1): ckpt.pt is written
 # arguments that change what is trained: a checkpoint only resumes a run with the same ones
 RESUME_KEYS = ("model", "seq_len", "batch_seqs", "lr", "optimizer", "value_lr", "eng_value_lr", "value_state",
                "value_device", "weight_decay", "warmup_frac", "min_lr_ratio", "clip", "mem_query_norm",
@@ -377,8 +382,6 @@ def main():
         ap.error("--ce_chunk_size must be positive")
     if (args.tokens is None) == (args.epochs is None):
         ap.error("give exactly one of --tokens and --epochs")
-    if args.resume and args.value_device == "host":
-        ap.error("--resume is not supported with --value_device host")
 
     os.makedirs(args.out_dir, exist_ok=True)
     for f in os.listdir(args.out_dir):
@@ -488,7 +491,7 @@ def main():
                 old = json.load(f)
         except (OSError, ValueError):
             old = {}
-        for k in ("started", "abort_check", "skipped_steps", "n_skipped_steps", "resumes", "checkpoint"):
+        for k in ("started", "abort_check", "skipped_steps", "n_skipped_steps", "resumes", "checkpoint", "pauses"):
             if k in old:
                 info[k] = old[k]
         info.setdefault("resumes", []).append({
@@ -619,6 +622,8 @@ def main():
               + (f"usage {ev['mem']['usage']:.3f} kl {ev['mem']['kl']:.3f}" if mems else ""), flush=True)
         return ev
 
+    pause = []
+    signal.signal(signal.SIGUSR1, lambda *_: pause.append(time.time()))
     if start_step == 0:
         do_eval(0)
     model.train()
@@ -711,6 +716,16 @@ def main():
             if args.stop_after_tokens and (step + 1) * stream.tokens_per_step >= args.stop_after_tokens:
                 info["stopped_early_at_step"] = step + 1
                 break
+        if pause and (step + 1) % args.log_every == 0 and step + 1 < total_steps:
+            # at a log row the log sums are empty and the throughput window starts anew; the interval sums go
+            # into the checkpoint, so the resumed run continues exactly
+            save_checkpoint(step + 1)
+            info.setdefault("pauses", []).append({"at_step": step + 1, "requested": dt.datetime.fromtimestamp(
+                pause[0]).isoformat(timespec="seconds"), "save_s": info["checkpoint"]["save_s"]})
+            info["status"] = "paused"
+            write_info()
+            print(f"[pause] checkpoint at step {step + 1}, exit {PAUSED}", flush=True)
+            raise SystemExit(PAUSED)
 
     final_val = evaluate(model, "validation", args.seq_len, n_val_words, batch=micro_bs, mem_stats=bool(mems),
                          sample_windows=args.sample_windows if mems else 0, dataset=args.data, **loss_options)
