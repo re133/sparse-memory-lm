@@ -87,7 +87,25 @@ up.</p>
   <div class="card"><b>+33%</b><span>more "worth" after six times the training (114M → 152M).</span></div>
 </div>
 
-<h2>Newest: training at home with less memory</h2>
+<h2>Newest: three more experiments at home</h2>
+<div class="news">
+  <span class="tag">23 October 2026, afternoon</span>
+  <p><strong>Training the 16.8M table is now 1.4 times as fast, in 30 instead of 52 GiB of RAM.</strong> The 5% most-read
+  rows stay on the GPU, and each step's gradients are summed there instead of in a table-sized buffer in RAM. Over 20M
+  tokens the curve was 1.5% worse at first and 0.3% at the end. An exact rerun of the old way was itself 0.75% off, so
+  I can't tell yet whether that's more than noise.</p>
+  <p><strong>Letting the model grow didn't pay off.</strong> I started the 4M-table model with half of its plain
+  layers asleep and woke them up after 40M tokens, so that they start out changing nothing. The small model was only
+  18% faster, because the output layer, the table reads and the remaining layers still cost the same. At the same
+  training time the grown model ended up where the normal one did (0.7% behind).</p>
+  <p><strong>Teaching the model to be written into works, but so far it costs too much.</strong> In 150 short
+  episodes I wrote made-up people into the table and trained the rest of the model to answer questions about them.
+  Afterwards, facts written in wordings it had never seen came back right 74% of the time instead of 50%. But the
+  training itself made the model forget part of what it knew (people it had learned: 80% right instead of almost
+  100%), and normal text got 4.4% worse. Next I'll try the same with much gentler training.</p>
+</div>
+
+<h2>Training at home with less memory</h2>
 <div class="news">
   <span class="tag">23 October 2026</span>
   <p>Half the memory a big table needs during training isn't the table, it's the optimizer: Adam keeps two extra

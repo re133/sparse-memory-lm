@@ -4194,6 +4194,19 @@ changes: the run has to end before 19:30 today.
   from the changes (HOT, GACC, the chunked loss) and needs a closer look before I use them: **"not noise"**. In
   between: **"unclear"**. Only if it can end before 19:30.
 
+### Step 21, the cause check (2026-10-23, RX 9070 + 128 GB, `runs/rowopt/B-16M-host-rowrms-2.4e-3-s0-rerun`)
+
+- **Verdict: "unclear".** Part B's exact configuration again: val PPL 482.20 at step 305 against part B's 478.63
+  (+0.75%), between the 0.5% and 1% fixed before.
+- **The same run doesn't repeat bit for bit:** its training losses differ from part B's by up to 0.0051 in the first
+  310 steps (step 21: up to 0.0070), the same pattern as step 21 (1e-4 at first, then more). So the order of additions
+  changes from run to run even without HOT and GACC.
+- Step 21 lies about as far from the rerun (+0.79%) as the rerun from part B. With one rerun as the measure of the
+  spread, I can't tell whether HOT, GACC and the chunked loss add anything to it. At 20 M tokens the difference was
+  0.3%.
+- Same speed as part B: 9,668 tokens/s at step 305 (part B 9,679), so step 21's 1.35× at that point stands.
+- **Code:** commit `a240546`; README.md was modified in the working tree at the start (marked dirty), no code.
+
 ## Step 22: facts written in other words, asked in the usual ones (EINP3, criteria fixed before the run, 2026-10-23)
 
 **Why:** Steps 14 to 16 wrote each new person's article in the exact training format, and the question was the start

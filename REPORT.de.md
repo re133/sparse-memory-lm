@@ -4420,6 +4420,20 @@ Zeitgrenze ändert sich: der Lauf muss heute vor 19:30 enden.
   braucht einen genaueren Blick, bevor ich sie nutze: **„kein Rauschen“**. Dazwischen: **„unklar“**. Nur wenn es vor
   19:30 enden kann.
 
+### Schritt 21, die Ursachen-Prüfung (2026-10-23, RX 9070 + 128 GB, `runs/rowopt/B-16M-host-rowrms-2.4e-3-s0-rerun`)
+
+- **Urteil: „unklar“.** Genau die Konfiguration von Teil B noch einmal: Val-PPL 482,20 bei Schritt 305 gegen 478,63 in
+  Teil B (+0,75 %), zwischen den vorher festgelegten 0,5 % und 1 %.
+- **Derselbe Lauf wiederholt sich nicht Bit für Bit:** seine Trainingsverluste weichen in den ersten 310 Schritten um
+  bis zu 0,0051 von denen aus Teil B ab (Schritt 21: bis zu 0,0070), nach demselben Muster wie Schritt 21 (erst 1e-4,
+  dann mehr). Die Reihenfolge der Additionen ändert sich also auch ohne HOT und GACC von Lauf zu Lauf.
+- Schritt 21 liegt etwa so weit von der Wiederholung entfernt (+0,79 %) wie die Wiederholung von Teil B. Mit einer
+  Wiederholung als Maß für die Streuung kann ich nicht sagen, ob HOT, GACC und der stückweise Verlust etwas dazu
+  beitragen. Bei 20 Mio. Tokens war der Unterschied 0,3 %.
+- Gleiches Tempo wie Teil B: 9.668 Tokens/s bei Schritt 305 (Teil B 9.679), die 1,35× von Schritt 21 an dieser Stelle
+  bleiben also.
+- **Code:** Commit `a240546`; README.md war beim Start im Arbeitsverzeichnis geändert (als dirty markiert), kein Code.
+
 ## Schritt 22: Fakten in anderen Worten geschrieben, mit den üblichen gefragt (EINP3, Kriterien vor dem Lauf festgelegt, 2026-10-23)
 
 **Frage:** Die Schritte 14 bis 16 schrieben den Artikel jeder neuen Person genau im Trainingsformat, und die Frage war

@@ -7,7 +7,8 @@
 > **No time? [Here's the two-minute version →](https://re133.github.io/sparse-memory-lm/)**
 >
 > New (23 Oct 2026): with one optimizer number per table row, B-16M trains at home in half the RAM and B-4M fits
-> entirely on my 16 GB gaming card.
+> entirely on my 16 GB gaming card. Keeping the most-read rows on the GPU makes the B-16M training 1.4 times as fast,
+> in 30 GiB of RAM.
 
 What happens if you give a tiny language model a really big lookup table?
 
@@ -347,6 +348,19 @@ above with it:
 after 100M tokens: val PPL 37.63 against 38.12 on the H200 (−1.3%; on WikiText-103 1.4% worse), at 40,600 tokens/s
 against 51,900. A full 500M run would take about 3.4 hours on my PC.
 
+**Faster with the most-read rows on the GPU** (step 21): `--hot_rows` keeps the 5% most-read rows on the GPU with
+their optimizer state, `--step_rows` sums each step's gradients there (rows that don't fit go to RAM). Over 20M tokens
+of the B-16M run, training was 1.39 times as fast as with rowrms alone (1,611 instead of 2,234 s), in 30.3 GiB of RAM
+instead of 52.3. The curve was 1.5% worse after 10M tokens and 0.3% after 20M. An exact rerun of the plain
+configuration was itself 0.75% off its first run, so I can't tell yet whether that's more than the noise of runs that
+don't repeat bit for bit.
+
+**Letting B-4M grow** (step 23): the same run, but six of the twelve plain blocks sleep for the first 40M tokens and
+then wake up as identities (output projections at zero, so the model computes the same as before). It didn't pay off:
+the small phase was only 18% faster, because the output layer, the attention and the three table reads stay. At the
+training time the normal run needed for 100M tokens, the grown run was 0.7% behind (37.91 against 37.63), which my
+rule counts as no measurable difference.
+
 ### Adding a table to Qwen3.5-0.8B
 
 **Setup:**
@@ -436,9 +450,11 @@ Set up the venv as in [Try it](#try-it), then:
 - `scripts/heim.py -- <smlm.train arguments>` trains in the background and pauses while a game runs (it watches the
   GPU's graphics engine and Steam, or `touch ~/.smlm-pause`). The run writes a checkpoint into `/dev/shm` and continues
   bit for bit later. So far I've only tried it with `glxgears`, not with a real game.
-- `--hot_rows` / `--step_rows` keep the most-read rows on the GPU and sum a step's gradients there. Both are built and
-  tested against the plain path. In a benchmark they make a B-16M step 1.91 times as fast as with Adam, at 29 GiB of
-  RAM (step 21 in the [report](REPORT.md)), but I haven't trained a full run with them yet.
+- `--hot_rows` / `--step_rows` keep the most-read rows on the GPU and sum a step's gradients there (rows that don't
+  fit in that buffer go to RAM). In a 20M-token B-16M run they made training 1.39 times as fast as rowrms alone, at
+  30 GiB of RAM (step 21 in the [report](REPORT.md)). A full run with them is still to come.
+- `--grow_layers` / `--grow_at_tokens` start with some plain blocks asleep and wake them up as identities later
+  (step 23). For B-4M it saved nothing.
 
 **Qwen experiment:**
 - Separate environment: `pip install -r requirements-qwen.txt`.

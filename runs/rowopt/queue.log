@@ -50,3 +50,8 @@
 2026-10-23 16:15:26 end B-4M-gpu-rowrms-2.4e-3-mb4-grow40-s0 rc=0  (0.92 h) val_ppl 34.384
 2026-10-23 16:15:27 ntfy: B-4M-gpu-rowrms-2.4e-3-mb4-grow40-s0 fertig, Val-PPL 34.384, 0.9 h
 2026-10-23 16:15:27 QUEUE DONE | B-4M-gpu-rowrms-2.4e-3-mb4-grow40-s0 done
+2026-10-23 16:46:09 step 21 cause check start: B-16M-host-rowrms-2.4e-3-s0-rerun
+2026-10-23 16:46:09 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-16M-host-rowrms-2.4e-3-s0-rerun --model B-16M-sparse --value_device host --value_state fp32 --mem_impl triton --seed 0 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --weight_decay 0.1 --no_save --stop_after_tokens 9.9e6 --value_optim rowrms --value_lr 2.4e-3
+2026-10-23 17:08:39 end B-16M-host-rowrms-2.4e-3-s0-rerun rc=0  (0.38 h) val_ppl 482.203
+2026-10-23 17:08:40 ntfy: B-16M-host-rowrms-2.4e-3-s0-rerun fertig, Val-PPL 482.203, 0.4 h
+2026-10-23 17:08:40 QUEUE DONE | B-16M-host-rowrms-2.4e-3-s0-rerun done
