@@ -4142,3 +4142,35 @@ die Zeile:
 **Was das nicht zeigen kann:** ein Seed pro zeilenweiser Einstellung; kurze Budgets (50 M Tokens bei B-1M, 100 M bei
 B-16M); Lernraten aus einem kleinen Raster an B-1M. Kein Vergleich mit bf16-Werten, einer eingefrorenen Tabelle oder
 den meistgelesenen Zeilen auf der Karte (HOT).
+
+## Schritt 19: Ab welcher Schicht ist die Brücke lesbar? (LENS, Kriterien vor der Messung festgelegt, 2026-10-23)
+
+**Frage:** In Schritt 11 nannte B-1M nach „A's mother was“ in jedem Paar B, aber am Ende der Zwei-Schritt-Frage trug
+sein Tabellenlesen in Schicht 10 nichts von B. Eine Lesart aus der Literatur („Hopping Too Late“, Biran et al. 2024):
+Die Brücke entsteht zu spät in den Schichten, um noch für den zweiten Schritt genutzt zu werden. Wo B entsteht, hatte
+ich nicht gemessen; das hier tut es, mit einer Logit-Lens: kein Training, ein Durchlauf auf der CPU.
+
+**Messung** (`scripts/lens.py` → `report/lens/summary.json`, Modell `runs/hop2/B-1M-hop2-s0` aus Schritt 11, fp32 auf
+der CPU):
+- Paare: H2 aus Schritt 11 (A's Mutter ist B, Bs Fakten in eigenen Artikeln gelernt, 200 Paare) und NULL (nie
+  verknüpft, 200 Paare) als Vergleich.
+- Prompts im Trainingsformat: die Brücke `<|endoftext|>A\n\nA's mother was` (nächstes Token: das erste Token von Bs
+  Namen) und die Zwei-Schritt-Fragen `… A's mother was born in` / `grew up in` / `worked as a`.
+- Messpunkte: die Einbettung, der Residualstrom nach jedem der 12 Blöcke und der Eingang jedes Speicher-Lesens (nach
+  der Attention der Blöcke 2, 6 und 10). An jedem geht die letzte Position durch die letzte Norm und die
+  Ausgabeschicht.
+- Treffer: Bs erstes Token ist das wahrscheinlichste unter den verschiedenen ersten Tokens der 200 B-Namen der
+  Bedingung.
+
+**Kriterien** (Brücke, H2):
+- **Voraussetzung:** im letzten Block mindestens 90 % Treffer (das Modell nennt dort B). Sonst „nicht testbar“.
+- **„B ist vor dem Lesen in Schicht 10 lesbar“:** am Eingang des Speicher-Lesens in Schicht 10 mindestens 50 %
+  Treffer, und das 95-%-Intervall (Wilson) liegt dort über dem von NULL.
+- **„B entsteht erst beim oder nach dem Lesen in Schicht 10“:** sonst.
+- **Ohne Urteil berichtet:** die ganze Kurve für die Brücke und für die Zwei-Schritt-Fragen (H2 und NULL); der erste
+  Messpunkt mit der Hälfte der Treffer; die normierte Wahrscheinlichkeit und der mittlere Rang (Median) von Bs erstem
+  Token im Vokabular.
+
+**Was das nicht zeigen kann:** Eine Logit-Lens liest den Residualstrom in den Koordinaten der Ausgabe. Eine Brücke,
+die früher schon da ist, aber noch nicht zur Ausgabeschicht passt, entgeht ihr. „Erst beim oder nach“ heißt also
+„vorher so nicht lesbar“, nicht „nicht vorhanden“. Ein Modell, ein Seed, eine Relation; nur Bs erstes Token.

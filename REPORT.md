@@ -3928,3 +3928,34 @@ rows read since the last step. g is a row's gradient, q the mean of g² over the
 **What this can't show:** one seed per row-wise setting; short budgets (50 M tokens for B-1M, 100 M for B-16M);
 learning rates from a small grid on B-1M. No comparison with bf16 values, a frozen table, or the most-read rows kept
 on the card (HOT).
+
+## Step 19: at which layer does the bridge become readable? (LENS, criteria fixed before measuring, 2026-10-23)
+
+**Why:** In step 11, B-1M named B after "A's mother was" in every pair, but at the end of the two-hop question its
+layer-10 table read carried nothing of B. One reading from the literature ("Hopping Too Late", Biran et al. 2024):
+the bridge forms too late in the layers to be used for the second step. I didn't measure where B forms; this does,
+with a logit lens: no training, one pass on the CPU.
+
+**Measure** (`scripts/lens.py` → `report/lens/summary.json`, model `runs/hop2/B-1M-hop2-s0` from step 11, fp32 on
+the CPU):
+- Pairs: step 11's H2 (A's mother is B, B's facts learned in separate articles, 200 pairs) and NULL (never linked,
+  200 pairs) as the baseline.
+- Prompts in the training format: the bridge `<|endoftext|>A\n\nA's mother was` (next token: the first token of B's
+  name), and the two-hop questions `… A's mother was born in` / `grew up in` / `worked as a`.
+- Probe points: the embedding, the residual stream after each of the 12 blocks, and the input of each memory read
+  (after the attention of blocks 2, 6 and 10). At each, the last position goes through the final norm and the output
+  layer.
+- Hit: B's first token is the most likely among the distinct first tokens of the 200 B names of the condition.
+
+**Criteria** (bridge, H2):
+- **Gate:** at the last block at least 90% hits (the model names B there). Otherwise "not testable".
+- **"B is readable before the layer-10 read":** at the input of the layer-10 memory read at least 50% hits, and the
+  95% interval (Wilson) above NULL's there.
+- **"B forms only at or after the layer-10 read":** otherwise.
+- **Reported without a verdict:** the whole curve for the bridge and for the two-hop questions (H2 and NULL); the
+  first probe point with half the hits; the normalised probability and the median rank of B's first token in the
+  vocabulary.
+
+**What this can't show:** a logit lens reads the residual stream in the output's coordinates. A bridge that already
+exists earlier but isn't yet lined up with the output layer is missed. So "only at or after" means "not readable
+this way before", not "absent". One model, one seed, one relation; only B's first token.
