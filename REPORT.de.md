@@ -4290,6 +4290,22 @@ Lauf über 500 M Tokens mit diesem Tempo bräuchte.
 **Was das nicht zeigen kann:** Der H200-Lauf nutzte Adam. Der Vergleich ist Optimizer und Hardware zugleich, mit einem
 Seed, bis 100 M von 500 M Tokens.
 
+### Ergebnis von Schritt 20 (2026-10-23, RX 9070, `scripts/rowopt_summary.py b4g` → `report/rowopt/summary.json`)
+
+- **Urteil nach den Kriterien: „besser“.** B-4M trainiert komplett auf der 16-GB-Spielekarte. Val-PPL bei Schritt
+  3.050: 37,632 gegen 38,115 auf der H200, 1,3 % niedriger. Es lief mit 4 Sequenzen pro Mikro-Batch und `--fused_ce`
+  (die erste Möglichkeit der Kriterien; der Probelauf über 20 Schritte ging durch).
+- **Ohne Urteil:**
+  - **GPU-Speicher:** Spitze 14,73 GiB (H200-Lauf: 28,5 GiB).
+  - **Tempo:** 40.600 Tokens/s gegen 51.900 auf der H200 über dieselben Auswertungen (78 %), und das 5,6-Fache dessen,
+    was B-16M mit der Tabelle im RAM schafft. Trainingszeit 2.463 gegen 1.930 s. Ein ganzer Lauf über 500 M Tokens
+    bräuchte mit diesem Tempo etwa 3,4 h.
+  - **WikiText-103:** 132,33 gegen 130,44, 1,4 % schlechter. Auf diesem Text ist die Reihenfolge umgekehrt.
+  - **Die Kurve:** bei jeder Auswertung vorn, aber der Vorsprung schrumpft wie in Teil B von Schritt 18: 5,5 % bei
+    Schritt 305, 4,1 % bei 1.220, 1,8 % bei 1.830, 1,3 % bei 3.050.
+- **Vorbehalte:** Optimizer und Hardware ändern sich zugleich; ein Seed; 100 M von 500 M Tokens. Lauf ab Commit
+  `f6bdd7f`, sauberer Stand.
+
 ## Schritt 21: dasselbe B-16M-Training, schneller und mit weniger RAM (HOT + GACC, Kriterien vor dem Lauf festgelegt, 2026-10-23)
 
 **Frage:** Mit der Tabelle im RAM verbringt ein B-16M-Schritt die meiste Zeit damit, Zeilen zu bewegen, nicht zu

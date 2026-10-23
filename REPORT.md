@@ -4071,6 +4071,22 @@ B-4M trains at the card's own speed, instead of ~7,000 tokens/s with the table i
 **What this can't show:** the H200 run used Adam. The comparison is optimizer and hardware at once, with one seed, to
 100 M of 500 M tokens.
 
+### Result of step 20 (2026-10-23, RX 9070, `scripts/rowopt_summary.py b4g` → `report/rowopt/summary.json`)
+
+- **Verdict by the criteria: "better".** B-4M trains entirely on the 16 GB gaming card. Val PPL at step 3,050: 37.632
+  against 38.115 on the H200, 1.3% lower. It ran with 4 sequences per micro-batch and `--fused_ce` (the first option
+  of the criteria; the 20-step probe passed).
+- **Without a verdict:**
+  - **GPU memory:** peak 14.73 GiB (H200 run: 28.5 GiB).
+  - **Speed:** 40,600 tokens/s against 51,900 on the H200 over the same evaluations (78%), and 5.6 times what B-16M
+    with its table in RAM manages. Training time 2,463 against 1,930 s. A full 500 M run would take about 3.4 h at
+    this speed.
+  - **WikiText-103:** 132.33 against 130.44, 1.4% worse. On this text the order is reversed.
+  - **The curve:** ahead at every evaluation, but the lead shrinks as in part B of step 18: 5.5% at step 305, 4.1% at
+    1,220, 1.8% at 1,830, 1.3% at 3,050.
+- **Caveats:** optimizer and hardware change at once; one seed; 100 M of 500 M tokens. Run from commit `f6bdd7f`,
+  clean tree.
+
 ## Step 21: the same B-16M training, faster and with less RAM (HOT + GACC, criteria fixed before the run, 2026-10-23)
 
 **Why:** With the table in RAM, a B-16M step spends most of its time moving rows, not computing. Two changes that

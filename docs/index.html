@@ -74,7 +74,7 @@ footer { margin-top: 48px; font-size: 14px; color: var(--muted); }
 
 <h1>A tiny language model with a huge lookup table</h1>
 <p class="lead">Short answer: yes, the table is worth it. And the more the model trains, the more it's worth.</p>
-<p class="date">The two-minute version · by Leon Fechner · last updated 22 October 2026</p>
+<p class="date">The two-minute version · by Leon Fechner · last updated 23 October 2026</p>
 
 <p>I took a small language model (21M parameters) and gave it a table with up to 16.8 million learned vectors. For
 every token (roughly a word) it only looks up a few hundred of them, so it barely computes more than before. Then I
@@ -87,7 +87,20 @@ up.</p>
   <div class="card"><b>+33%</b><span>more "worth" after six times the training (114M → 152M).</span></div>
 </div>
 
-<h2>Newest: writing facts straight into the table</h2>
+<h2>Newest: training at home with less memory</h2>
+<div class="news">
+  <span class="tag">23 October 2026</span>
+  <p>Half the memory a big table needs during training isn't the table, it's the optimizer: Adam keeps two extra
+  numbers for every value in it. I tried keeping just one number per table row instead, and repeated two earlier runs
+  with it, written down beforehand as always.</p>
+  <p><strong>The 16.8M table trained 1.9% better in half the RAM</strong> (52 instead of about 100 GiB, table in RAM,
+  100M tokens). It wasn't faster, though: copying rows to the GPU is still what takes the time.</p>
+  <p><strong>The 4M table now trains entirely on my 16 GB gaming card.</strong> Before, it needed 28.5 GiB on an H200.
+  Now it uses 14.7 GiB, runs at 40,600 tokens per second (78% of the H200's speed) and after 100M tokens was 1.3%
+  better than the H200 run. In both runs the lead shrank as training went on, so I don't know yet if it lasts.</p>
+</div>
+
+<h2>Writing facts straight into the table</h2>
 <div class="news">
   <span class="tag">22 October 2026</span>
   <p>Next idea: train the small model once, and later just <em>write</em> new knowledge into the table instead of
@@ -136,7 +149,8 @@ up.</p>
   <li><strong>The table doesn't have to sit on the GPU.</strong> From normal RAM or even an NVMe SSD the model still
   writes 114 to 154 tokens per second on my PC.</li>
   <li><strong>It trains on a gaming card.</strong> The 16.8M table trained on my 16 GB Radeon RX 9070, with the table
-  in RAM, and came out as good as on a big H200. It just took 7.7 times as long.</li>
+  in RAM, and came out as good as on a big H200. It just took 7.7 times as long. The 4M table fits on the card
+  itself.</li>
   <li><strong>It helps to remember facts.</strong> Facts about made-up people, seen only a few times in training,
   stuck clearly better with the table than in a normal model with twice the compute.</li>
   <li><strong>Same code on AMD and NVIDIA.</strong> The kernels run unchanged on a Radeon RX 9070, an AMD Instinct

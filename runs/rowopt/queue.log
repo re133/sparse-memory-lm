@@ -32,3 +32,11 @@
 2026-10-23 09:40:42 QUEUE DONE | B-16M-host-rowrms-2.4e-3-s0 done
 2026-10-23 09:41:14 step 20 start: B-4M-gpu-rowrms-2.4e-3-mb4-s0-probe
 2026-10-23 09:41:14 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-4M-gpu-rowrms-2.4e-3-mb4-s0-probe --model B-4M-sparse --mem_impl triton --seed 0 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --weight_decay 0.1 --no_save --value_optim rowrms --fused_ce --value_lr 2.4e-3 --micro_bs 4 --stop_after_tokens 0.65e6 --eval_every_tokens 0.655e6
+2026-10-23 09:42:44 end B-4M-gpu-rowrms-2.4e-3-mb4-s0-probe rc=0  (0.03 h) val_ppl 27845.566
+2026-10-23 09:42:44 ntfy: B-4M-gpu-rowrms-2.4e-3-mb4-s0-probe fertig, Val-PPL 27845.566, 0.0 h
+2026-10-23 09:42:44 QUEUE DONE | B-4M-gpu-rowrms-2.4e-3-mb4-s0-probe done
+2026-10-23 09:43:41 step 20 start: B-4M-gpu-rowrms-2.4e-3-mb4-s0
+2026-10-23 09:43:41 start -m smlm.train --out_dir /mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-4M-gpu-rowrms-2.4e-3-mb4-s0 --model B-4M-sparse --mem_impl triton --seed 0 --data wikipedia --tokens 500e6 --extra_val wikitext103 --eval_every_tokens 10e6 --data_seed 1234 --seq_len 1024 --batch_seqs 32 --lr 6e-4 --weight_decay 0.1 --no_save --value_optim rowrms --fused_ce --value_lr 2.4e-3 --micro_bs 4 --stop_after_tokens 99.9e6
+2026-10-23 10:28:11 end B-4M-gpu-rowrms-2.4e-3-mb4-s0 rc=0  (0.74 h) val_ppl 37.632
+2026-10-23 10:28:11 ntfy: B-4M-gpu-rowrms-2.4e-3-mb4-s0 fertig, Val-PPL 37.632, 0.7 h
+2026-10-23 10:28:11 QUEUE DONE | B-4M-gpu-rowrms-2.4e-3-mb4-s0 done

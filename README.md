@@ -6,7 +6,8 @@
 
 > **No time? [Here's the two-minute version →](https://re133.github.io/sparse-memory-lm/)**
 >
-> New (18 Oct 2026): with six times the training data the table's advantage grew instead of shrinking.
+> New (23 Oct 2026): with one optimizer number per table row, B-16M trains at home in half the RAM and B-4M fits
+> entirely on my 16 GB gaming card.
 
 What happens if you give a tiny language model a really big lookup table?
 
@@ -44,7 +45,8 @@ here. The full lab notebook with every criterion, every number and every mishap 
 - **Training the 16.8M table on a gaming card:** with the table and its optimizer state in 128 GB of RAM, my 16 GB
   RX 9070 trained B-16M for 100M tokens and ended 0.2% from the H200 run, which had needed 101 GB of GPU memory. It
   took 7.7 times as long. With one optimizer number per table row instead of Adam's two per value it needs half the
-  RAM (52 GiB) and ended 1.9% better ([below](#training-the-168m-table-on-my-pc)).
+  RAM (52 GiB) and ended 1.9% better, and B-4M trains entirely on the card at 40,600 tokens/s
+  ([below](#training-the-168m-table-on-my-pc)).
 - **Generating text doesn't need the table in VRAM:** from RAM or straight off an NVMe SSD the model still writes
   114 to 154 tokens/s on my PC, with the same output. Reading long prompts is a different story.
 - **Portable kernels:** the same hand-written Triton kernels run on three very different GPUs and give the same
@@ -338,6 +340,11 @@ above with it:
 - **Barely faster:** the update itself takes half the time, but with rowrms the model reads more of its table (84% of
   the rows on the validation text against 76%). More different rows per step means more to copy, and copying is what
   costs the time.
+
+**B-4M entirely on the card** (step 20): with rowrms the 4.2M-row table needs no Adam moments, so B-4M fits on the
+16 GB RX 9070 (14.7 GiB with `--fused_ce` and 4 sequences per micro-batch). Same arguments as the H200 run, stopped
+after 100M tokens: val PPL 37.63 against 38.12 on the H200 (−1.3%; on WikiText-103 1.4% worse), at 40,600 tokens/s
+against 51,900. A full 500M run would take about 3.4 hours on my PC.
 
 ### Adding a table to Qwen3.5-0.8B
 
