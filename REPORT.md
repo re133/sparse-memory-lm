@@ -4355,3 +4355,32 @@ Only if the card is free and it can end before 19:30.
 **What this can't show:** one fine-tuning setting (lr, episodes and loss weights fixed beforehand, not tuned); 600
 training people and one seed; first order only. The test wordings T1 to T3 differ from the training wordings, but all
 are short one-sentence texts about the same three attributes, so this is a narrow kind of generalization.
+
+### Result of step 24 (2026-10-23, RX 9070 with the table in RAM, `scripts/einpm.py` → `report/einpm/summary.json`)
+
+- **Verdict: "a trade-off"**, by the rule fixed before: "less damage", "carries over better", but "text worse".
+- **Carries over much better:** after the same writes as in step 22, 74.4% of the written values come back with the
+  usual question, against 49.6% (+24.9 points [20.2; 29.8]). Per wording: T2 94.3% (step 22: 84.9%), T1 74.7%
+  (37.3%), T3 51.8% (22.7%). With their own written sentence 88.4% (step 22: 71.1%). Lift over the unwritten people
+  0.474 [0.442; 0.506] (step 22: 0.275).
+- **Less damage from the writes:** the known people lose 0.073 [0.084; 0.061] through the writes instead of 0.095;
+  paired difference +0.022 [0.010; 0.034].
+- **But the fine-tuning itself did more damage than any write:** before any write, the 600 known people of the
+  measurement have a mean probability of 0.542 for their true values instead of 0.917, and 79.7% right instead of
+  99.8%. The people seen least often lost most (seen 16 times: 0.426 instead of 0.840; 64 times: 0.651 instead of
+  0.972). After the writes, they stand at 0.469 and 72.9% right; in step 22 at 0.822 and 98.6%. The 300 known people
+  that were in the fine-tuning loss kept more (0.800 instead of 0.923, 97.1% right). The "less damage" above is
+  measured from this lower start.
+- **Text worse:** val PPL of the fine-tuned model 20.96 against 20.07 (+4.4%) before writing; the writes themselves
+  change it by +0.02%.
+- **Training:** 150 episodes in 1,123 s. Means over ten episodes each: the loss on the new people fell from 3.99
+  (episodes 1 to 10) to 1.73 (141 to 150); that of the known ones stayed between 0.30 and 0.54, that of the text
+  window between 2.48 and 3.21. Two episodes had huge gradients
+  (episode 56: norm 1.5e7, episode 87: infinite); clipping shrank the first and zeroed the second, the losses after
+  them stayed normal.
+- **What it means:** the core can learn to read written facts much better: from about one in two to three in four,
+  in wordings it never saw in the fine-tuning. But with this setting it pays with what it knew and with the text, so I
+  wouldn't use it like this. Next would be the same with the core changing less (lower learning rate, more known
+  people and text in each step, or only the query and key parts trainable), and a check that the known people stay.
+- **Caveats** as fixed before: one setting, not tuned; one seed; first order only; short one-sentence texts.
+- **Code:** `scripts/einpm.py` as of commit `b5fc349`.

@@ -4596,3 +4596,35 @@ Nur wenn die Karte frei ist und es vor 19:30 enden kann.
 festgelegt, nicht abgestimmt); 600 Trainingspersonen und ein Seed; nur erste Ordnung. Die Testformulierungen T1 bis T3
 unterscheiden sich von denen im Training, aber alle sind kurze Ein-Satz-Texte über dieselben drei Eigenschaften; das
 ist also eine enge Art der Verallgemeinerung.
+
+### Ergebnis von Schritt 24 (2026-10-23, RX 9070 mit der Tabelle im RAM, `scripts/einpm.py` → `report/einpm/summary.json`)
+
+- **Urteil: „a trade-off“**, nach der vorher festgelegten Regel: „less damage“, „carries over better“, aber „text
+  worse“.
+- **Überträgt viel besser:** nach demselben Schreiben wie in Schritt 22 kommen 74,4 % der geschriebenen Werte mit der
+  üblichen Frage zurück, gegen 49,6 % (+24,9 Punkte [20,2; 29,8]). Pro Formulierung: T2 94,3 % (Schritt 22: 84,9 %), T1
+  74,7 % (37,3 %), T3 51,8 % (22,7 %). Mit dem eigenen geschriebenen Satz 88,4 % (Schritt 22: 71,1 %). Lift gegenüber
+  den nicht geschriebenen Personen 0,474 [0,442; 0,506] (Schritt 22: 0,275).
+- **Weniger Schaden durch das Schreiben:** die bekannten Personen verlieren durch das Schreiben 0,073 [0,084; 0,061]
+  statt 0,095; gepaarter Unterschied +0,022 [0,010; 0,034].
+- **Aber das Nachtraining selbst schadete mehr als jedes Schreiben:** schon vor dem Schreiben haben die 600 bekannten
+  Personen der Messung im Mittel eine Wahrscheinlichkeit von 0,542 für ihre wahren Werte statt 0,917, und 79,7 %
+  richtig statt 99,8 %. Am meisten verloren die am seltensten gesehenen (16-mal gesehen: 0,426 statt 0,840; 64-mal:
+  0,651 statt 0,972). Nach dem Schreiben stehen sie bei 0,469 und 72,9 % richtig; in Schritt 22 bei 0,822 und 98,6 %.
+  Die 300 bekannten Personen, die im Verlust des Nachtrainings waren, behielten mehr (0,800 statt 0,923, 97,1 %
+  richtig). Das „weniger Schaden“ oben ist von diesem niedrigeren Start aus gemessen.
+- **Text schlechter:** Val-PPL des nachtrainierten Modells vor dem Schreiben 20,96 gegen 20,07 (+4,4 %); das
+  Schreiben selbst ändert sie um +0,02 %.
+- **Training:** 150 Episoden in 1.123 s. Mittel über je zehn Episoden: der Verlust auf den neuen Personen fiel von
+  3,99 (Episoden 1 bis 10) auf 1,73 (141 bis 150); der der bekannten blieb zwischen 0,30 und 0,54, der des
+  Textfensters zwischen 2,48 und 3,21. Zwei Episoden
+  hatten riesige Gradienten (Episode 56: Norm 1,5e7, Episode 87: unendlich); das Clipping verkleinerte den ersten und
+  setzte den zweiten auf null, die Verluste danach blieben normal.
+- **Was das heißt:** der Kern kann lernen, geschriebene Fakten viel besser zu lesen: von etwa jedem zweiten auf drei
+  von vier, in Formulierungen, die er im Nachtraining nie gesehen hat. Mit dieser Einstellung bezahlt er dafür aber mit
+  dem, was er wusste, und mit dem Text; so würde ich es nicht nutzen. Als Nächstes käme dasselbe mit einem Kern, der
+  sich weniger ändert (kleinere Lernrate, mehr bekannte Personen und Text in jedem Schritt, oder nur die Query- und
+  Key-Teile trainierbar), und einer Prüfung, dass die bekannten Personen bleiben.
+- **Vorbehalte** wie vorher festgelegt: eine Einstellung, nicht abgestimmt; ein Seed; nur erste Ordnung; kurze
+  Ein-Satz-Texte.
+- **Code:** `scripts/einpm.py` ab Commit `b5fc349`.
