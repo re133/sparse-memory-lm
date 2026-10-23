@@ -144,7 +144,7 @@ def step(model, opt, args, generator, step_index):
     for x, y in batches:
         ctx = torch.autocast("cuda", dtype=torch.bfloat16) if device.type == "cuda" and args.amp else nullcontext()
         with ctx:
-            _, loss = model(x, y)
+            _, loss = model(x, y, **({"fused_ce": True} if args.fused_ce else {}))
         losses.append(loss.detach())
         (loss / args.accum).backward()
     synchronize(device)
@@ -349,6 +349,7 @@ def main():
     ap.add_argument("--hot_rows", default=None, help="read counts per row (an earlier run's mem_access_train.npy)")
     ap.add_argument("--hot_frac", type=float, default=0.1)
     ap.add_argument("--step_rows", type=float, default=0, help="GACC capacity in rows (0: off)")
+    ap.add_argument("--fused_ce", action="store_true", help="chunked output projection + CE (as smlm.train)")
     ap.add_argument("--init_from", default=None, help="model.pt of a trained run to start from (else fresh weights)")
     ap.add_argument("--device", choices=["cpu", "cuda"], default="cuda")
     ap.add_argument("--mem_impl", choices=["torch", "triton"], default=None)
