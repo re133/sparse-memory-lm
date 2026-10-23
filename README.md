@@ -337,9 +337,10 @@ above with it:
 
 - **Better and half the RAM:** by my criteria "better than Adam". The lead shrank over the run though, from 6.7%
   after 10M tokens to 1.9%, and it's one seed.
-- **Barely faster:** the update itself takes half the time, but with rowrms the model reads more of its table (84% of
-  the rows on the validation text against 76%). More different rows per step means more to copy, and copying is what
-  costs the time.
+- **Barely faster:** the update itself takes half the time (with the same rows, a benchmark step is 1.15 times as fast
+  as with Adam). But with rowrms the model reads more of its table (84% of the rows on the validation text against
+  76%), so probably more different rows per step, and copying them is what costs the time. I didn't count those rows
+  in the run.
 
 **B-4M entirely on the card** (step 20): with rowrms the 4.2M-row table needs no Adam moments, so B-4M fits on the
 16 GB RX 9070 (14.7 GiB with `--fused_ce` and 4 sequences per micro-batch). Same arguments as the H200 run, stopped
@@ -436,7 +437,8 @@ Set up the venv as in [Try it](#try-it), then:
   GPU's graphics engine and Steam, or `touch ~/.smlm-pause`). The run writes a checkpoint into `/dev/shm` and continues
   bit for bit later. So far I've only tried it with `glxgears`, not with a real game.
 - `--hot_rows` / `--step_rows` keep the most-read rows on the GPU and sum a step's gradients there. Both are built and
-  tested against the plain path, but not measured on a full run yet.
+  tested against the plain path. In a benchmark they make a B-16M step 1.91 times as fast as with Adam, at 29 GiB of
+  RAM (step 21 in the [report](REPORT.md)), but I haven't trained a full run with them yet.
 
 **Qwen experiment:**
 - Separate environment: `pip install -r requirements-qwen.txt`.

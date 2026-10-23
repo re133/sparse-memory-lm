@@ -97,7 +97,8 @@ up.</p>
   100M tokens). It wasn't faster, though: copying rows to the GPU is still what takes the time.</p>
   <p><strong>The 4M table now trains entirely on my 16 GB gaming card.</strong> Before, it needed 28.5 GiB on an H200.
   Now it uses 14.7 GiB, runs at 40,600 tokens per second (78% of the H200's speed) and after 100M tokens was 1.3%
-  better than the H200 run. In both runs the lead shrank as training went on, so I don't know yet if it lasts.</p>
+  better than the H200 run on Wikipedia, though 1.4% worse on WikiText-103. In both runs the lead shrank as training
+  went on, so I don't know yet if it lasts.</p>
 </div>
 
 <h2>Writing facts straight into the table</h2>
