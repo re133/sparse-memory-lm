@@ -4157,3 +4157,30 @@ The reference is step 16's variant A with the verbatim text: 98% right.
 **What this can't show:** three hand-made templates and one model that only knows Wikipedia-like text. In both
 wordings most values sit right after a short cue. Real understanding of rephrasings would need a model that saw
 rephrasings in training.
+
+### Result of step 22 (2026-10-23, RX 9070, `scripts/einp3.py` → `report/einp3/summary.json`)
+
+- **Verdict by the criteria: "carries over only weakly".** After each test person was written from one sentence in
+  other words, the usual questions get 49.6% right (before writing: 2%; step 16 with the verbatim text: 97.8%). The
+  lift over the unwritten people is 0.275 [0.241; 0.310], clearly above 0, but the share right lies just under 50%.
+- **Step size:** on the dev people no setting kept the known people at −0.05 or better (lr 0.01 / 0.03 / 0.1:
+  −0.076 / −0.098 / −0.116, with 45 / 64 / 70% right). By the rule it's the smallest loss, lr 0.01. A larger step
+  carries more over, but costs the known people more.
+- **By template** (share right over the three questions; year / city / job):
+
+  | template | right | year | city | job | own wording |
+  |---|---:|---:|---:|---:|---:|
+  | T2 "Born in 1912, Name was raised in Lisbon and made a career as a tailor." | 84.9% | 88.7% | 94.3% | 71.7% | 89.9% |
+  | T1 "Name (born 1912) spent the early years in Lisbon and later became a tailor." | 37.3% | 16.0% | 38.0% | 58.0% | 61.3% |
+  | T3 "The tailor Name came from Lisbon, and the records give 1912 as the year of birth." | 22.7% | 2.1% | 44.7% | 21.3% | 60.3% |
+
+  50, 53 and 47 test people per template. "Own wording": asked with the start of its own written sentence (71.1% over
+  all).
+- **What that shows:** it carries over where the written text says the fact close to how the question asks it. T2
+  has "Born in 1912" for "was born in", "raised in" for "grew up in", "career as a" for "worked as a", in the order of
+  the questions. In T3 the year comes long after its cue ("the records give 1912"), and there almost nothing carries
+  over (2.1%). Even its own sentence brings back only 61% of the values in T1 and T3, so at this step size the table
+  doesn't fully store these texts in the first place.
+- **Side effects:** known people −0.095 [−0.102; −0.088] (step 16: −0.035), unwritten people +0.003, val PPL unchanged
+  (+0.001%). 1.7 s per person.
+- **Code:** `scripts/einp3.py` as of commit `813622a`, unchanged since.

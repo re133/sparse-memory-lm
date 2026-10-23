@@ -4382,3 +4382,31 @@ Der Vergleich ist Variante A aus Schritt 16 mit dem wörtlichen Text: 98 % richt
 **Was das nicht zeigen kann:** drei handgeschriebene Vorlagen und ein Modell, das nur Wikipedia-artigen Text kennt.
 In beiden Formulierungen stehen die meisten Werte direkt nach einem kurzen Stichwort. Echtes Verstehen von
 Umformulierungen bräuchte ein Modell, das im Training Umformulierungen gesehen hat.
+
+### Ergebnis von Schritt 22 (2026-10-23, RX 9070, `scripts/einp3.py` → `report/einp3/summary.json`)
+
+- **Urteil nach den Kriterien: „trägt nur schwach hinüber“.** Nachdem jede Testperson aus einem Satz in anderen
+  Worten geschrieben wurde, sind die üblichen Fragen zu 49,6 % richtig (vor dem Schreiben: 2 %; Schritt 16 mit dem
+  wörtlichen Text: 97,8 %). Der Lift gegenüber den nicht geschriebenen Personen ist 0,275 [0,241; 0,310], klar über 0,
+  aber der Anteil richtiger Antworten liegt knapp unter 50 %.
+- **Schrittweite:** An den Dev-Personen hielt keine Einstellung die bekannten Personen bei −0,05 oder besser (lr 0,01
+  / 0,03 / 0,1: −0,076 / −0,098 / −0,116, mit 45 / 64 / 70 % richtig). Nach der Regel ist es der kleinste Verlust,
+  lr 0,01. Ein größerer Schritt trägt mehr hinüber, kostet die bekannten Personen aber mehr.
+- **Nach Vorlage** (Anteil richtig über die drei Fragen; Jahr / Stadt / Beruf):
+
+  | Vorlage | richtig | Jahr | Stadt | Beruf | eigene Formulierung |
+  |---|---:|---:|---:|---:|---:|
+  | T2 „Born in 1912, Name was raised in Lisbon and made a career as a tailor.“ | 84,9 % | 88,7 % | 94,3 % | 71,7 % | 89,9 % |
+  | T1 „Name (born 1912) spent the early years in Lisbon and later became a tailor.“ | 37,3 % | 16,0 % | 38,0 % | 58,0 % | 61,3 % |
+  | T3 „The tailor Name came from Lisbon, and the records give 1912 as the year of birth.“ | 22,7 % | 2,1 % | 44,7 % | 21,3 % | 60,3 % |
+
+  50, 53 und 47 Testpersonen pro Vorlage. „Eigene Formulierung“: gefragt mit dem Anfang des eigenen geschriebenen
+  Satzes (71,1 % insgesamt).
+- **Was das zeigt:** Es trägt dort hinüber, wo der geschriebene Text den Fakt ähnlich sagt, wie die Frage ihn fragt.
+  T2 hat „Born in 1912“ für „was born in“, „raised in“ für „grew up in“, „career as a“ für „worked as a“, in der
+  Reihenfolge der Fragen. In T3 kommt das Jahr lange nach seinem Stichwort („the records give 1912“), und dort trägt
+  fast nichts hinüber (2,1 %). Selbst der eigene Satz bringt in T1 und T3 nur 61 % der Werte zurück, die Tabelle
+  speichert diese Texte bei dieser Schrittweite also gar nicht vollständig.
+- **Nebenwirkungen:** bekannte Personen −0,095 [−0,102; −0,088] (Schritt 16: −0,035), nicht geschriebene +0,003,
+  Val-PPL unverändert (+0,001 %). 1,7 s pro Person.
+- **Code:** `scripts/einp3.py` ab Commit `813622a`, seitdem unverändert.
