@@ -1,0 +1,156 @@
+{
+ "part_a": {
+  "adam": {
+   "val_ppl": [
+    62.80339883829752,
+    61.916206744670724
+   ],
+   "val2_ppl": [
+    223.82226876951896,
+    210.45633814377433
+   ],
+   "commit": [
+    "a92863f6131403b52f558d6c925707087eeab930",
+    "45683cfa3dd6cd24acb2d827626b80fe7ec7daa8"
+   ]
+  },
+  "adam_mean": 62.35980279148412,
+  "tolerance": 0.8871920936267941,
+  "as_good_range": [
+   61.02901465104393,
+   63.69059093192431
+  ],
+  "slightly_worse_up_to": 63.606998847313804,
+  "runs": {
+   "rowrms": {
+    "0.6e-3": {
+     "status": "done",
+     "val_ppl": 65.55008287212466,
+     "val2_ppl": 227.77096219911044,
+     "abort_check": {
+      "step": 610,
+      "tokens": 19988480,
+      "val_ppl": 131.71606531043975,
+      "ref_val_ppl": 133.81581508195382,
+      "rel_diff": -0.015691342389000162,
+      "max_rel": 0.05,
+      "ref": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-1M-adam-s0/metrics.csv",
+      "aborted": false
+     },
+     "commit": "45683cfa3dd6cd24acb2d827626b80fe7ec7daa8",
+     "dirty": true
+    },
+    "1.2e-3": {
+     "status": "done",
+     "val_ppl": 63.21825494652645,
+     "val2_ppl": 213.60423953704392,
+     "abort_check": {
+      "step": 610,
+      "tokens": 19988480,
+      "val_ppl": 130.95095958061742,
+      "ref_val_ppl": 133.81581508195382,
+      "rel_diff": -0.021408945568816673,
+      "max_rel": 0.05,
+      "ref": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-1M-adam-s0/metrics.csv",
+      "aborted": false
+     },
+     "commit": "09e2b237600e19314b8ebdacbbc6d3bf7e8b95b7",
+     "dirty": true
+    },
+    "2.4e-3": {
+     "status": "done",
+     "val_ppl": 60.45138932519826,
+     "val2_ppl": 217.6306715706134,
+     "abort_check": {
+      "step": 610,
+      "tokens": 19988480,
+      "val_ppl": 124.91677861457498,
+      "ref_val_ppl": 133.81581508195382,
+      "rel_diff": -0.06650212803268984,
+      "max_rel": 0.05,
+      "ref": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-1M-adam-s0/metrics.csv",
+      "aborted": false
+     },
+     "commit": "3c8a656be24e7fa98aca995c8d523f83e7e7abbf",
+     "dirty": false
+    }
+   },
+   "rowadagrad": {
+    "0.01": {
+     "status": "done",
+     "val_ppl": 65.81124451000373,
+     "val2_ppl": 239.45339355240188,
+     "abort_check": {
+      "step": 610,
+      "tokens": 19988480,
+      "val_ppl": 129.56191502637424,
+      "ref_val_ppl": 133.81581508195382,
+      "rel_diff": -0.031789217537361525,
+      "max_rel": 0.05,
+      "ref": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-1M-adam-s0/metrics.csv",
+      "aborted": false
+     },
+     "commit": "45683cfa3dd6cd24acb2d827626b80fe7ec7daa8",
+     "dirty": true
+    },
+    "0.03": {
+     "status": "done",
+     "val_ppl": 61.70978878245395,
+     "val2_ppl": 232.61404441646093,
+     "abort_check": {
+      "step": 610,
+      "tokens": 19988480,
+      "val_ppl": 121.30302263018892,
+      "ref_val_ppl": 133.81581508195382,
+      "rel_diff": -0.09350757564867496,
+      "max_rel": 0.05,
+      "ref": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-1M-adam-s0/metrics.csv",
+      "aborted": false
+     },
+     "commit": "45683cfa3dd6cd24acb2d827626b80fe7ec7daa8",
+     "dirty": true
+    },
+    "0.1": {
+     "status": "done",
+     "val_ppl": 61.71583196171676,
+     "val2_ppl": 243.73800225775003,
+     "abort_check": {
+      "step": 610,
+      "tokens": 19988480,
+      "val_ppl": 120.40957892220113,
+      "ref_val_ppl": 133.81581508195382,
+      "rel_diff": -0.10018424318188546,
+      "max_rel": 0.05,
+      "ref": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-1M-adam-s0/metrics.csv",
+      "aborted": false
+     },
+     "commit": "45683cfa3dd6cd24acb2d827626b80fe7ec7daa8",
+     "dirty": true
+    }
+   }
+  },
+  "best": {
+   "rowrms": {
+    "lr": "2.4e-3",
+    "val_ppl": 60.45138932519826,
+    "rel_to_adam_mean": -0.030603263334028297,
+    "at_grid_edge": true
+   },
+   "rowadagrad": {
+    "lr": "0.03",
+    "val_ppl": 61.70978878245395,
+    "rel_to_adam_mean": -0.010423605911706657,
+    "at_grid_edge": false
+   }
+  },
+  "verdicts": {
+   "rowrms": "better than Adam",
+   "rowadagrad": "as good as Adam"
+  },
+  "part_b_uses": {
+   "value_optim": "rowrms",
+   "value_lr": "2.4e-3"
+  },
+  "rule": "per optimizer its best LR; better than Adam: below the lower Adam run - t; as good: within [lower - t, upper + t]; slightly worse: up to 2% above the Adam mean; t = max(0.5% of the Adam mean, Adam spread)"
+ }
+}

@@ -3930,6 +3930,37 @@ rows read since the last step. g is a row's gradient, q the mean of g² over the
 learning rates from a small grid on B-1M. No comparison with bf16 values, a frozen table, or the most-read rows kept
 on the card (HOT).
 
+### Result of step 18, part A (2026-10-23, RX 9070, `scripts/rowopt_summary.py a` → `report/rowopt/summary.json`)
+
+- **Verdicts by the criteria: rowrms "better than Adam", rowadagrad "as good as Adam".** Part B uses rowrms with
+  table LR 2.4e-3.
+- Val PPL after 50 M tokens (WikiText-103 in brackets):
+
+  | table optimizer | LR 0.6e-3 / 0.01 | LR 1.2e-3 / 0.03 | LR 2.4e-3 / 0.1 |
+  |---|---|---|---|
+  | Adam (2.4e-3), seeds 0 / 1 | | | 62.80 (223.8) / 61.92 (210.5) |
+  | rowrms | 65.55 (227.8) | 63.22 (213.6) | **60.45** (217.6) |
+  | rowadagrad | 65.81 (239.5) | **61.71** (232.6) | 61.72 (243.7) |
+
+  The tolerance came out at 0.89, the gap between the two Adam seeds (1.4%), larger than 0.5% of their mean. So "as
+  good as Adam" was 61.03 to 63.69. rowrms with 2.4e-3 lies 3.1% under the Adam mean and below that range;
+  rowadagrad with 0.03 is 1.0% under the mean, inside it. No run hit the stopping rule at 20 M tokens.
+- **Caveats on the verdict:**
+  - The best rowrms LR is the largest of its grid, so the optimum may lie higher.
+  - Each optimizer is judged by the best of three LRs on one seed, against Adam at one LR, so selection favours the
+    row-wise ones a little.
+  - At the same LR, rowrms moves a row further than Adam does (by exactly lr, where Adam's momentum averages noise
+    out). Part of the gain may simply be a larger step for the table than Adam's 2.4e-3 gives.
+  - Part B on B-16M is the real test.
+- **Without a verdict:**
+  - On WikiText-103, rowrms 2.4e-3 is between the two Adam seeds (217.6 against 223.8 / 210.5). rowadagrad is
+    worse there at every LR (232.6 to 243.7).
+  - The curves: rowrms 2.4e-3 is ahead of both Adam seeds at every evaluation (10 M: 234.3 against 255.0 / 256.9).
+- **Code:** the runs started at commits `a92863f` to `3c8a656`; each run-info.json records its own. In between only
+  code for the table in RAM, HOT, GACC and scripts changed, not the GPU path these runs use. The row-wise GPU update
+  was moved into a function, with the same operations. Files that weren't committed at a start were scripts the
+  training doesn't import.
+
 ## Step 19: at which layer does the bridge become readable? (LENS, criteria fixed before measuring, 2026-10-23)
 
 **Why:** In step 11, B-1M named B after "A's mother was" in every pair, but at the end of the two-hop question its

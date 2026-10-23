@@ -1,0 +1,274 @@
+{
+  "status": "done",
+  "model_name": "B-1M-sparse",
+  "started": "2026-10-23T03:30:56",
+  "git": {
+    "commit": "09e2b237600e19314b8ebdacbbc6d3bf7e8b95b7",
+    "dirty": true,
+    "dirty_files": [
+      "M scripts/bench_host_training.py"
+    ]
+  },
+  "hardware": {
+    "gpu": "AMD Radeon RX 9070",
+    "gpu_arch": "gfx1201",
+    "gpu_mem_gib": 15.92,
+    "torch": "2.14.1",
+    "hip": "7.2.53211",
+    "cuda": null,
+    "python": "3.14.8",
+    "kernel": "7.3.0-3-cachyos",
+    "triton": "3.5.1",
+    "cpu": "AMD Ryzen 9 5900XT 16-Core Processor",
+    "ram_gib": 125.7,
+    "gpu_state_at_start": [
+      "GPU[0]\t\t: GPU use (%): 2",
+      "GPU[0]\t\t: GPU Memory Allocated (VRAM%): 20"
+    ]
+  },
+  "seeds": {
+    "init_seed": 0,
+    "data_seed": 1234
+  },
+  "train_config": {
+    "model": "B-1M-sparse",
+    "out_dir": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-1M-rowrms-1.2e-3-s0",
+    "tokens": 50000000.0,
+    "epochs": 0.09895529167477776,
+    "seed": 0,
+    "data_seed": 1234,
+    "seq_len": 1024,
+    "batch_seqs": 32,
+    "micro_bs": 4,
+    "fused_ce": false,
+    "ce_chunk_size": 1024,
+    "compile": false,
+    "lr": 0.0006,
+    "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip; value table: row-sparse gradients + rowrms (smlm/row_optim.py, one state number per row; only rows read in the step are updated)",
+    "value_lr": 0.0012,
+    "eng_value_lr": null,
+    "value_state": "fp32",
+    "value_optim": "rowrms",
+    "value_device": "gpu",
+    "weight_decay": 0.1,
+    "warmup_frac": 0.05,
+    "min_lr_ratio": 0.1,
+    "clip": 1.0,
+    "eval_every_tokens": 10000000.0,
+    "log_every": 10,
+    "sample_windows": 64,
+    "mem_query_norm": "batchnorm",
+    "mem_score_scale_init": null,
+    "data": "wikipedia",
+    "extra_val": "wikitext103",
+    "mem_impl": "triton",
+    "abort_ref": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-1M-adam-s0/metrics.csv",
+    "abort_at_tokens": 20000000.0,
+    "stop_after_tokens": null,
+    "abort_max_rel": 0.05,
+    "no_save": true,
+    "ckpt_every_tokens": 0,
+    "resume": false,
+    "keep_ckpt": false,
+    "weights_every_tokens": 0,
+    "skip_nonfinite": false,
+    "max_skipped_steps": 20,
+    "total_steps": 1525,
+    "warmup_steps": 76,
+    "tokens_per_step": 32768,
+    "grad_accum": 8,
+    "total_tokens": 49971200,
+    "eval_every_steps": 305,
+    "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
+    "precision": "bf16 autocast, fp32 weights / optimizer state"
+  },
+  "model_config": {
+    "vocab_size": 50304,
+    "d_model": 384,
+    "n_layers": 12,
+    "n_heads": 6,
+    "ffn_hidden": 1024,
+    "max_seq_len": 1024,
+    "rope_theta": 10000.0,
+    "norm_eps": 1e-05,
+    "init_std": 0.02,
+    "mem_layers": [
+      2,
+      6,
+      10
+    ],
+    "mem_n_keys": 1024,
+    "mem_heads": 4,
+    "mem_knn": 32,
+    "mem_k_dim": 256,
+    "mem_v_dim": -1,
+    "mem_query_norm": "batchnorm",
+    "mem_swilu": true,
+    "mem_value_impl": "embedding_bag",
+    "mem_keys_weight_decay": true,
+    "mem_score_scale": "none",
+    "mem_score_scale_init": 1.0,
+    "mem_share_values": true,
+    "mem_round_layers": [],
+    "mem_value_grad": "row_sparse",
+    "mem_impl": "triton",
+    "eng_layers": [],
+    "eng_orders": [
+      2,
+      3
+    ],
+    "eng_heads": 8,
+    "eng_head_dim": 24,
+    "eng_rows": 524287,
+    "eng_conv_kernel": 4,
+    "eng_hash_seed": 0,
+    "eng_impl": "triton",
+    "eng_value_grad": "row_sparse"
+  },
+  "params": {
+    "total": 444895872,
+    "embedding": 19316736,
+    "non_embedding": 425579136,
+    "memory_values": 402653184,
+    "dense_body": 22925952,
+    "active_non_embedding_per_token": 23073408,
+    "bn_running_stats": 6144
+  },
+  "value_table_memory": {
+    "table_bytes": 1610612736,
+    "gradient_bytes": 1610612736,
+    "moment_bytes": 8388608,
+    "scale_bytes": 0,
+    "touched_bytes": 1048576,
+    "step_bytes": 4,
+    "total_bytes": 3230662660
+  },
+  "macs_per_token": {
+    "attn_proj": 7077888,
+    "attn_scores": 4718592.0,
+    "ffn": 10616832,
+    "memory": 5358720,
+    "engram": 0,
+    "lm_head": 19316736,
+    "total": 47088768.0
+  },
+  "data": {
+    "dataset": "wikipedia",
+    "data_dir": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/data/wikipedia_en_gpt2",
+    "source": "wikimedia/wikipedia 20231101.en (HF parquet, 41 files)",
+    "tokenizer": "tiktoken/gpt2",
+    "vocab_size": 50257,
+    "seed": 20231101,
+    "val_frac": 0.0003,
+    "train_frac": 0.125,
+    "articles_in_dump": 6407814,
+    "doc_format": "title + '\\n\\n' + text + <|endoftext|>",
+    "wikitext_val_test_titles": 122,
+    "wikitext_titles_found_and_excluded": 14,
+    "splits": {
+      "validation": {
+        "n_tokens": 1484010,
+        "n_articles": 1917,
+        "n_candidate_articles": 1917,
+        "candidate_tokens": 1484010,
+        "n_words": 990651
+      },
+      "train": {
+        "n_tokens": 505000000,
+        "n_articles": 689951,
+        "n_candidate_articles": 800138,
+        "candidate_tokens": 584857875,
+        "n_words": null
+      }
+    },
+    "extra_val": "wikitext103"
+  },
+  "abort_check": {
+    "step": 610,
+    "tokens": 19988480,
+    "val_ppl": 130.95095958061742,
+    "ref_val_ppl": 133.81581508195382,
+    "rel_diff": -0.021408945568816673,
+    "max_rel": 0.05,
+    "ref": "/mnt/sandisk/Sparse-Memory-LM/AngryAnt/runs/rowopt/B-1M-adam-s0/metrics.csv",
+    "aborted": false
+  },
+  "finished": "2026-10-23T03:46:52",
+  "duration_s": 961.9,
+  "train_time_s": 876.1,
+  "results": {
+    "val_loss": 4.146593103535997,
+    "val_ppl": 63.21825494652645,
+    "val_word_ppl": 498.5252502017043,
+    "val2_dataset": "wikitext103",
+    "val2_loss": 5.364124954908939,
+    "val2_ppl": 213.60423953704392,
+    "val2_word_ppl": 444.8954606660585,
+    "train_tok_s_mean": 57163.16044847151,
+    "train_tok_s_median": 57289.89682219537,
+    "peak_train_vram_gib": 7.5174689292907715,
+    "weights_gib_fp32": 1.6573662757873535,
+    "decode_b1_tok_s": 174.51171897150127,
+    "decode_peak_vram_gib": 2.310311794281006,
+    "prefill_tok_s": 267259.5592059293,
+    "prefill_peak_vram_gib": 3.893929958343506,
+    "mem_val": {
+      "usage": 0.9989347457885742,
+      "kl": 1.0304432198371085,
+      "top1pct_share": 0.18596061166351865,
+      "eff_entries_per_head": 31.29113197166987,
+      "top1_weight": 0.05343606468332554
+    },
+    "mem_val_per_layer": [
+      {
+        "usage": 0.7140541076660156,
+        "kl": 2.2034724026368906,
+        "top1pct_share": 0.37907123541703586,
+        "eff_entries_per_head": 31.304171674787476,
+        "top1_weight": 0.05313465388476336
+      },
+      {
+        "usage": 0.839024543762207,
+        "kl": 1.8147479586885122,
+        "top1pct_share": 0.29014082903978344,
+        "eff_entries_per_head": 31.333442621683897,
+        "top1_weight": 0.05261457149076832
+      },
+      {
+        "usage": 0.9523763656616211,
+        "kl": 1.415787006304802,
+        "top1pct_share": 0.22153542363961404,
+        "eff_entries_per_head": 31.235781618538237,
+        "top1_weight": 0.05455896867444494
+      }
+    ],
+    "mem_train_usage_total": 1.0,
+    "mem_score_scale_per_head": [
+      1.0,
+      1.0,
+      1.0,
+      1.0
+    ],
+    "mem_score_scale_per_layer_head": [
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ],
+      [
+        1.0,
+        1.0,
+        1.0,
+        1.0
+      ]
+    ],
+    "mem_key_norm_mean": 0.42278870940208435
+  }
+}

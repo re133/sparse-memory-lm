@@ -4144,6 +4144,37 @@ die Zeile:
 B-16M); Lernraten aus einem kleinen Raster an B-1M. Kein Vergleich mit bf16-Werten, einer eingefrorenen Tabelle oder
 den meistgelesenen Zeilen auf der Karte (HOT).
 
+### Ergebnis von Schritt 18, Teil A (2026-10-23, RX 9070, `scripts/rowopt_summary.py a` → `report/rowopt/summary.json`)
+
+- **Urteile nach den Kriterien: rowrms „besser als Adam“, rowadagrad „so gut wie Adam“.** Teil B nutzt rowrms mit
+  Tabellen-LR 2,4e-3.
+- Val-PPL nach 50 M Tokens (WikiText-103 in Klammern):
+
+  | Tabellen-Optimizer | LR 0,6e-3 / 0,01 | LR 1,2e-3 / 0,03 | LR 2,4e-3 / 0,1 |
+  |---|---|---|---|
+  | Adam (2,4e-3), Seeds 0 / 1 | | | 62,80 (223,8) / 61,92 (210,5) |
+  | rowrms | 65,55 (227,8) | 63,22 (213,6) | **60,45** (217,6) |
+  | rowadagrad | 65,81 (239,5) | **61,71** (232,6) | 61,72 (243,7) |
+
+  Die Toleranz ergab sich zu 0,89, dem Abstand der beiden Adam-Seeds (1,4 %), größer als 0,5 % ihres Mittels. „So
+  gut wie Adam“ war also 61,03 bis 63,69. rowrms mit 2,4e-3 liegt 3,1 % unter dem Adam-Mittel und unter diesem
+  Bereich; rowadagrad mit 0,03 liegt 1,0 % darunter, innerhalb. Kein Lauf traf die Abbruchregel bei 20 M Tokens.
+- **Vorbehalte zum Urteil:**
+  - Die beste rowrms-LR ist die größte ihres Rasters, das Optimum kann also höher liegen.
+  - Jeder Optimizer wird nach der besten von drei LRs mit einem Seed beurteilt, gegen Adam mit einer LR. Die Auswahl
+    begünstigt die zeilenweisen also etwas.
+  - Bei gleicher LR bewegt rowrms eine Zeile weiter als Adam (um genau lr, wo Adams Momentum Rauschen herausmittelt).
+    Ein Teil des Gewinns kann also einfach ein größerer Schritt für die Tabelle sein, als Adams 2,4e-3 ihn gibt.
+  - Der eigentliche Test ist Teil B an B-16M.
+- **Ohne Urteil:**
+  - Auf WikiText-103 liegt rowrms 2,4e-3 zwischen den beiden Adam-Seeds (217,6 gegen 223,8 / 210,5). rowadagrad ist
+    dort bei jeder LR schlechter (232,6 bis 243,7).
+  - Die Kurven: rowrms 2,4e-3 liegt bei jeder Auswertung vor beiden Adam-Seeds (10 M: 234,3 gegen 255,0 / 256,9).
+- **Code:** Die Läufe starteten bei den Commits `a92863f` bis `3c8a656`; jede run-info.json hält ihren eigenen fest.
+  Dazwischen änderte sich nur Code für die Tabelle im RAM, HOT, GACC und Skripte, nicht der GPU-Weg dieser Läufe. Das
+  zeilenweise GPU-Update wanderte in eine Funktion, mit denselben Rechenschritten. Dateien, die beim Start nicht
+  committet waren, waren Skripte, die das Training nicht lädt.
+
 ## Schritt 19: Ab welcher Schicht ist die Brücke lesbar? (LENS, Kriterien vor der Messung festgelegt, 2026-10-23)
 
 **Frage:** In Schritt 11 nannte B-1M nach „A's mother was“ in jedem Paar B, aber am Ende der Zwei-Schritt-Frage trug
