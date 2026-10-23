@@ -40,7 +40,9 @@ CKPT = "ckpt.pt"
 # arguments that change what is trained: a checkpoint only resumes a run with the same ones
 RESUME_KEYS = ("model", "seq_len", "batch_seqs", "lr", "optimizer", "value_lr", "eng_value_lr", "value_state",
                "value_device", "weight_decay", "warmup_frac", "min_lr_ratio", "clip", "mem_query_norm",
-               "mem_score_scale_init", "data", "data_seed", "seed", "fused_ce", "ce_chunk_size", "compile")
+               "mem_score_scale_init", "data", "data_seed", "seed", "fused_ce", "ce_chunk_size", "compile",
+               "value_optim")
+RESUME_DEFAULTS = {"value_optim": "adam"}     # keys added later: what checkpoints written before them used
 
 MODELS = {
     "A": dict(),
@@ -328,6 +330,8 @@ def main():
     ap.add_argument("--eng_value_lr", type=float, default=None, help="Engram tables (default: --value_lr)")
     ap.add_argument("--value_state", choices=["fp32", "bf16", "int8"], default="fp32",
                     help="LazyRowAdam moment storage for PKM and Engram tables (requires row_sparse gradients)")
+    ap.add_argument("--value_optim", choices=["adam", "rowrms", "rowadagrad"], default="adam",
+                    help="row-sparse value tables: LazyRowAdam, or one state number per row (smlm/row_optim.py)")
     ap.add_argument("--value_device", choices=["gpu", "host"], default="gpu",
                     help="keep PKM tables and lazy Adam state in host RAM (requires row_sparse PKM)")
     ap.add_argument("--weight_decay", type=float, default=0.1)
@@ -414,7 +418,8 @@ def main():
     if args.resume and os.path.exists(ckpt_path):
         # memory-mapped: a 77 GB checkpoint (B-16M) is read tensor by tensor, never held twice in RAM
         ck = torch.load(ckpt_path, map_location="cpu", mmap=True, weights_only=True)
-        diff = {k: (ck["resume_config"].get(k), v) for k, v in resume_config.items() if ck["resume_config"].get(k) != v}
+        saved = {k: ck["resume_config"].get(k, RESUME_DEFAULTS.get(k)) for k in resume_config}
+        diff = {k: (saved[k], v) for k, v in resume_config.items() if saved[k] != v}
         if ck.get("format") != "smlm.train_ckpt.v1" or diff or ck["model_config"] != mcfg.to_dict():
             raise SystemExit(f"{ckpt_path} belongs to another run (checkpoint vs now: {diff or 'model config'}); "
                              "remove it or change --out_dir")
@@ -431,7 +436,7 @@ def main():
         compile_dense(model)
     loss_options = {"fused_ce": True, "ce_chunk_size": args.ce_chunk_size} if args.fused_ce else {}
     opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, eng_value_lr=args.eng_value_lr,
-                          value_state=args.value_state, optimizer=args.optimizer)
+                          value_state=args.value_state, optimizer=args.optimizer, value_optim=args.value_optim)
     if ck is not None:
         opt.load_state_dict(ck["optimizer"])
     mems = model.memory_layers()
@@ -450,8 +455,11 @@ def main():
                          "total_tokens": total_steps * stream.tokens_per_step,
                          "epochs": total_steps / stream.steps_per_epoch, "eval_every_steps": eval_every,
                          "optimizer": "AdamW(fused) betas=(0.9,0.95) eps=1e-8; memory values: lr=value_lr, wd=0, separate clip"
-                                      + ("; value table: row-sparse gradients + LazyRowAdam (only rows read in the step "
-                                         "are updated, values and Adam state of unread rows unchanged)"
+                                      + (((f"; value table: row-sparse gradients + {args.value_optim} (smlm/row_optim.py, "
+                                           "one state number per row; only rows read in the step are updated)")
+                                          if args.value_optim != "adam" else
+                                          "; value table: row-sparse gradients + LazyRowAdam (only rows read in the step "
+                                          "are updated, values and Adam state of unread rows unchanged)")
                                          if ((mcfg.mem_layers and mcfg.mem_value_grad == "row_sparse") or
                                              (mcfg.eng_layers and mcfg.eng_value_grad == "row_sparse")) else ""),
                          "schedule": "linear warmup, cosine to min_lr_ratio, same multiplier for all groups",
@@ -460,7 +468,7 @@ def main():
                                             f"{args.value_state} lazy Adam moments")},
         "model_config": mcfg.to_dict(),
         "params": model.param_counts(),
-        "value_table_memory": value_table_memory(model, args.value_state),
+        "value_table_memory": value_table_memory(model, args.value_state, value_optim=args.value_optim),
         "macs_per_token": model.macs_per_token(),
         "data": {"dataset": args.data or "wikitext103", "data_dir": data_dir(args.data), **meta,
                  **({"extra_val": args.extra_val} if args.extra_val else {})},
@@ -468,7 +476,7 @@ def main():
 
     if args.value_device == "host":
         from .host_optim import value_table_memory_by_device
-        info["value_table_memory_by_device"] = value_table_memory_by_device(model, args.value_state)
+        info["value_table_memory_by_device"] = value_table_memory_by_device(model, args.value_state, args.value_optim)
     if args.optimizer == "muon":
         from .muon import optimizer_description
         info["train_config"]["optimizer"] = optimizer_description(opt)

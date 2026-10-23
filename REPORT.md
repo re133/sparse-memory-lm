@@ -3849,3 +3849,82 @@ subspace training, not sufficient.
   work one would have to keep renewing the subspace, which costs the full gradients again.
 - **What this can't show:** one small dense model, one seed, one stretch of training (30–100 M of 500 M); later in
   training, at a low learning rate, the picture may differ.
+
+## Step 18: one optimizer number per table row instead of two per value (HEIM 2, criteria fixed before the runs, 2026-10-23)
+
+**Why:** The next phase is about training at home. With its table in RAM, B-16M trains on the RX 9070 (step 8), but
+at 7,050 tokens/s and with ~100 GiB of RAM. Half of that RAM (51.5 GB) is Adam's two moments per value, and Adam's
+step on the CPU over the ~4.9 M rows read per step is the biggest single cost (2.1 of 5.8 s per step).
+Recommendation systems train their huge embedding tables with row-wise Adagrad, which keeps one number per row. Does
+the table learn as well with one number per row, and what does that save?
+
+**Two row-wise optimizers** (`smlm/row_optim.py`, `--value_optim`). Like the lazy Adam so far, both change only the
+rows read since the last step. g is a row's gradient, q the mean of g² over the row:
+- **rowrms:** v ← 0.95 v + 0.05 q, then p ← p − lr · g / (√(v / (1 − 0.95ⁿ)) + ε), with n = how often this row has
+  been updated. That's Adam without momentum, with one second moment per row. The bias correction counts the row's
+  own updates. With the global step count (as in our lazy Adam), a row first read late in training would take a
+  first step 4.5 times too large.
+- **rowadagrad:** v ← v + q, then p ← p − lr · g / (√v + ε). The standard for embedding tables (FBGEMM, TorchRec).
+- State for B-16M: 134 MB (rowrms) or 67 MB (rowadagrad) instead of 51.5 GB. The step on the CPU is a new C loop
+  next to the Adam one.
+- Tests (`tests/test_row_optim.py`, 11 passed, GPU included):
+  - the formulas against a float64 reference, row by row;
+  - C against PyTorch, GPU against CPU;
+  - rows that weren't read stay bit for bit the same;
+  - a row first read after 50 steps moves by exactly lr;
+  - saving and loading the state.
+
+**Before the criteria** (exploratory, not part of the verdicts):
+- **The C loop alone** (CPU, 1.2 M random rows of a 4 M × 384 table, 16 threads): Adam 400 ns per row, rowrms
+  200 ns. At ~4.9 M rows per step that's about 1 s less of 5.8 s, so I expect about 1.2 times the speed overall, not
+  more. Copying rows to the GPU and gradients back stays as it is.
+- **Short trial runs** (B-1M, 1.5 M tokens, table on the GPU and in RAM): both run, with the same curve. With rowrms,
+  B-1M on the card needs 7.5 instead of 10.5 GiB of GPU memory.
+
+**Part A, choosing the learning rate on B-1M** (RX 9070, table on the card, `scripts/run_rowopt.py screen`):
+- **Setup:** B-1M-sparse with the arguments of its earlier runs (`runs/hampter`, Triton kernels), but a full schedule
+  over 50 M tokens (2.5 M warmup, then cosine), without model.pt.
+- **Runs:**
+  - Adam with table LR 2.4e-3, seeds 0 and 1 (for the spread);
+  - rowrms with 0.6e-3, 1.2e-3 and 2.4e-3;
+  - rowadagrad with 0.01, 0.03 and 0.1, both row-wise optimizers with seed 0.
+  
+  A row-wise run stops at 20 M tokens if it is more than 5% worse than Adam seed 0 there.
+- **Why these learning rates:**
+  - rowrms moves every updated row by exactly lr (root mean square over the row). Adam moves it by less, since its
+    momentum averages noise out. So the grid is at and below Adam's 2.4e-3.
+  - rowadagrad's step shrinks like 1/√(updates), so it needs a learning rate about ten times larger.
+- **Measure:** val PPL after 50 M tokens on the Wikipedia validation split; WikiText-103 is reported alongside.
+  Tolerance t = 0.5% of the mean of the two Adam runs, or their difference if that is larger. Each optimizer is
+  judged by its best learning rate:
+  - **"better than Adam":** more than t below the lower Adam run;
+  - **"as good as Adam":** between the lower Adam run − t and the higher one + t;
+  - **"slightly worse":** above that, but at most 2% above the Adam mean;
+  - **"worse":** otherwise.
+  
+  If the best learning rate is at the edge of its grid, I say so (the optimum may lie outside).
+
+**Part B, B-16M with its table in RAM** (RX 9070 + 128 GB, `scripts/run_rowopt.py big`):
+- **Run:** exactly step 8's run `runs/big_home/B-16M-host-s0` (500 M schedule, stopped after the evaluation at step
+  3,050 = 99.9 M tokens, `--no_save`). Only `--value_optim` and `--value_lr` change, and they come from part A:
+  - the best rowrms learning rate, because rowrms's step size doesn't depend on how often a row is read (B-16M's
+    rows are read far less often than B-1M's);
+  - rowadagrad's best learning rate only if rowrms is "worse" and rowadagrad is better than it;
+  - no run if both are "worse".
+
+  Started like step 8 as a systemd unit with a memory cap. If it can't start by 07:00, it stops after 50 M tokens
+  (step 1,525) instead, so that it ends before noon.
+- **Criteria:** val PPL at step 3,050 (or 1,525) against step 8's Adam run (37.433; at step 1,525: 58.056). The 1%
+  is step 8's rule (seed spread 0.4%).
+  - **"trains B-16M as well as Adam":** within ±1%;
+  - **"better than Adam":** more than 1% lower;
+  - **"a bit worse":** 1 to 3% higher;
+  - **"worse":** more than 3% higher.
+- **Reported without a verdict:**
+  - tokens per second against step 8 over the same stretch (`train_tok_s` in metrics.csv);
+  - the peak RAM of the run's systemd unit (step 8: ~100.6 GiB);
+  - the total time.
+
+**What this can't show:** one seed per row-wise setting; short budgets (50 M tokens for B-1M, 100 M for B-16M);
+learning rates from a small grid on B-1M. No comparison with bf16 values, a frozen table, or the most-read rows kept
+on the card (HOT).

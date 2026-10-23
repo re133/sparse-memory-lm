@@ -134,11 +134,13 @@ class MuonOptimizerSet(OptimizerSet):
             o.load_state_dict(s["state_dict"])
 
 
-def build_muon_optimizer(model, lr, value_lr, weight_decay, betas, eps, eng_value_lr, value_state="fp32"):
+def build_muon_optimizer(model, lr, value_lr, weight_decay, betas, eps, eng_value_lr, value_state="fp32",
+                         value_optim="adam"):
     from .optim import build_optimizer
 
     # Reuse today's routing of all exceptions and lazy tables, before any optimizer state exists.
-    legacy = build_optimizer(model, lr, value_lr, weight_decay, betas, eps, eng_value_lr, value_state=value_state)
+    legacy = build_optimizer(model, lr, value_lr, weight_decay, betas, eps, eng_value_lr, value_state=value_state,
+                             value_optim=value_optim)
     opts = legacy.opts if isinstance(legacy, OptimizerSet) else [legacy]
     selected = {id(p) for p in muon_parameters(model)}
     groups = []
@@ -168,6 +170,8 @@ def optimizer_description(opt):
                          "update_scale=0.2*sqrt(max(rows,cols)), decoupled weight decay")
         elif isinstance(child, LazyRowAdam):
             algorithm = f"LazyRowAdam({child.impl}), only read rows updated"
+        elif type(child).__name__ == "RowWiseOptimizer":
+            algorithm = f"RowWiseOptimizer({child.kind}), only read rows updated"
         else:
             algorithm = "AdamW(fused)"
         groups = []

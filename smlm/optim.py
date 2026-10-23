@@ -15,17 +15,24 @@ from .sparse_values import LazyRowAdam, OptimizerSet, clip_row_sparse, row_spars
 
 
 def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e-8, eng_value_lr=None,
-                    value_state="fp32", optimizer="adamw"):
+                    value_state="fp32", optimizer="adamw", value_optim="adam"):
     """AdamW for everything; value tables with row-sparse gradients get a LazyRowAdam instead
     (same lr / betas / eps, no weight decay) and the two are returned as one OptimizerSet.
     value_state controls moment storage for both PKM and Engram row-sparse tables. optimizer="muon" puts the
     hidden projections on Muon (smlm/muon.py) and keeps this routing for everything else.
+    value_optim="rowrms" / "rowadagrad": the row-sparse tables get a RowWiseOptimizer (smlm/row_optim.py, one state
+    number per row, beta2 = betas[1]) instead of LazyRowAdam.
     """
     if value_state not in ("fp32", "bf16", "int8"):
         raise ValueError(f"unknown value_state: {value_state}")
+    if value_optim not in ("adam", "rowrms", "rowadagrad"):
+        raise ValueError(f"unknown value_optim: {value_optim}")
+    if value_optim != "adam" and value_state != "fp32":
+        raise ValueError("value_state only applies to LazyRowAdam (value_optim=adam)")
     if optimizer == "muon":
         from .muon import build_muon_optimizer
-        return build_muon_optimizer(model, lr, value_lr, weight_decay, betas, eps, eng_value_lr, value_state)
+        return build_muon_optimizer(model, lr, value_lr, weight_decay, betas, eps, eng_value_lr, value_state,
+                                    value_optim)
     if optimizer != "adamw":
         raise ValueError(f"Unknown optimizer: {optimizer!r}")
     sparse_tables = row_sparse_tables(model)
@@ -64,6 +71,12 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
             tabs = [t for t in sparse_tables if getattr(owners[id(t)], "is_engram", False) == engram]
             if not tabs:
                 continue
+            if value_optim != "adam":
+                from .row_optim import RowWiseOptimizer
+                lazy.append(RowWiseOptimizer(tabs, lr=(eng_value_lr or value_lr) if engram else value_lr,
+                                             kind=value_optim, beta2=betas[1], eps=eps,
+                                             name="engram_values" if engram else "memory_values"))
+                continue
             host_tabs = [t for t in tabs if getattr(t, "host_values", False)]
             if host_tabs:
                 from .host_optim import HostLazyRowAdam
@@ -81,12 +94,13 @@ def build_optimizer(model, lr, value_lr, weight_decay, betas=(0.9, 0.95), eps=1e
     return opt
 
 
-def value_table_memory(model, value_state="fp32", *, host=None):
+def value_table_memory(model, value_state="fp32", *, host=None, value_optim="adam"):
     """Expected persistent table tensors after optimizer initialization, excluding temporary workspace.
 
     Count shared parameters once and frozen tables as weights only. Dense gradients count at their peak
     allocation (zero_grad(set_to_none=True) releases them); row accumulators persist between steps.
     host=True/False filters explicitly host-marked/other tables; None keeps the combined estimate.
+    value_optim="rowrms" / "rowadagrad": row-sparse tables keep one fp32 (+ int32 for rowrms) per row as state.
     """
     if value_state not in ("fp32", "bf16", "int8"):
         raise ValueError(f"unknown value_state: {value_state}")
@@ -107,7 +121,10 @@ def value_table_memory(model, value_state="fp32", *, host=None):
         if sparse and value_state != "fp32" and p.dtype != torch.float32:
             raise ValueError("compact value states require fp32 tables")
         out["gradient_bytes"] += n * (max(4, size) if sparse else size)
-        if sparse and value_state == "bf16":
+        if sparse and value_optim != "adam":
+            from .row_optim import state_bytes
+            out["moment_bytes"] += state_bytes(value_optim, p.shape[0]) - 4
+        elif sparse and value_state == "bf16":
             out["moment_bytes"] += n * 4
         elif sparse and value_state == "int8":
             out["moment_bytes"] += n * 2

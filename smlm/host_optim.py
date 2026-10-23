@@ -47,7 +47,8 @@ def load_rows_library(flags=FLAGS, cache=None):
     lib.host_rows_adam.argtypes = [p, p, p, p, p, p, i64, i64, f32, f32, f32, f32, f32, f32, f32, i32]
     lib.host_rows_add.argtypes = [p, p, p, p, i64, i64, i32]
     lib.host_rows_gather.argtypes = [p, p, p, i64, i64, i32]
-    for fn in (lib.host_rows_adam, lib.host_rows_add, lib.host_rows_gather):
+    lib.host_rows_rowwise.argtypes = [p, p, p, p, p, p, i64, i64, f32, f32, f32, f32, i32, i32]
+    for fn in (lib.host_rows_adam, lib.host_rows_add, lib.host_rows_gather, lib.host_rows_rowwise):
         fn.restype = None
     return lib
 
@@ -158,8 +159,8 @@ class HostLazyRowAdam(LazyRowAdam):
                 st.reset(rows)
 
 
-def value_table_memory_by_device(model, value_state="fp32"):
+def value_table_memory_by_device(model, value_state="fp32", value_optim="adam"):
     """Persistent table allocation split by the explicit host flag, excluding staging/workspace."""
     from .optim import value_table_memory
-    return {"host": value_table_memory(model, value_state, host=True),
-            "device": value_table_memory(model, value_state, host=False)}
+    return {"host": value_table_memory(model, value_state, host=True, value_optim=value_optim),
+            "device": value_table_memory(model, value_state, host=False, value_optim=value_optim)}

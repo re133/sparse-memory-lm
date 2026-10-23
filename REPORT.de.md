@@ -4059,3 +4059,86 @@ für Training im Unterraum nötig, aber nicht ausreichend.
   vollen Gradienten.
 - **Was das nicht zeigen kann:** ein kleines dichtes Modell, ein Seed, ein Abschnitt des Trainings (30–100 M von
   500 M); später im Training, bei kleiner Lernrate, kann das Bild anders sein.
+
+## Schritt 18: eine Optimizer-Zahl pro Tabellenzeile statt zwei pro Wert (HEIM 2, Kriterien vor den Läufen festgelegt, 2026-10-23)
+
+**Frage:** In der nächsten Phase geht es um Training zu Hause. Mit der Tabelle im RAM trainiert B-16M auf der RX 9070
+(Schritt 8), aber mit 7.050 Tokens/s und ~100 GiB RAM. Die Hälfte dieses RAMs (51,5 GB) sind Adams zwei Momente pro
+Wert, und Adams Schritt auf der CPU über die ~4,9 M pro Schritt gelesenen Zeilen ist der größte Einzelposten (2,1 von
+5,8 s pro Schritt). Empfehlungssysteme trainieren ihre riesigen Embedding-Tabellen mit zeilenweisem Adagrad, das eine
+Zahl pro Zeile speichert. Lernt die Tabelle mit einer Zahl pro Zeile genauso gut, und was spart das?
+
+**Zwei zeilenweise Optimizer** (`smlm/row_optim.py`, `--value_optim`). Wie das bisherige Lazy Adam ändern beide nur
+die Zeilen, die seit dem letzten Schritt gelesen wurden. g ist der Gradient einer Zeile, q der Mittelwert von g² über
+die Zeile:
+- **rowrms:** v ← 0,95 v + 0,05 q, dann p ← p − lr · g / (√(v / (1 − 0,95ⁿ)) + ε), mit n = wie oft diese Zeile schon
+  aktualisiert wurde. Das ist Adam ohne Momentum, mit einem zweiten Moment pro Zeile. Die Bias-Korrektur zählt die
+  eigenen Aktualisierungen der Zeile. Mit dem globalen Schrittzähler (wie in unserem Lazy Adam) würde eine Zeile, die
+  erst spät im Training gelesen wird, beim ersten Mal einen 4,5-mal zu großen Schritt machen.
+- **rowadagrad:** v ← v + q, dann p ← p − lr · g / (√v + ε). Der Standard für Embedding-Tabellen (FBGEMM, TorchRec).
+- Zustand bei B-16M: 134 MB (rowrms) bzw. 67 MB (rowadagrad) statt 51,5 GB. Den Schritt auf der CPU macht eine neue
+  C-Schleife neben der für Adam.
+- Tests (`tests/test_row_optim.py`, 11 bestanden, mit GPU):
+  - die Formeln gegen eine float64-Referenz, Zeile für Zeile;
+  - C gegen PyTorch, GPU gegen CPU;
+  - nicht gelesene Zeilen bleiben bitgleich;
+  - eine Zeile, die erst nach 50 Schritten gelesen wird, bewegt sich um genau lr;
+  - Zustand speichern und laden.
+
+**Vor den Kriterien** (explorativ, geht nicht in die Urteile ein):
+- **Die C-Schleife allein** (CPU, 1,2 M zufällige Zeilen einer Tabelle mit 4 M × 384 Werten, 16 Threads): Adam 400 ns
+  pro Zeile, rowrms 200 ns. Bei ~4,9 M Zeilen pro Schritt ist das etwa 1 s weniger von 5,8 s, insgesamt erwarte ich
+  also etwa 1,2-fache Geschwindigkeit, nicht mehr. Das Kopieren der Zeilen zur GPU und der Gradienten zurück bleibt,
+  wie es ist.
+- **Kurze Probeläufe** (B-1M, 1,5 M Tokens, Tabelle auf der GPU und im RAM): Beide laufen, mit derselben Kurve. Mit
+  rowrms braucht B-1M auf der Karte 7,5 statt 10,5 GiB GPU-Speicher.
+
+**Teil A, die Lernrate an B-1M wählen** (RX 9070, Tabelle auf der Karte, `scripts/run_rowopt.py screen`):
+- **Aufbau:** B-1M-sparse mit den Argumenten seiner früheren Läufe (`runs/hampter`, Triton-Kernel), aber ein ganzer
+  Schedule über 50 M Tokens (2,5 M Aufwärmen, dann Kosinus), ohne model.pt.
+- **Läufe:**
+  - Adam mit Tabellen-LR 2,4e-3, Seeds 0 und 1 (für die Streuung);
+  - rowrms mit 0,6e-3, 1,2e-3 und 2,4e-3;
+  - rowadagrad mit 0,01, 0,03 und 0,1, beide zeilenweise Optimizer mit Seed 0.
+
+  Ein zeilenweiser Lauf stoppt bei 20 M Tokens, wenn er dort mehr als 5 % schlechter ist als Adam mit Seed 0.
+- **Warum diese Lernraten:**
+  - rowrms bewegt jede aktualisierte Zeile um genau lr (quadratisches Mittel über die Zeile). Adam bewegt sie
+    weniger, weil sein Momentum Rauschen herausmittelt. Das Raster liegt deshalb bei und unter Adams 2,4e-3.
+  - Bei rowadagrad schrumpft der Schritt wie 1/√(Aktualisierungen), es braucht also eine etwa zehnmal größere
+    Lernrate.
+- **Messung:** Val-PPL nach 50 M Tokens auf dem Wikipedia-Validierungssatz; WikiText-103 wird mitberichtet.
+  Toleranz t = 0,5 % des Mittels der beiden Adam-Läufe, oder deren Abstand, wenn der größer ist. Jeder Optimizer wird
+  nach seiner besten Lernrate beurteilt:
+  - **„besser als Adam“:** mehr als t unter dem besseren Adam-Lauf;
+  - **„so gut wie Adam“:** zwischen dem besseren Adam-Lauf − t und dem schlechteren + t;
+  - **„etwas schlechter“:** darüber, aber höchstens 2 % über dem Adam-Mittel;
+  - **„schlechter“:** sonst.
+
+  Liegt die beste Lernrate am Rand ihres Rasters, sage ich das dazu (das Optimum kann außerhalb liegen).
+
+**Teil B, B-16M mit der Tabelle im RAM** (RX 9070 + 128 GB, `scripts/run_rowopt.py big`):
+- **Lauf:** genau der Lauf aus Schritt 8, `runs/big_home/B-16M-host-s0` (Schedule über 500 M, gestoppt nach der
+  Auswertung bei Schritt 3.050 = 99,9 M Tokens, `--no_save`). Es ändern sich nur `--value_optim` und `--value_lr`, und
+  die kommen aus Teil A:
+  - die beste rowrms-Lernrate, weil die Schrittweite von rowrms nicht davon abhängt, wie oft eine Zeile gelesen wird
+    (die Zeilen von B-16M werden viel seltener gelesen als die von B-1M);
+  - die beste rowadagrad-Lernrate nur, wenn rowrms „schlechter“ ist und rowadagrad besser als rowrms;
+  - kein Lauf, wenn beide „schlechter“ sind.
+
+  Gestartet wie in Schritt 8 als systemd-Einheit mit Speichergrenze. Kann er nicht bis 07:00 starten, stoppt er
+  stattdessen nach 50 M Tokens (Schritt 1.525), damit er vor Mittag fertig ist.
+- **Kriterien:** Val-PPL bei Schritt 3.050 (bzw. 1.525) gegen den Adam-Lauf aus Schritt 8 (37,433; bei Schritt 1.525:
+  58,056). Das 1 % ist die Regel aus Schritt 8 (Seed-Streuung 0,4 %).
+  - **„trainiert B-16M so gut wie Adam“:** innerhalb ±1 %;
+  - **„besser als Adam“:** mehr als 1 % niedriger;
+  - **„etwas schlechter“:** 1 bis 3 % höher;
+  - **„schlechter“:** mehr als 3 % höher.
+- **Ohne Urteil berichtet:**
+  - Tokens pro Sekunde gegen Schritt 8 über dieselbe Strecke (`train_tok_s` in metrics.csv);
+  - die RAM-Spitze der systemd-Einheit des Laufs (Schritt 8: ~100,6 GiB);
+  - die Gesamtzeit.
+
+**Was das nicht zeigen kann:** ein Seed pro zeilenweiser Einstellung; kurze Budgets (50 M Tokens bei B-1M, 100 M bei
+B-16M); Lernraten aus einem kleinen Raster an B-1M. Kein Vergleich mit bf16-Werten, einer eingefrorenen Tabelle oder
+den meistgelesenen Zeilen auf der Karte (HOT).

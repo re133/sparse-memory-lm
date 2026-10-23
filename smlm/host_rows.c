@@ -6,6 +6,8 @@
  *   host_rows_adam    one pass per touched row: Adam on values and moments, accumulator zeroed, row untouched
  *   host_rows_add     acc[rows[i]] += src[i], touched[rows[i]] = 1 (rows unique within one call)
  *   host_rows_gather  out[i] = table[rows[i]]
+ *   host_rows_rowwise one pass per touched row: row-wise RMS or Adagrad (smlm/row_optim.py), accumulator zeroed,
+ *                     row untouched
  */
 #include <math.h>
 #include <pthread.h>
@@ -19,8 +21,10 @@ typedef struct {
     const float *src, *table;
     const int64_t *rows;
     uint8_t *touched;
+    int32_t *count;
     int64_t width;
-    float grad_scale, one_minus_b1, b2, one_minus_b2, bc2_sqrt, eps, neg_step_size;
+    float grad_scale, one_minus_b1, b2, one_minus_b2, bc2_sqrt, eps, neg_step_size, lr;
+    int kind;
 } job_t;
 
 typedef struct {
@@ -74,6 +78,39 @@ static void adam_part(const job_t *j, int64_t begin, int64_t end) {
     }
 }
 
+/* kind 0 = rowrms (v = b2 v + (1 - b2) q, per-row bias count), 1 = rowadagrad (v += q); q = mean of g^2 over the
+ * row, summed in double. Same formulas as the torch path in RowWiseOptimizer, equal up to rounding. */
+static void rowwise_part(const job_t *j, int64_t begin, int64_t end) {
+    const int64_t d = j->width;
+    for (int64_t i = begin; i < end; i++) {
+        const int64_t r = j->rows[i];
+        float *p = j->p + r * d, *g = j->acc + r * d;
+        double q = 0.0;
+        for (int64_t k = 0; k < d; k++) {
+            const float gk = g[k] * j->grad_scale;
+            q += (double)gk * gk;
+        }
+        q /= (double)d;
+        float denom;
+        if (j->kind == 0) {
+            const float vr = j->b2 * j->v[r] + j->one_minus_b2 * (float)q;
+            const int32_t n = ++j->count[r];
+            j->v[r] = vr;
+            denom = sqrtf((float)(vr / (1.0 - pow(j->b2, n)))) + j->eps;
+        } else {
+            const float vr = j->v[r] + (float)q;
+            j->v[r] = vr;
+            denom = sqrtf(vr) + j->eps;
+        }
+        const float step = j->lr / denom;
+        for (int64_t k = 0; k < d; k++) {
+            p[k] = p[k] - step * (g[k] * j->grad_scale);
+            g[k] = 0.0f;
+        }
+        j->touched[r] = 0;
+    }
+}
+
 static void add_part(const job_t *j, int64_t begin, int64_t end) {
     const int64_t d = j->width;
     for (int64_t i = begin; i < end; i++) {
@@ -109,4 +146,12 @@ void host_rows_add(float *acc, uint8_t *touched, const int64_t *rows, const floa
 void host_rows_gather(float *out, const float *table, const int64_t *rows, int64_t n, int64_t width, int threads) {
     job_t j = {.out = out, .table = table, .rows = rows, .width = width};
     run(gather_part, &j, n, threads);
+}
+
+void host_rows_rowwise(float *p, float *acc, float *v, int32_t *count, uint8_t *touched, const int64_t *rows,
+                       int64_t n, int64_t width, float grad_scale, float b2, float eps, float lr, int kind,
+                       int threads) {
+    job_t j = {.p = p, .acc = acc, .v = v, .count = count, .touched = touched, .rows = rows, .width = width,
+               .grad_scale = grad_scale, .b2 = b2, .one_minus_b2 = 1.0f - b2, .eps = eps, .lr = lr, .kind = kind};
+    run(rowwise_part, &j, n, threads);
 }
