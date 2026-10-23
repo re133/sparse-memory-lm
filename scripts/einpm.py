@@ -170,6 +170,7 @@ def train(device):
     for p in core:
         p.requires_grad_(False)
     os.makedirs(RUN_OUT, exist_ok=True)
+    os.makedirs(OUT, exist_ok=True)
     torch.save({n: p.detach().cpu() for n, p in core_params(model)}, os.path.join(RUN_OUT, "core.pt"))
     write_json(os.path.join(OUT, "train.json"), {"lr": LR, "clip": CLIP, "episodes": len(log),
                                                   "text_windows": TEXT_WINDOWS,

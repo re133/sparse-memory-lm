@@ -1,0 +1,181 @@
+{
+ "lr": 1e-05,
+ "clip": 1.0,
+ "episodes": 150,
+ "text_windows": 2,
+ "people_per_episode": 4,
+ "known_per_episode": 32,
+ "write": {
+  "lr": 0.01,
+  "steps": 64
+ },
+ "seconds": 1138,
+ "note": "rebuilt from the run's printed means over ten episodes: the per-episode log was lost because report/einpm2/ did not exist when train() wrote it (fixed afterwards); runs/einpm2/core.pt was saved before that and is the trained core",
+ "means_per_10_episodes": [
+  {
+   "new": 3.9039,
+   "known": 0.1145,
+   "text": 2.7864,
+   "grad_norm": 42.4713,
+   "episodes": [
+    1,
+    10
+   ],
+   "elapsed_s": 75
+  },
+  {
+   "new": 3.5016,
+   "known": 0.1742,
+   "text": 2.7801,
+   "grad_norm": 38.5988,
+   "episodes": [
+    11,
+    20
+   ],
+   "elapsed_s": 149
+  },
+  {
+   "new": 3.766,
+   "known": 0.2329,
+   "text": 2.682,
+   "grad_norm": 40.0582,
+   "episodes": [
+    21,
+    30
+   ],
+   "elapsed_s": 225
+  },
+  {
+   "new": 4.0943,
+   "known": 0.32,
+   "text": 2.7553,
+   "grad_norm": 41.4707,
+   "episodes": [
+    31,
+    40
+   ],
+   "elapsed_s": 300
+  },
+  {
+   "new": 3.7286,
+   "known": 0.3397,
+   "text": 2.7008,
+   "grad_norm": 37.4742,
+   "episodes": [
+    41,
+    50
+   ],
+   "elapsed_s": 373
+  },
+  {
+   "new": 3.4809,
+   "known": 0.2284,
+   "text": 2.7546,
+   "grad_norm": 37.6728,
+   "episodes": [
+    51,
+    60
+   ],
+   "elapsed_s": 448
+  },
+  {
+   "new": 3.7197,
+   "known": 0.1994,
+   "text": 2.8322,
+   "grad_norm": 37.1731,
+   "episodes": [
+    61,
+    70
+   ],
+   "elapsed_s": 524
+  },
+  {
+   "new": 3.3951,
+   "known": 0.2239,
+   "text": 2.9091,
+   "grad_norm": 37.5317,
+   "episodes": [
+    71,
+    80
+   ],
+   "elapsed_s": 599
+  },
+  {
+   "new": 3.5738,
+   "known": 0.256,
+   "text": 2.7735,
+   "grad_norm": 37.4134,
+   "episodes": [
+    81,
+    90
+   ],
+   "elapsed_s": 673
+  },
+  {
+   "new": 3.407,
+   "known": 0.3085,
+   "text": 2.791,
+   "grad_norm": 38.2815,
+   "episodes": [
+    91,
+    100
+   ],
+   "elapsed_s": 747
+  },
+  {
+   "new": 3.363,
+   "known": 0.309,
+   "text": 2.738,
+   "grad_norm": 37.2915,
+   "episodes": [
+    101,
+    110
+   ],
+   "elapsed_s": 823
+  },
+  {
+   "new": 3.1197,
+   "known": 0.2599,
+   "text": 2.9444,
+   "grad_norm": 35.0035,
+   "episodes": [
+    111,
+    120
+   ],
+   "elapsed_s": 900
+  },
+  {
+   "new": 3.4177,
+   "known": 0.2498,
+   "text": 2.7548,
+   "grad_norm": 37.8891,
+   "episodes": [
+    121,
+    130
+   ],
+   "elapsed_s": 981
+  },
+  {
+   "new": 3.0061,
+   "known": 0.2695,
+   "text": 2.6614,
+   "grad_norm": 35.6436,
+   "episodes": [
+    131,
+    140
+   ],
+   "elapsed_s": 1060
+  },
+  {
+   "new": 3.4223,
+   "known": 0.2595,
+   "text": 2.7781,
+   "grad_norm": 37.0202,
+   "episodes": [
+    141,
+    150
+   ],
+   "elapsed_s": 1138
+  }
+ ]
+}
