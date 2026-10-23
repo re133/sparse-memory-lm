@@ -97,7 +97,7 @@ def main():
     elif len(argv) in (3, 4) and argv[0] == "b4g" and argv[3:] in ([], ["probe"]):
         lr, mb, probe = argv[1], argv[2], argv[3:] == ["probe"]
         name = f"B-4M-gpu-rowrms-{lr}-mb{mb}-s0" + ("-probe" if probe else "")
-        stop = ["--stop_after_tokens", "0.6e6", "--eval_every_tokens", "0.6e6"] if probe else [
+        stop = ["--stop_after_tokens", "0.65e6", "--eval_every_tokens", "0.655e6"] if probe else [
             "--stop_after_tokens", "99.9e6"]
         run_shape.COMMON = B4G + ["--value_lr", lr, "--micro_bs", mb] + stop
         run_shape.EST_H = {name: 1.0}

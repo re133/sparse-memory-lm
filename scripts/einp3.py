@@ -166,8 +166,8 @@ def summary():
     dw, du, dk = (per(R, x) - per(N["people"], x) for x in (wr, un, kn))
     lift = dw[draws[0]].mean(1) - du[draws[1]].mean(1)
     acc = float(np.mean([R[str(i)][a]["hit"] for i in wr for a in ATTRS]))
-    verdict = ("doesn't transfer" if ci(lift)[0] <= 0 else "transfers only weakly" if acc < 0.5 else
-               "transfers to the usual question")
+    verdict = ("doesn't carry over" if ci(lift)[0] <= 0 else "carries over only weakly" if acc < 0.5 else
+               "carries over to the usual question")
     own = T["own_wording"]
     by_t = {t: [i for i in wr if A[str(i)]["template"] == t] for t in TEMPLATES}
     out = {"chosen": T["chosen"], "verdict": verdict, "lift": round(float(lift.mean()), 5), "lift_ci95": ci(lift),
