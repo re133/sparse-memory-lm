@@ -119,6 +119,13 @@ class Batches:
         return tokens
 
 
+def rows_read(st):
+    """Rows read in this step: in the step accumulator (GACC) or the touched mask, plus hot rows on the GPU."""
+    n = st.steprows.n if getattr(st, "steprows", None) is not None else int(st.touched.sum())
+    hot = getattr(st, "hot", None)
+    return n + (int(hot.touched.sum()) if hot is not None else 0)
+
+
 def step(model, opt, args, generator, step_index):
     from smlm.host_values import host_timings
 
@@ -147,7 +154,7 @@ def step(model, opt, args, generator, step_index):
     synchronize(device)
     clip_wall = time.perf_counter() - clip_start
     # distinct table rows read in this step (what the CPU optimizer has to update)
-    touched_rows = sum(int(row_store(t).touched.sum()) for t in row_sparse_tables(model))
+    touched_rows = sum(rows_read(row_store(t)) for t in row_sparse_tables(model))
     cpu_optimizer, device_optimizer = 0.0, 0.0
     for part in getattr(opt, "opts", [opt]):
         params = [p for group in part.param_groups for p in group["params"]]

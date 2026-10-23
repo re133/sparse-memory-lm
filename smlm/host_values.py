@@ -329,7 +329,10 @@ def enable_hot_rows(model, reads, fraction, device):
             if module.step_rows is not None:
                 raise ValueError("enable hot rows before the step accumulator")
             module.hot = HotRows(module.weight, torch.argsort(reads, descending=True, stable=True)[:n], device)
-            row_store(module.weight).hot = module.hot
+            # a row store created later picks it up (HostRowStore); don't create the table-sized one here
+            module.weight.hot_rows = module.hot
+            if getattr(module.weight, "row_store", None) is not None:
+                module.weight.row_store.hot = module.hot
     return model
 
 

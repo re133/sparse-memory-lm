@@ -82,6 +82,7 @@ class HostRowStore(RowStore):
         if table.device.type != "cpu":
             raise ValueError("host value tables must stay on the CPU")
         super().__init__(table)
+        self.hot = getattr(table, "hot_rows", None)           # rows kept on the GPU (smlm/host_values.py, HOT)
 
     def reset(self, rows=None):
         hot = getattr(self, "hot", None)
