@@ -56,9 +56,19 @@ class RowWiseOptimizer(torch.optim.Optimizer):
                 state = self._state(p)
                 state["step"] += 1
                 if getattr(p, "host_values", False) or p.device.type == "cpu":
+                    hot = getattr(st, "hot", None)
+                    if hot is not None:
+                        # the hot rows' state lives next to them on the GPU, in slot order (smlm/host_values.py)
+                        if "hot_v" not in state:
+                            state["hot_v"] = state["v"].index_select(0, hot.rows.cpu()).to(hot.values.device)
+                            if "n" in state:
+                                state["hot_n"] = state["n"].index_select(0, hot.rows.cpu()).to(hot.values.device)
+                        self._masked(group, hot.values, hot.acc, hot.touched, state["hot_v"], state.get("hot_n"),
+                                     st.grad_scale)
                     self._step_rows(group, p, st, state)
                 else:
-                    self._step_masked(group, p, st, state)
+                    self._masked(group, p, st.acc, st.touched, state["v"], state.get("n"), st.grad_scale)
+                    st.grad_scale = 1.0
 
     def _scale(self, group, v, n):
         # lr / (sqrt(bias-corrected v) + eps); n is the row's update count after this update (rowrms)
@@ -101,21 +111,20 @@ class RowWiseOptimizer(torch.optim.Optimizer):
         state["v"].index_copy_(0, r, v)
         return v, k
 
-    def _step_masked(self, group, p, st, state):
+    def _masked(self, group, p, acc, touched, v_all, n_all, scale):
         # GPU: in a 32k-token step B-1M reads almost every row, so run over the whole table in chunks with the
         # touched mask instead of gathering the rows; untouched rows get a zero step (their gradient is zero too)
         b2 = group["beta2"]
-        scale = st.grad_scale
         for a in range(0, p.shape[0], CHUNK_ROWS):
-            t = st.touched[a:a + CHUNK_ROWS]
-            g = st.acc[a:a + CHUNK_ROWS]
+            t = touched[a:a + CHUNK_ROWS]
+            g = acc[a:a + CHUNK_ROWS]
             if not (isinstance(scale, float) and scale == 1.0):
                 g = g * scale
             q = g.square().mean(1)
-            v_old = state["v"][a:a + CHUNK_ROWS]
+            v_old = v_all[a:a + CHUNK_ROWS]
             if self.kind == "rowrms":
                 v = torch.where(t, b2 * v_old + (1 - b2) * q, v_old)
-                n = state["n"][a:a + CHUNK_ROWS]
+                n = n_all[a:a + CHUNK_ROWS]
                 n += t.to(torch.int32)
                 step = torch.where(t, self._scale(group, v, n.clamp_min(1)), 0.0)
             else:
@@ -123,9 +132,8 @@ class RowWiseOptimizer(torch.optim.Optimizer):
                 step = torch.where(t, self._scale(group, v, None), 0.0)
             v_old.copy_(v)
             p[a:a + CHUNK_ROWS].addcmul_(step[:, None], g, value=-1.0)
-        st.acc.zero_()
-        st.touched.zero_()
-        st.grad_scale = 1.0
+        acc.zero_()
+        touched.zero_()
 
     def zero_grad(self, set_to_none=True):
         pass                                   # the accumulator is cleared in step(), as in LazyRowAdam
@@ -133,11 +141,23 @@ class RowWiseOptimizer(torch.optim.Optimizer):
     def _params(self):
         return [p for g in self.param_groups for p in g["params"]]
 
+    def flush(self):
+        """Write the hot rows' state (GPU, slot order) back into the per-row state of the whole table."""
+        for p in self._params():
+            state, hot = self.state[p], getattr(row_store(p), "hot", None)
+            if hot is not None and "hot_v" in state:
+                rows = hot.rows.cpu()
+                state["v"].index_copy_(0, rows, state["hot_v"].cpu())
+                if "hot_n" in state:
+                    state["n"].index_copy_(0, rows, state["hot_n"].cpu())
+
     def state_dict(self):
+        """The state of every row in table order (hot rows written back first), so it loads with or without HOT."""
+        self.flush()
         params = self._params()
         return {"format": "smlm.row_wise.v1", "kind": self.kind, "shapes": [list(p.shape) for p in params],
                 "param_groups": [{k: v for k, v in g.items() if k != "params"} for g in self.param_groups],
-                "state": [dict(self.state[p]) for p in params]}
+                "state": [{k: v for k, v in self.state[p].items() if not k.startswith("hot_")} for p in params]}
 
     def load_state_dict(self, state_dict):
         if state_dict.get("format") != "smlm.row_wise.v1" or state_dict.get("kind") != self.kind:

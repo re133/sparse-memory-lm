@@ -235,7 +235,11 @@ def run(args):
     if args.value_device == "host":
         enable_host_values(model, profile=True)
     model.to(device).train()
-    opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, value_state=args.value_state)
+    if args.hot_rows:
+        from smlm.host_values import enable_hot_rows
+        enable_hot_rows(model, np.load(args.hot_rows), args.hot_frac, device)
+    opt = build_optimizer(model, args.lr, args.value_lr, args.weight_decay, value_state=args.value_state,
+                          value_optim=args.value_optim)
     synchronize(device)
     init_s = time.perf_counter() - start
     generator = Batches(args, cfg.vocab_size)
@@ -270,8 +274,9 @@ def run(args):
         "data_source": ({"kind": "read_only_uint16_memmap", "directory": os.path.abspath(args.data_dir),
                          "sampling": "uniform windows with replacement, seed + 1"} if args.data_dir
                         else {"kind": "synthetic_uniform_tokens", "seed": args.seed + 1}),
-        "value_table_memory": value_table_memory(model, args.value_state), "memory": memory,
-        "value_table_memory_by_device": value_table_memory_by_device(model, args.value_state),
+        "value_table_memory": value_table_memory(model, args.value_state, value_optim=args.value_optim),
+        "memory": memory,
+        "value_table_memory_by_device": value_table_memory_by_device(model, args.value_state, args.value_optim),
         "tokens_per_step": args.micro_batch * args.seq_len * args.accum,
         "warmup_losses": warmup, "losses": [r["loss"] for r in records], "steps": records, "mean": average,
         "profiled_extra_step": profile_step(model, opt, args, generator),
@@ -297,8 +302,8 @@ def compare(args):
     results = {}
     for mode in ("gpu", "host"):
         command = [sys.executable, os.path.abspath(__file__), "--value_device", mode]
-        for key in ("model", "value_state", "device", "mem_impl", "steps", "warmup", "micro_batch", "seq_len",
-                    "accum", "seed", "threads", "lr", "value_lr", "weight_decay", "clip"):
+        for key in ("model", "value_state", "value_optim", "device", "mem_impl", "steps", "warmup", "micro_batch",
+                    "seq_len", "accum", "seed", "threads", "lr", "value_lr", "weight_decay", "clip"):
             command.extend(["--" + key, str(getattr(args, key))])
         if args.tiny:
             command.append("--tiny")
@@ -327,6 +332,9 @@ def main():
     ap.add_argument("--model", choices=["B-1M-sparse", "B-4M-sparse", "B-16M-sparse"], default="B-1M-sparse")
     ap.add_argument("--value_device", choices=["gpu", "host"], default="host")
     ap.add_argument("--value_state", choices=["fp32", "bf16", "int8"], default="fp32")
+    ap.add_argument("--value_optim", choices=["adam", "rowrms", "rowadagrad"], default="adam")
+    ap.add_argument("--hot_rows", default=None, help="read counts per row (an earlier run's mem_access_train.npy)")
+    ap.add_argument("--hot_frac", type=float, default=0.1)
     ap.add_argument("--device", choices=["cpu", "cuda"], default="cuda")
     ap.add_argument("--mem_impl", choices=["torch", "triton"], default=None)
     ap.add_argument("--steps", type=int, default=3)

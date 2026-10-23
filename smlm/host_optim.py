@@ -84,18 +84,25 @@ class HostRowStore(RowStore):
         super().__init__(table)
 
     def reset(self, rows=None):
+        hot = getattr(self, "hot", None)
         if rows is None:
             rows = self.touched.nonzero().squeeze(1)
+            if hot is not None:                     # hot rows (smlm/host_values.py, HOT) keep their own accumulator
+                hot.acc.zero_()
+                hot.touched.zero_()
         super().reset(rows)
 
     def norm(self):
         rows = self.touched.nonzero().squeeze(1)
-        if not rows.numel():
-            return self.acc.new_zeros(())
         chunk_rows = max(1, CHUNK_ELEMENTS // self.acc.shape[1])
         # Keep each gather bounded; summing chunk norms avoids a full-table fp32 temporary.
         norms = [self.acc.index_select(0, rows[a:a + chunk_rows]).norm()
                  for a in range(0, rows.numel(), chunk_rows)]
+        hot = getattr(self, "hot", None)
+        if hot is not None:
+            norms.append(hot.acc.norm().cpu())
+        if not norms:
+            return self.acc.new_zeros(())
         return torch.linalg.vector_norm(torch.stack(norms))
 
 
@@ -117,6 +124,8 @@ class HostLazyRowAdam(LazyRowAdam):
         for group in self.param_groups:
             for p in group["params"]:
                 st = row_store(p)
+                if getattr(st, "hot", None) is not None:
+                    raise ValueError("hot rows on the GPU need a row-wise table optimizer (--value_optim)")
                 if self.state_dtype != "fp32":
                     self._step_lowmem(group, p, st)
                     continue

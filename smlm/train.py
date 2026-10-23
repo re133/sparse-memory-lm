@@ -337,6 +337,10 @@ def main():
                     help="LazyRowAdam moment storage for PKM and Engram tables (requires row_sparse gradients)")
     ap.add_argument("--value_optim", choices=["adam", "rowrms", "rowadagrad"], default="adam",
                     help="row-sparse value tables: LazyRowAdam, or one state number per row (smlm/row_optim.py)")
+    ap.add_argument("--hot_rows", default=None, help="with --value_device host and a row-wise --value_optim: read "
+                    "counts per table row from an earlier run (its mem_access_train.npy); the --hot_frac most-read "
+                    "rows stay on the GPU (HOT, smlm/host_values.py), same math")
+    ap.add_argument("--hot_frac", type=float, default=0.1)
     ap.add_argument("--value_device", choices=["gpu", "host"], default="gpu",
                     help="keep PKM tables and lazy Adam state in host RAM (requires row_sparse PKM)")
     ap.add_argument("--weight_decay", type=float, default=0.1)
@@ -382,6 +386,8 @@ def main():
         ap.error("--ce_chunk_size must be positive")
     if (args.tokens is None) == (args.epochs is None):
         ap.error("give exactly one of --tokens and --epochs")
+    if args.hot_rows and (args.value_device != "host" or args.value_optim == "adam"):
+        ap.error("--hot_rows needs --value_device host and a row-wise --value_optim")
 
     os.makedirs(args.out_dir, exist_ok=True)
     for f in os.listdir(args.out_dir):
@@ -434,6 +440,9 @@ def main():
         from .host_values import enable_host_values
         model = enable_host_values(model)
     model = model.to(DEVICE)
+    if args.hot_rows:
+        from .host_values import enable_hot_rows
+        enable_hot_rows(model, np.load(args.hot_rows), args.hot_frac, torch.device(DEVICE))
     if args.compile:
         from .compile import compile_dense
         compile_dense(model)

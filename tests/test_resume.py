@@ -256,3 +256,31 @@ def test_pause_and_resume_equals_uninterrupted(tiny_setup, monkeypatch, extra):
     for f in ("metrics.csv", "train_log.csv"):
         assert [{k: v for k, v in r.items() if k not in TIMING} for r in rows(a / f)] == \
                [{k: v for k, v in r.items() if k not in TIMING} for r in rows(b / f)], f
+
+
+def test_hot_rows_train_and_resume_like_rows_in_ram(tiny_setup, monkeypatch):
+    """--hot_rows: same run within float rounding as all rows in RAM; paused and resumed, bit for bit as unpaused."""
+    import signal
+    reads = tiny_setup / "reads.npy"
+    np.save(reads, np.random.default_rng(0).integers(0, 100, 64))
+    host = ("--value_device", "host", "--value_optim", "rowrms")
+    hot = host + ("--hot_rows", str(reads), "--hot_frac", "0.25")
+    run(monkeypatch, tiny_setup / "ram", extra=host)
+    run(monkeypatch, tiny_setup / "hot", extra=hot)
+    sa = torch.load(tiny_setup / "ram" / "model.pt", weights_only=True)["state_dict"]
+    sb = torch.load(tiny_setup / "hot" / "model.pt", weights_only=True)["state_dict"]
+    for k in sa:
+        torch.testing.assert_close(sb[k], sa[k], rtol=1e-4, atol=1e-5)
+    real_batch = smlm_data.TrainStream.batch
+
+    def pausing(self, step):
+        if step == 4:
+            os.kill(os.getpid(), signal.SIGUSR1)
+        return real_batch(self, step)
+    monkeypatch.setattr(smlm_data.TrainStream, "batch", pausing)
+    with pytest.raises(SystemExit):
+        run(monkeypatch, tiny_setup / "hot2", extra=hot)
+    monkeypatch.setattr(smlm_data.TrainStream, "batch", real_batch)
+    run(monkeypatch, tiny_setup / "hot2", extra=hot)
+    sc = torch.load(tiny_setup / "hot2" / "model.pt", weights_only=True)["state_dict"]
+    assert all(torch.equal(sb[k], sc[k]) for k in sb)

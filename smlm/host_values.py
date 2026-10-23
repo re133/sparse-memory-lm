@@ -2,6 +2,12 @@
 
   model = enable_host_values(Transformer(cfg)).cuda()
   python -m smlm.train --model B-16M-sparse --value_device host --value_state int8 ...
+  python -m smlm.train ... --value_device host --value_optim rowrms --hot_rows mem_access_train.npy --hot_frac 0.1
+
+HOT (enable_hot_rows): the most-read rows, ranked by the read counts of an earlier run (profile-guided, like
+AutoFDO/Propeller for code), stay on the GPU with their gradient accumulator and row-wise optimizer state; only the
+other rows travel between RAM and GPU. Same math, other summation order. The host copy of a hot row is stale while
+training and is written back by flush(), which state_dict() calls (checkpoints, model.pt).
 """
 import time
 from contextlib import contextmanager
@@ -30,6 +36,13 @@ class HostEmbedding(nn.Embedding):
         self.profile = profile
         self.timings = dict.fromkeys(PHASES, 0.0)
         self._staging = None
+        self.hot = None
+        self.register_state_dict_pre_hook(lambda module, *_: module.flush())
+
+    def flush(self):
+        """Write the GPU copies of the hot rows back into the host table."""
+        if self.hot is not None:
+            self.weight.detach().index_copy_(0, self.hot.rows.cpu(), self.hot.values.detach().cpu())
 
     def _apply(self, fn, recurse=True):
         # Do not even call fn on the table: a temporary full-table CUDA copy would already OOM.
@@ -62,9 +75,18 @@ class HostEmbedding(nn.Embedding):
         return self._staging[:rows]
 
     def gather(self, indices):
+        """(host rows, remapped indices, values of the distinct rows on the device, hot) where hot = None or
+        (positions of the hot rows among the distinct ones, their slots); host rows are only the other ones."""
         device = indices.device
         with self.phase("unique", device):
             unique, remapped = torch.unique(indices.reshape(-1), sorted=True, return_inverse=True)
+        hot = None
+        if self.hot is not None:
+            slot = self.hot.slot[unique]
+            is_hot = slot >= 0
+            at_hot, at_cold = is_hot.nonzero().squeeze(1), (~is_hot).nonzero().squeeze(1)
+            hot = (at_hot, slot[at_hot].long(), at_cold)
+            unique = unique[at_cold]
         with self.phase("indices_d2h", device):
             rows = unique.cpu()
         with self.phase("gather"):
@@ -81,9 +103,21 @@ class HostEmbedding(nn.Embedding):
         with self.phase("rows_h2d", device):
             # Blocking completion makes the one pinned buffer safe to reuse in the next layer.
             values = cpu.to(device, non_blocking=False)
-        return rows, remapped.view_as(indices), values
+        if hot is not None:
+            at_hot, slots, at_cold = hot
+            both = values.new_empty((at_hot.numel() + at_cold.numel(), self.embedding_dim))
+            both.index_copy_(0, at_cold, values)
+            both.index_copy_(0, at_hot, self.hot.values.index_select(0, slots))
+            values = both
+        return rows, remapped.view_as(indices), values, hot
 
-    def accumulate(self, rows, gradient):
+    def accumulate(self, rows, gradient, hot=None):
+        if hot is not None:
+            # rows are distinct within one call, so index_add_ adds each hot row once per layer and micro-batch
+            at_hot, slots, at_cold = hot
+            self.hot.acc.index_add_(0, slots, gradient.index_select(0, at_hot))
+            self.hot.touched[slots] = True
+            gradient = gradient.index_select(0, at_cold)
         with self.phase("gradients_d2h", gradient.device):
             if gradient.is_cuda:
                 cpu = self.staging(rows.numel())
@@ -104,18 +138,18 @@ class HostEmbedding(nn.Embedding):
     def bag(self, indices, weights, impl="torch"):
         if self.weight.device.type != "cpu" or self.weight.dtype != torch.float32:
             raise ValueError("host values must remain fp32 on CPU")
-        rows, remapped, values = self.gather(indices)
+        rows, remapped, values, hot = self.gather(indices)
         if not torch.is_grad_enabled():
             if impl == "triton":
                 from .kernels import bag_forward
                 return bag_forward(remapped, weights, values).to(values.dtype)
             return F.embedding_bag(remapped, values, per_sample_weights=weights.to(values.dtype), mode="sum")
-        return _HostBag.apply(weights, remapped, values, self.weight, rows, self, impl)
+        return _HostBag.apply(weights, remapped, values, self.weight, rows, self, impl, hot)
 
 
 class _HostBag(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, weights, indices, values, table, rows, owner, impl):
+    def forward(ctx, weights, indices, values, table, rows, owner, impl, hot=None):
         n, j = indices.shape
         flat = indices.reshape(-1).contiguous()
         w = weights.reshape(-1).to(values.dtype).contiguous()
@@ -130,7 +164,7 @@ class _HostBag(torch.autograd.Function):
             if offset2bag.numel() != flat.numel():
                 offset2bag = torch.arange(n, device=indices.device).repeat_interleave(j)
         ctx.save_for_backward(w, flat, values, rows, offsets, offset2bag)
-        ctx.owner, ctx.impl = owner, impl
+        ctx.owner, ctx.impl, ctx.hot = owner, impl, hot
         ctx.train_table = table.requires_grad
         ctx.wshape, ctx.wdtype, ctx.ishape = weights.shape, weights.dtype, indices.shape
         return out
@@ -154,8 +188,8 @@ class _HostBag(torch.autograd.Function):
                     contrib = g.index_select(0, offset2bag[a:a + CHUNK]).mul_(w[a:a + CHUNK, None])
                     acc.index_put_((flat[a:a + CHUNK],), contrib, accumulate=True)
         if ctx.train_table:
-            ctx.owner.accumulate(rows, acc)
-        return gw.view(ctx.wshape).to(ctx.wdtype), None, None, None, None, None, None
+            ctx.owner.accumulate(rows, acc, ctx.hot)
+        return gw.view(ctx.wshape).to(ctx.wdtype), None, None, None, None, None, None, None
 
 
 def enable_host_values(model, profile=False):
@@ -185,6 +219,36 @@ def enable_host_values(model, profile=False):
         m.values.profile = profile
         m.decode_graph = False
         m._graph = None
+    return model
+
+
+class HotRows:
+    """Rows of a host table that live on the GPU (HOT): values, gradient accumulator, touched mask, and the map
+    row -> slot (-1 for rows that stay in RAM). The row-wise optimizer keeps their state in slot order too."""
+
+    def __init__(self, table, rows, device):
+        rows = torch.as_tensor(rows, dtype=torch.int64).sort().values
+        self.rows = rows.to(device)
+        self.slot = torch.full((table.shape[0],), -1, dtype=torch.int32, device=device)
+        self.slot[self.rows] = torch.arange(rows.numel(), dtype=torch.int32, device=device)
+        self.values = table.detach().index_select(0, rows).to(device)
+        self.acc = torch.zeros_like(self.values)
+        self.touched = torch.zeros(rows.numel(), dtype=torch.bool, device=device)
+
+
+def enable_hot_rows(model, reads, fraction, device):
+    """Keep the `fraction` most-read rows of each host table on `device`, ranked by `reads` (read counts per row
+    from an earlier run, e.g. its mem_access_train.npy). Needs a row-wise table optimizer (smlm/row_optim.py):
+    Adam's two moments per value would not fit next to the rows. Call after moving the model to the device and
+    before the first step."""
+    reads = torch.as_tensor(reads)
+    for module in model.modules():
+        if isinstance(module, HostEmbedding) and module.hot is None:
+            if reads.shape != (module.num_embeddings,):
+                raise ValueError(f"read counts for {reads.shape[0]} rows, the table has {module.num_embeddings}")
+            n = int(round(fraction * module.num_embeddings))
+            module.hot = HotRows(module.weight, torch.argsort(reads, descending=True, stable=True)[:n], device)
+            row_store(module.weight).hot = module.hot
     return model
 
 
