@@ -4229,3 +4229,32 @@ rephrasings in training.
 - **Side effects:** known people −0.095 [−0.102; −0.088] (step 16: −0.035), unwritten people +0.003, val PPL unchanged
   (+0.001%). 1.7 s per person.
 - **Code:** `scripts/einp3.py` as of commit `813622a`, unchanged since.
+
+## Step 23: B-4M that grows during training (WACHS, criteria fixed before the run, 2026-10-23)
+
+**Why:** One of my ideas for training at home: start small and let the model grow, so that the first part of the
+training costs less. Here B-4M starts with half of its blocks. The three table reads (blocks 2, 6, 10) and the plain
+blocks 0, 4, 8 work from the start; the six plain blocks 1, 3, 5, 7, 9, 11 are skipped. After 40 M tokens these six
+are switched on as identities: their output projections start at zero, so the grown model computes exactly what the
+small one did, and from then on they learn. Until then they get no gradient, and AdamW leaves them alone (no step, no
+weight decay). Tested on the CPU (`tests/test_resume.py`): the output doesn't change at the growth, the sleeping blocks
+stay as they were, and a run paused and resumed across the growth ends bit for bit like one without a pause.
+
+**Run** (RX 9070, `scripts/run_rowopt.py grow`): exactly the B-4M run of step 20
+(`runs/rowopt/B-4M-gpu-rowrms-2.4e-3-mb4-s0`: 500 M schedule, rowrms with table LR 2.4e-3, 4 sequences per
+micro-batch, `--fused_ce`, seed 0, same data), plus `--grow_layers 1,3,5,7,9,11 --grow_at_tokens 39.98e6` (step 1,220,
+right after an evaluation), stopped after the evaluation at 130 M tokens, so that it gets at least the training time
+step 20 needed for 100 M. Only if it can end before 19:30.
+
+**Criteria:** the val PPL of the grown run at the training time step 20 needed for 100 M tokens (2,462.8 s, without
+evaluations), interpolated between its two evaluations around that time (log PPL linear in time), against step 20's
+37.632. The 1% is step 8's rule.
+- **"Growing pays off":** more than 1% lower;
+- **"no difference I can measure":** within ±1%;
+- **"growing costs":** more than 1% higher.
+
+**Reported without a verdict:** val PPL at 100 M tokens against step 20 (same tokens, less time), the time to 100 M
+tokens, tokens per second before and after the growth, WikiText-103 at the same time point, peak GPU memory.
+
+**What this can't show:** one seed; 100 to 130 M tokens of a 500 M schedule; one growth point and one way to grow (the
+other common way copies existing blocks); only B-4M. Training time on the same PC, but a few hours after step 20's run.

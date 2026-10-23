@@ -4457,3 +4457,34 @@ Umformulierungen bräuchte ein Modell, das im Training Umformulierungen gesehen 
 - **Nebenwirkungen:** bekannte Personen −0,095 [−0,102; −0,088] (Schritt 16: −0,035), nicht geschriebene +0,003,
   Val-PPL unverändert (+0,001 %). 1,7 s pro Person.
 - **Code:** `scripts/einp3.py` ab Commit `813622a`, seitdem unverändert.
+
+## Schritt 23: B-4M, das während des Trainings wächst (WACHS, Kriterien vor dem Lauf festgelegt, 2026-10-23)
+
+**Warum:** Eine meiner Ideen für Training zu Hause: klein anfangen und das Modell wachsen lassen, damit der erste Teil
+des Trainings weniger kostet. Hier startet B-4M mit der Hälfte seiner Blöcke. Die drei Tabellen-Lesungen (Blöcke 2, 6,
+10) und die normalen Blöcke 0, 4, 8 arbeiten von Anfang an; die sechs normalen Blöcke 1, 3, 5, 7, 9, 11 werden
+übersprungen. Nach 40 Mio. Tokens werden diese sechs als Identität eingeschaltet: ihre Ausgabeprojektionen starten bei
+null, das gewachsene Modell rechnet also genau dasselbe wie das kleine, und ab da lernen sie. Bis dahin bekommen sie
+keinen Gradienten, und AdamW lässt sie in Ruhe (kein Schritt, kein Weight Decay). Auf der CPU getestet
+(`tests/test_resume.py`): die Ausgabe ändert sich beim Wachsen nicht, die schlafenden Blöcke bleiben, wie sie waren,
+und ein Lauf, der über das Wachsen hinweg pausiert und fortgesetzt wird, endet Bit für Bit wie einer ohne Pause.
+
+**Lauf** (RX 9070, `scripts/run_rowopt.py grow`): genau der B-4M-Lauf aus Schritt 20
+(`runs/rowopt/B-4M-gpu-rowrms-2.4e-3-mb4-s0`: Plan über 500 Mio., rowrms mit Tabellen-LR 2,4e-3, 4 Sequenzen pro
+Mikro-Batch, `--fused_ce`, Seed 0, gleiche Daten), dazu `--grow_layers 1,3,5,7,9,11 --grow_at_tokens 39.98e6`
+(Schritt 1.220, direkt nach einer Auswertung), beendet nach der Auswertung bei 130 Mio. Tokens, damit er mindestens die
+Trainingszeit bekommt, die Schritt 20 für 100 Mio. brauchte. Nur wenn er vor 19:30 enden kann.
+
+**Kriterien:** die Val-PPL des gewachsenen Laufs bei der Trainingszeit, die Schritt 20 für 100 Mio. Tokens brauchte
+(2.462,8 s, ohne Auswertungen), interpoliert zwischen seinen beiden Auswertungen um diese Zeit (log-PPL linear in der
+Zeit), gegen die 37,632 aus Schritt 20. Das 1 % ist die Regel aus Schritt 8.
+- **„Wachsen lohnt sich“:** mehr als 1 % niedriger;
+- **„kein messbarer Unterschied“:** innerhalb von ±1 %;
+- **„Wachsen kostet“:** mehr als 1 % höher.
+
+**Ohne Urteil berichtet:** Val-PPL bei 100 Mio. Tokens gegen Schritt 20 (gleiche Tokens, weniger Zeit), die Zeit bis
+100 Mio. Tokens, Tokens pro Sekunde vor und nach dem Wachsen, WikiText-103 zum selben Zeitpunkt, GPU-Speicher-Spitze.
+
+**Was das nicht zeigen kann:** ein Seed; 100 bis 130 Mio. Tokens eines Plans über 500 Mio.; ein Zeitpunkt und eine Art
+zu wachsen (die andere übliche Art kopiert vorhandene Blöcke); nur B-4M. Trainingszeit auf demselben PC, aber ein paar
+Stunden nach dem Lauf aus Schritt 20.

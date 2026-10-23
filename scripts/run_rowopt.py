@@ -6,6 +6,7 @@ value (REPORT.md, "Step 18").
   python scripts/run_rowopt.py b4g VALUE_LR MICRO_BS [probe]          step 20: B-4M on the card (probe: 20 steps)
   python scripts/run_rowopt.py fast CONFIG                            step 21: part B's run to 20 M with HOT / GACC
                                                                       (CONFIG: gacc, hot5-gacc, hot10, hot5)
+  python scripts/run_rowopt.py grow                                   step 23: step 20's B-4M, grown at 40 M tokens
   python scripts/run_rowopt.py --smoke DIR screen                     part A on 1 M tokens into DIR, no ntfy
 
 Part A: B-1M-sparse as in runs/hampter (Triton, table LR 2.4e-3 for Adam), but a full schedule over 50 M tokens, no
@@ -102,6 +103,16 @@ def main():
         run_shape.COMMON = B4G + ["--value_lr", lr, "--micro_bs", mb] + stop
         run_shape.EST_H = {name: 1.0}
         run_shape.log(f"step 20 start: {name}")
+        result = run_shape.run(name, [], None)
+        run_shape.log(f"QUEUE DONE | {name} {result}")
+    elif argv == ["grow"]:
+        # step 23 (WACHS): half of the plain blocks sleep until step 1220, then wake as identities; to 130 M tokens,
+        # so that the time step 20 needed for 100 M lies inside the run
+        name = "B-4M-gpu-rowrms-2.4e-3-mb4-grow40-s0"
+        run_shape.COMMON = B4G + ["--value_lr", "2.4e-3", "--micro_bs", "4", "--grow_layers", "1,3,5,7,9,11",
+                                  "--grow_at_tokens", "39.98e6", "--stop_after_tokens", "129.9e6"]
+        run_shape.EST_H = {name: 1.0}
+        run_shape.log(f"step 23 start: {name}")
         result = run_shape.run(name, [], None)
         run_shape.log(f"QUEUE DONE | {name} {result}")
     elif len(argv) == 2 and argv[0] == "fast" and argv[1] in FAST:

@@ -125,6 +125,7 @@ class Block(nn.Module):
         self.attn = Attention(cfg)
         self.ffn_norm = nn.RMSNorm(cfg.d_model, eps=cfg.norm_eps)
         self.is_memory = layer_id in cfg.mem_layers
+        self.dormant = False                        # WACHS: skipped in forward until Transformer.wake()
         if self.is_memory:
             self.ffn = ProductKeyMemory(
                 cfg.d_model, cfg.d_model, n_keys=cfg.mem_n_keys, heads=cfg.mem_heads,
@@ -190,6 +191,25 @@ class Transformer(nn.Module):
                 nn.init.normal_(blk.ffn.w13.weight, std=std)
                 nn.init.normal_(blk.ffn.w2.weight, std=std / math.sqrt(2 * self.cfg.n_layers))
             # memory layers keep the initialisation of the Meta reference (ProductKeyMemory.reset_parameters)
+
+    def set_dormant(self, layers):
+        """WACHS (model growth): skip these blocks until wake(), so the model trains with fewer layers first. Their
+        parameters get no gradient, so AdamW leaves them and their state alone (no step, no weight decay)."""
+        for i in layers:
+            blk = self.layers[i]
+            if blk.is_memory or blk.engram is not None:
+                raise ValueError(f"block {i} reads a table; only plain blocks can grow in")
+            blk.dormant = True
+
+    @torch.no_grad()
+    def wake(self):
+        """Switch the dormant blocks on as identities: their output projections start at zero, the input
+        projections keep their initialisation, so the grown model computes exactly what the small one did."""
+        for blk in self.layers:
+            if blk.dormant:
+                blk.attn.wo.weight.zero_()
+                blk.ffn.w2.weight.zero_()
+                blk.dormant = False
 
     def memory_layers(self):
         """All product-key reads in forward order; a second read (mem_round_layers) follows its layer's first."""
@@ -258,6 +278,8 @@ class Transformer(nn.Module):
                 kv_caches[0]["eng_hist"] = c[:, -self.ngram.history:]
             rows = self.ngram(c)
         for i, blk in enumerate(self.layers):
+            if blk.dormant:
+                continue
             x = blk(x, None if kv_caches is None else kv_caches[i], pos0, rows)
         if fused_ce and targets is not None:
             from .fused_ce import chunked_cross_entropy

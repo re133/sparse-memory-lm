@@ -6,9 +6,11 @@
   python scripts/rowopt_summary.py b NAME --peak BYTES   with the peak RAM of the run's systemd unit
   python scripts/rowopt_summary.py b4g NAME   step 20: B-4M on the card (runs/rowopt/NAME) against the H200 run
   python scripts/rowopt_summary.py fast NAME REF [--peak BYTES]   step 21: B-16M with HOT/GACC against part B (REF)
+  python scripts/rowopt_summary.py grow NAME REF   step 23: grown B-4M against step 20 (REF) at the same training time
 """
 import csv
 import json
+import math
 import os
 import sys
 
@@ -144,11 +146,58 @@ def fast(name, ref, peak):
                    "train_tok_s": {k: [float(m[k]["train_tok_s"]), float(r[k]["train_tok_s"])] for k in (305, 610)},
                    "speed_ratio": {k: float(m[k]["train_tok_s"]) / float(r[k]["train_tok_s"]) for k in (305, 610)},
                    "peak_vram_gib": float(m[610]["peak_vram_gib"]), "peak_ram_bytes": peak,
-                   "step_rows_peak": i.get("step_rows_peak"), "train_config": {
+                   "step_rows_peak": i.get("step_rows_peak"),
+                   "step_rows_spilled_steps": i.get("step_rows_spilled_steps"), "train_config": {
                        k: i.get("train_config", {}).get(k) for k in ("hot_rows", "hot_frac", "step_rows", "fused_ce")},
                    "commit": i.get("git", {}).get("commit"), "dirty": i.get("git", {}).get("dirty")}
     write_json(OUT, out, indent=1)
     print(json.dumps(out["fast"], indent=1))
+
+
+def grow(name, ref):
+    """Step 23: the grown run at the training time the reference needed for 100 M tokens (log PPL interpolated
+    linearly in training time between the two evaluations around it)."""
+    m, r = metrics(os.path.join(RUNS, name)), metrics(os.path.join(RUNS, ref))
+    t_ref, p_ref = float(r[3050]["train_time_s"]), float(r[3050]["val_ppl"])
+    steps = [k for k in sorted(m) if k]
+    t = [float(m[k]["train_time_s"]) for k in steps]
+    j = next((n for n in range(1, len(steps)) if t[n] >= t_ref), None)
+    if j is None:
+        sys.exit(f"{name} ended at {t[-1]:.0f} s of training, before the reference's {t_ref:.0f} s")
+    a, b = steps[j - 1], steps[j]
+    f = (t_ref - t[j - 1]) / (t[j] - t[j - 1])
+
+    def at(col):
+        return math.exp((1 - f) * math.log(float(m[a][col])) + f * math.log(float(m[b][col])))
+    p = at("val_ppl")
+    rel = p / p_ref - 1
+    verdict = ("growing pays off" if rel < -0.01 else "no difference I can measure" if rel <= 0.01 else
+               "growing costs")
+    i = info(name)
+    g = i.get("grow", {}).get("at_step")
+    tok = {k: float(m[k]["train_tok_s"]) for k in steps}
+    out = load()
+    out["grow"] = {"run": name, "reference": ref, "reference_train_time_s": t_ref, "reference_val_ppl": p_ref,
+                   "between_steps": [a, b], "fraction": f, "val_ppl_at_reference_time": p, "rel": rel,
+                   "verdict": verdict, "tokens_at_reference_time": (1 - f) * a * 32768 + f * b * 32768,
+                   "val2_ppl_at_reference_time": at("val2_ppl"), "reference_val2_ppl": float(r[3050]["val2_ppl"]),
+                   "val_ppl_at_100M": float(m[3050]["val_ppl"]), "rel_at_100M": float(m[3050]["val_ppl"]) / p_ref - 1,
+                   "train_time_to_100M_s": float(m[3050]["train_time_s"]),
+                   "time_saved_to_100M": 1 - float(m[3050]["train_time_s"]) / t_ref,
+                   "grow": i.get("grow"),
+                   "train_tok_s_small_mean": sum(v for k, v in tok.items() if k <= g) / len([k for k in tok if k <= g]),
+                   "train_tok_s_grown_mean": sum(v for k, v in tok.items() if k > g) /
+                       len([k for k in tok if k > g]),
+                   "reference_train_tok_s_mean": sum(float(r[k]["train_tok_s"]) for k in r if k) / len(
+                       [k for k in r if k]),
+                   "curve": {k: [float(m[k]["val_ppl"]), float(m[k]["train_time_s"]),
+                                 float(r[k]["val_ppl"]) if k in r else None,
+                                 float(r[k]["train_time_s"]) if k in r else None] for k in steps},
+                   "peak_vram_gib": max(float(m[k]["peak_vram_gib"]) for k in steps),
+                   "val2_ppl_end": i.get("results", {}).get("val2_ppl"),
+                   "commit": i.get("git", {}).get("commit"), "dirty": i.get("git", {}).get("dirty")}
+    write_json(OUT, out, indent=1)
+    print(json.dumps({k: v for k, v in out["grow"].items() if k != "curve"}, indent=1))
 
 
 if __name__ == "__main__":
@@ -161,5 +210,7 @@ if __name__ == "__main__":
         b4g(a[1])
     elif len(a) in (3, 5) and a[0] == "fast":
         fast(a[1], a[2], int(a[4]) if len(a) == 5 and a[3] == "--peak" else None)
+    elif len(a) == 3 and a[0] == "grow":
+        grow(a[1], a[2])
     else:
         sys.exit(__doc__)

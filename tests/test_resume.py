@@ -226,7 +226,9 @@ def test_weights_trajectory(tiny_setup, monkeypatch):
 
 
 @pytest.mark.parametrize("extra", [(), ("--value_optim", "rowrms"), ("--value_device", "host"),
-                                   ("--value_device", "host", "--value_optim", "rowrms"), ("--ckpt_dir", "CKPT")])
+                                   ("--value_device", "host", "--value_optim", "rowrms"), ("--ckpt_dir", "CKPT"),
+                                   ("--grow_layers", "0,2", "--grow_at_tokens", str(8 * 64)),
+                                   ("--grow_layers", "0,2", "--grow_at_tokens", str(6 * 64))])
 def test_pause_and_resume_equals_uninterrupted(tiny_setup, monkeypatch, extra):
     """SIGUSR1 (scripts/heim.py): checkpoint at the next log row, exit 75; --resume ends like a run that never paused,
     also between two checkpoints of --ckpt_every_tokens and with a row-wise table optimizer."""
@@ -294,3 +296,41 @@ def test_hot_rows_train_and_resume_like_rows_in_ram(tiny_setup, monkeypatch, fas
     run(monkeypatch, tiny_setup / "hot2", extra=hot)
     sc = torch.load(tiny_setup / "hot2" / "model.pt", weights_only=True)["state_dict"]
     assert all(torch.equal(sb[k], sc[k]) for k in sb)
+
+
+def test_growth_keeps_the_function_and_the_sleeping_blocks(tiny_setup, monkeypatch):
+    """WACHS: dormant blocks get no gradient and AdamW leaves them unchanged; waking them changes no output."""
+    from smlm.model import ModelConfig, Transformer
+    from smlm.optim import build_optimizer
+    torch.manual_seed(0)
+    model = Transformer(ModelConfig(max_seq_len=16, **TINY["T-mem"]))
+    with pytest.raises(ValueError, match="table"):
+        model.set_dormant([1])
+    model.set_dormant([0, 2])
+    before = {k: v.clone() for k, v in model.state_dict().items() if k.startswith(("layers.0.", "layers.2."))}
+    opt = build_optimizer(model, 1e-2, 1e-2, 0.1)
+    x = torch.randint(0, 128, (2, 16))
+    for _ in range(3):
+        _, loss = model(x, x)
+        loss.backward()
+        assert all(p.grad is None for p in model.layers[0].parameters())
+        opt.step()
+        opt.zero_grad(set_to_none=True)
+    assert all(torch.equal(v, model.state_dict()[k]) for k, v in before.items())
+    with torch.no_grad():
+        small = model(x)
+        model.wake()
+        grown = model(x)
+    assert torch.equal(small, grown)
+    assert not model.layers[0].dormant and torch.count_nonzero(model.layers[0].ffn.w2.weight) == 0
+    _, loss = model(x, x)
+    loss.backward()
+    assert model.layers[0].ffn.w2.weight.grad.abs().sum() > 0
+
+
+def test_growth_step_in_run_info(tiny_setup, monkeypatch):
+    run(monkeypatch, tiny_setup / "g", extra=("--grow_layers", "0,2", "--grow_at_tokens", str(6 * 64)))
+    info = json.loads((tiny_setup / "g" / "run-info.json").read_text())
+    assert info["grow"] == {"layers": [0, 2], "at_step": 6, "at_tokens": 384} and info["status"] == "done"
+    sd = torch.load(tiny_setup / "g" / "model.pt", weights_only=True)["state_dict"]
+    assert torch.count_nonzero(sd["layers.0.ffn.w2.weight"]) > 0        # trained after waking

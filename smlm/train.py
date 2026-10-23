@@ -46,8 +46,9 @@ PAUSED = 75                                    # exit code after a pause request
 RESUME_KEYS = ("model", "seq_len", "batch_seqs", "lr", "optimizer", "value_lr", "eng_value_lr", "value_state",
                "value_device", "weight_decay", "warmup_frac", "min_lr_ratio", "clip", "mem_query_norm",
                "mem_score_scale_init", "data", "data_seed", "seed", "fused_ce", "ce_chunk_size", "compile",
-               "value_optim")
-RESUME_DEFAULTS = {"value_optim": "adam"}     # keys added later: what checkpoints written before them used
+               "value_optim", "grow_layers", "grow_at_tokens")
+# keys added later: what checkpoints written before them used
+RESUME_DEFAULTS = {"value_optim": "adam", "grow_layers": "", "grow_at_tokens": 0}
 
 MODELS = {
     "A": dict(),
@@ -344,6 +345,9 @@ def main():
     ap.add_argument("--step_rows", type=float, default=0, help="with --value_device host and a row-wise --value_optim: "
                     "sum each step's row gradients on the GPU in up to this many rows (GACC, smlm/host_values.py) "
                     "instead of a table-sized accumulator in RAM; same math (rows beyond it are summed in RAM)")
+    ap.add_argument("--grow_layers", default="", help="WACHS: comma-separated plain blocks that are skipped until "
+                    "--grow_at_tokens and then switched on as identities (output projections zero)")
+    ap.add_argument("--grow_at_tokens", type=float, default=0)
     ap.add_argument("--value_device", choices=["gpu", "host"], default="gpu",
                     help="keep PKM tables and lazy Adam state in host RAM (requires row_sparse PKM)")
     ap.add_argument("--weight_decay", type=float, default=0.1)
@@ -391,6 +395,8 @@ def main():
         ap.error("--ce_chunk_size must be positive")
     if (args.tokens is None) == (args.epochs is None):
         ap.error("give exactly one of --tokens and --epochs")
+    if bool(args.grow_layers) != (args.grow_at_tokens > 0):
+        ap.error("--grow_layers and --grow_at_tokens go together")
     if (args.hot_rows or args.step_rows) and (args.value_device != "host" or args.value_optim == "adam"):
         ap.error("--hot_rows and --step_rows need --value_device host and a row-wise --value_optim")
 
@@ -564,6 +570,12 @@ def main():
         if CUDA and loop["rng_cuda"]:
             torch.cuda.set_rng_state_all(loop["rng_cuda"])
         del ck, loop                                  # drop the memory map
+    grow = [int(i) for i in args.grow_layers.split(",") if i]
+    grow_step = int(round(args.grow_at_tokens / stream.tokens_per_step)) if grow else None
+    if grow:
+        info["grow"] = {"layers": grow, "at_step": grow_step, "at_tokens": grow_step * stream.tokens_per_step}
+        if start_step <= grow_step:                  # a checkpoint taken right before the growth wakes them below
+            model.set_dormant(grow)
 
     def save_checkpoint(step):
         t0 = time.time()
@@ -653,6 +665,8 @@ def main():
     last_log_t = time.perf_counter()
     warm_from = start_step + 2 * args.log_every       # skip warm-up kernels / autotuning (again after a resume)
     for step in range(start_step, total_steps):
+        if grow and step == grow_step:
+            model.wake()
         set_lr(opt, lr_multiplier(step, total_steps, warmup_steps, args.min_lr_ratio))
         batch = torch.from_numpy(stream.batch(step).astype(np.int64))
         batch = batch.pin_memory().cuda(non_blocking=True) if CUDA else batch
