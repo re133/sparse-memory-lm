@@ -4010,3 +4010,103 @@ this way before", not "absent". One model, one seed, one relation; only B's firs
   Training with two-hop examples, or a read whose query is B's name itself, would be the things to try; the second
   read of step 12 alone didn't do it.
 - **What this can't show:** see the criteria (logit lens, first token only, one model and relation).
+
+## Step 20: B-4M entirely on the 16 GB card (B4G, criteria fixed before the run, 2026-10-23)
+
+**Why:** With Adam, B-4M (4.2 M rows × 384 values = 1.6 B table values) needs 24 GiB just for its table on the GPU
+(values, gradient accumulator, two moments), so it only trained on the H200 (28.5 GiB peak). With rowrms from step 18
+the two moments shrink to two numbers per row: 12 GiB for the table. If that fits on the RX 9070 next to the rest,
+B-4M trains at the card's own speed, instead of ~7,000 tokens/s with the table in RAM.
+
+**Run** (RX 9070, `scripts/run_rowopt.py b4g`):
+- Exactly the arguments of the H200 run `runs/cloud/B-4M-s0` (500 M schedule, seed 0, data seed 1234, 32 × 1024
+  tokens per step, table LR 2.4e-3, Triton kernels, Wikipedia), stopped after the evaluation at step 3,050
+  (99.9 M tokens), `--no_save`.
+- Changed: `--value_optim rowrms` with the table LR that part A of step 18 chose (2.4e-3); and, only so that it
+  fits in memory, the first of these that runs 20 steps without running out of GPU memory: `--fused_ce` with 4
+  sequences per micro-batch, then `--fused_ce` with 2. Neither changes the math: the loss is computed in pieces, and the
+  gradient is summed over more micro-batches.
+- Only if rowrms in part A of step 18 is not "worse" than Adam (it was "better").
+
+**Criteria**, val PPL at step 3,050 against the H200 run (38.115). The 1% is step 8's rule.
+- **"B-4M trains on the gaming card as on the H200":** within ±1%;
+- **"better":** more than 1% lower;
+- **"a bit worse":** 1 to 3% higher;
+- **"worse":** more than 3% higher.
+
+**Reported without a verdict:** tokens per second against the H200 run (51.6 k), peak GPU memory, the time a full
+500 M run would take at this speed.
+
+**What this can't show:** the H200 run used Adam. The comparison is optimizer and hardware at once, with one seed, to
+100 M of 500 M tokens.
+
+## Step 21: the same B-16M training, faster and with less RAM (HOT + GACC, criteria fixed before the run, 2026-10-23)
+
+**Why:** With the table in RAM, a B-16M step spends most of its time moving rows, not computing. Two changes that
+leave the math the same (only the order of additions changes), built for this and tested against the old path
+(`tests/test_hot_rows.py`, `tests/test_resume.py`):
+- **GACC** (`--step_rows`): the gradients of the rows read in a step are summed on the GPU, and each row's sum goes to
+  the CPU once per step. Before, every layer and micro-batch copied its row gradients back and added them into an
+  accumulator in RAM as big as the table (26 GB for B-16M), and clipping read that again.
+- **HOT** (`--hot_rows`, `--hot_frac`, Leon's idea after the Propeller/AutoFDO compiler optimizations): the most-read
+  rows, ranked by the read counts of an earlier run, stay on the GPU together with their optimizer state, so they
+  don't travel at all.
+- Both need the row-wise optimizer of step 18: Adam's two moments per value wouldn't fit on the card next to the rows.
+
+**Before the run** (exploratory benchmark, `runs/rowopt/bench/`, its numbers go into the result): B-16M-factk as the
+start, real Wikipedia batches, `--fused_ce`, 3 steps each for rowrms alone, rowrms + GACC, rowrms + HOT (5%) + GACC
+and rowrms + HOT (10%), with the time of each phase.
+
+**Run** (`scripts/run_rowopt.py fast`): exactly step 18's part B (B-16M, table in RAM, rowrms with table LR 2.4e-3),
+stopped after the evaluation at step 610 (20 M tokens), plus:
+- the configuration with the shortest step in that benchmark among those that didn't run out of GPU memory;
+- `--fused_ce` (same math, about 2 GiB less GPU memory);
+- the GACC capacity from the recorded lookups of step 5 plus 5%: at most 4.99 M distinct rows per step, 4.26 M
+  without the 5% most-read ones;
+- the HOT profile from the H200 run `runs/cloud/B-16M-s0` (same seed and data).
+
+Only if it can end before 11:30, so the PC is free at noon.
+
+**Criteria**, val PPL at steps 305 and 610 against part B of step 18 at the same steps. The 1% is step 8's rule.
+- **"Same training":** both within ±1%;
+- **"differs":** otherwise; then I look for the cause before using it.
+
+**Reported without a verdict:** tokens per second against part B over the same 20 M tokens, peak RAM of the run's
+systemd unit, peak GPU memory, how full the GACC buffer got.
+
+**What this can't show:** 20 M tokens of 500 M; the hot rows come from another run with the same seed and data, which
+is the best case for a profile; one PC (Ryzen 9 5900XT, DDR4, RX 9070 on PCIe 4.0).
+
+## Step 22: facts written in other words, asked in the usual ones (EINP3, criteria fixed before the run, 2026-10-23)
+
+**Why:** Steps 14 to 16 wrote each new person's article in the exact training format, and the question was the start
+of one of the written sentences. Leon asked whether this also works for other texts. A first step towards that:
+write each new person from one sentence in different words, then ask the usual question. Does the knowledge carry
+over from the written wording to the question, or does the table only store the text?
+
+**Setup** (`scripts/einp3.py`): as variant A of step 16 (all rows read, B-16M-factk with its table in RAM, the same
+dev, test, unwritten and known people, the same order). Only the written text changes. After the header
+`<|endoftext|>Name\n\n` comes one sentence, a seeded choice of three templates (`report/einp3/articles.json`):
+- T1 "Name (born 1912) spent the early years in Lisbon and later became a tailor."
+- T2 "Born in 1912, Name was raised in Lisbon and made a career as a tailor."
+- T3 "The tailor Name came from Lisbon, and the records give 1912 as the year of birth."
+
+The loss is on the three value tokens only. Step size from a small grid on the 150 dev people: lr 0.01, 0.03 or 0.1,
+with 64 passes each. Chosen: the highest dev score with a known_dev change of −0.05 or more (step 16's floor with the
+verbatim text was about −0.035), otherwise the smallest loss of known facts.
+
+**Criteria** (test people, the usual questions, step 10's score):
+- **"carries over to the usual question":** the lift's interval above 0 and at least 50% right;
+- **"carries over only weakly":** the lift's interval above 0, under 50% right;
+- **"doesn't carry over":** otherwise.
+
+**Reported without a verdict:**
+- the accuracy per attribute and per template;
+- how well the values come back after the start of their own written sentence (did the table store the text?);
+- the change for the known people, the val PPL and the time per person.
+
+The reference is step 16's variant A with the verbatim text: 98% right.
+
+**What this can't show:** three hand-made templates and one model that only knows Wikipedia-like text. In both
+wordings most values sit right after a short cue. Real understanding of rephrasings would need a model that saw
+rephrasings in training.

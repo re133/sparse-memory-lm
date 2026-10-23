@@ -4225,3 +4225,109 @@ die früher schon da ist, aber noch nicht zur Ausgabeschicht passt, entgeht ihr.
   werden müsste, nicht für fehlende Tiefe. Ausprobieren könnte man Training mit Zwei-Schritt-Beispielen oder ein Lesen,
   dessen Anfrage Bs Name selbst ist; das zweite Lesen aus Schritt 12 allein hat es nicht geschafft.
 - **Was das nicht zeigen kann:** siehe Kriterien (Logit-Lens, nur das erste Token, ein Modell und eine Relation).
+
+## Schritt 20: B-4M ganz auf der 16-GB-Karte (B4G, Kriterien vor dem Lauf festgelegt, 2026-10-23)
+
+**Frage:** Mit Adam braucht B-4M (4,2 M Zeilen × 384 Werte = 1,6 Mrd. Tabellenwerte) allein für die Tabelle 24 GiB auf
+der GPU (Werte, Gradienten-Akkumulator, zwei Momente), deshalb trainierte es nur auf der H200 (Spitze 28,5 GiB). Mit
+rowrms aus Schritt 18 schrumpfen die zwei Momente auf zwei Zahlen pro Zeile: 12 GiB für die Tabelle. Passt das neben
+dem Rest auf die RX 9070, trainiert B-4M mit dem Tempo der Karte, statt mit ~7.000 Tokens/s und der Tabelle im RAM.
+
+**Lauf** (RX 9070, `scripts/run_rowopt.py b4g`):
+- Genau die Argumente des H200-Laufs `runs/cloud/B-4M-s0` (Schedule über 500 M, Seed 0, Daten-Seed 1234, 32 × 1024
+  Tokens pro Schritt, Tabellen-LR 2,4e-3, Triton-Kernel, Wikipedia), gestoppt nach der Auswertung bei Schritt 3.050
+  (99,9 M Tokens), `--no_save`.
+- Geändert: `--value_optim rowrms` mit der Tabellen-LR, die Teil A von Schritt 18 gewählt hat (2,4e-3); und, nur
+  damit es in den Speicher passt, das Erste davon, das 20 Schritte ohne vollen GPU-Speicher läuft: `--fused_ce` mit
+  4 Sequenzen pro Mikro-Batch, dann `--fused_ce` mit 2. Beides ändert die Mathematik nicht: Der Verlust wird stückweise berechnet,
+  und der Gradient wird über mehr Mikro-Batches summiert.
+- Nur, wenn rowrms in Teil A von Schritt 18 nicht „schlechter“ als Adam ist (es war „besser“).
+
+**Kriterien**, Val-PPL bei Schritt 3.050 gegen den H200-Lauf (38,115). Das 1 % ist die Regel aus Schritt 8.
+- **„B-4M trainiert auf der Spielekarte wie auf der H200“:** innerhalb ±1 %;
+- **„besser“:** mehr als 1 % niedriger;
+- **„etwas schlechter“:** 1 bis 3 % höher;
+- **„schlechter“:** mehr als 3 % höher.
+
+**Ohne Urteil berichtet:** Tokens pro Sekunde gegen den H200-Lauf (51,6 k), GPU-Speicher-Spitze, wie lange ein ganzer
+Lauf über 500 M Tokens mit diesem Tempo bräuchte.
+
+**Was das nicht zeigen kann:** Der H200-Lauf nutzte Adam. Der Vergleich ist Optimizer und Hardware zugleich, mit einem
+Seed, bis 100 M von 500 M Tokens.
+
+## Schritt 21: dasselbe B-16M-Training, schneller und mit weniger RAM (HOT + GACC, Kriterien vor dem Lauf festgelegt, 2026-10-23)
+
+**Frage:** Mit der Tabelle im RAM verbringt ein B-16M-Schritt die meiste Zeit damit, Zeilen zu bewegen, nicht zu
+rechnen. Zwei Änderungen, die die Mathematik gleich lassen (nur die Reihenfolge der Additionen ändert sich), dafür
+gebaut und gegen den alten Weg getestet (`tests/test_hot_rows.py`, `tests/test_resume.py`):
+- **GACC** (`--step_rows`): Die Gradienten der in einem Schritt gelesenen Zeilen werden auf der GPU summiert, und die
+  Summe jeder Zeile geht einmal pro Schritt zur CPU. Vorher kopierte jede Schicht und jeder Mikro-Batch die
+  Zeilengradienten zurück und addierte sie in einen Akkumulator im RAM, so groß wie die Tabelle (26 GB bei B-16M), und
+  das Clipping las ihn noch einmal.
+- **HOT** (`--hot_rows`, `--hot_frac`, Leons Idee nach den Compiler-Optimierungen Propeller/AutoFDO): Die meistgelesenen
+  Zeilen, sortiert nach den Lesezählern eines früheren Laufs, bleiben samt Optimizer-Zustand auf der GPU und reisen gar
+  nicht.
+- Beides braucht den zeilenweisen Optimizer aus Schritt 18: Adams zwei Momente pro Wert passten neben den Zeilen nicht
+  auf die Karte.
+
+**Vor dem Lauf** (explorativer Benchmark, `runs/rowopt/bench/`, seine Zahlen gehen ins Ergebnis): B-16M-factk als
+Start, echte Wikipedia-Batches, `--fused_ce`, je 3 Schritte für rowrms allein, rowrms + GACC, rowrms + HOT (5 %) + GACC
+und rowrms + HOT (10 %), mit der Zeit jeder Phase.
+
+**Lauf** (`scripts/run_rowopt.py fast`): genau Teil B aus Schritt 18 (B-16M, Tabelle im RAM, rowrms mit Tabellen-LR
+2,4e-3), gestoppt nach der Auswertung bei Schritt 610 (20 M Tokens), dazu:
+- die Konfiguration mit dem kürzesten Schritt in diesem Benchmark unter denen, denen der GPU-Speicher nicht ausging;
+- `--fused_ce` (gleiche Mathematik, etwa 2 GiB weniger GPU-Speicher);
+- die GACC-Kapazität aus den aufgezeichneten Lesezugriffen aus Schritt 5 plus 5 %: höchstens 4,99 M verschiedene
+  Zeilen pro Schritt, 4,26 M ohne die 5 % meistgelesenen;
+- das HOT-Profil aus dem H200-Lauf `runs/cloud/B-16M-s0` (gleicher Seed, gleiche Daten).
+
+Nur, wenn er vor 11:30 fertig sein kann, damit der PC mittags frei ist.
+
+**Kriterien**, Val-PPL bei den Schritten 305 und 610 gegen Teil B aus Schritt 18 bei denselben Schritten. Das 1 % ist
+die Regel aus Schritt 8.
+- **„Gleiches Training“:** beide innerhalb ±1 %;
+- **„weicht ab“:** sonst; dann suche ich die Ursache, bevor ich es nutze.
+
+**Ohne Urteil berichtet:** Tokens pro Sekunde gegen Teil B über dieselben 20 M Tokens, die RAM-Spitze der
+systemd-Einheit des Laufs, die GPU-Speicher-Spitze, wie voll der GACC-Puffer wurde.
+
+**Was das nicht zeigen kann:** 20 M von 500 M Tokens; die heißen Zeilen stammen aus einem anderen Lauf mit gleichem
+Seed und gleichen Daten, also dem günstigsten Fall für ein Profil; ein PC (Ryzen 9 5900XT, DDR4, RX 9070 an PCIe 4.0).
+
+## Schritt 22: Fakten in anderen Worten geschrieben, mit den üblichen gefragt (EINP3, Kriterien vor dem Lauf festgelegt, 2026-10-23)
+
+**Frage:** Die Schritte 14 bis 16 schrieben den Artikel jeder neuen Person genau im Trainingsformat, und die Frage war
+der Anfang eines der geschriebenen Sätze. Leon fragte, ob das auch mit anderen Texten geht. Ein erster Schritt dahin:
+Jede neue Person wird aus einem Satz in anderen Worten geschrieben, dann kommt die übliche Frage. Trägt das Wissen von
+der geschriebenen Formulierung zur Frage hinüber, oder speichert die Tabelle nur den Text?
+
+**Aufbau** (`scripts/einp3.py`): wie Variante A aus Schritt 16 (alle gelesenen Zeilen, B-16M-factk mit der Tabelle im
+RAM, dieselben Dev-, Test-, nicht geschriebenen und bekannten Personen, dieselbe Reihenfolge). Nur der geschriebene
+Text ändert sich. Nach dem Kopf `<|endoftext|>Name\n\n` kommt ein Satz, eine mit Seed ausgeloste von drei Vorlagen
+(`report/einp3/articles.json`):
+- T1 „Name (born 1912) spent the early years in Lisbon and later became a tailor.“
+- T2 „Born in 1912, Name was raised in Lisbon and made a career as a tailor.“
+- T3 „The tailor Name came from Lisbon, and the records give 1912 as the year of birth.“
+
+Der Verlust liegt nur auf den drei Wert-Tokens. Die Schrittweite kommt aus einem kleinen Raster an den 150
+Dev-Personen: lr 0,01, 0,03 oder 0,1, je 64 Durchläufe. Gewählt wird der höchste Dev-Score mit einer
+known_dev-Änderung von −0,05 oder mehr (der Boden aus Schritt 16 lag mit dem wörtlichen Text bei etwa −0,035), sonst
+der kleinste Verlust bekannter Fakten.
+
+**Kriterien** (Testpersonen, die üblichen Fragen, Score aus Schritt 10):
+- **„trägt zur üblichen Frage hinüber“:** das Intervall des Lifts über 0 und mindestens 50 % richtig;
+- **„trägt nur schwach hinüber“:** das Intervall des Lifts über 0, unter 50 % richtig;
+- **„trägt nicht hinüber“:** sonst.
+
+**Ohne Urteil berichtet:**
+- die Trefferquote pro Attribut und pro Vorlage;
+- wie gut die Werte nach dem Anfang ihres eigenen geschriebenen Satzes zurückkommen (hat die Tabelle den Text
+  gespeichert?);
+- die Änderung der bekannten Personen, die Val-PPL und die Zeit pro Person.
+
+Der Vergleich ist Variante A aus Schritt 16 mit dem wörtlichen Text: 98 % richtig.
+
+**Was das nicht zeigen kann:** drei handgeschriebene Vorlagen und ein Modell, das nur Wikipedia-artigen Text kennt.
+In beiden Formulierungen stehen die meisten Werte direkt nach einem kurzen Stichwort. Echtes Verstehen von
+Umformulierungen bräuchte ein Modell, das im Training Umformulierungen gesehen hat.

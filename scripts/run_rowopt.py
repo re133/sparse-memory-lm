@@ -3,7 +3,9 @@ value (REPORT.md, "Step 18").
 
   python scripts/run_rowopt.py screen [--deadline 2026-10-23T07:00]   part A: B-1M on 50 M tokens, one run after another
   python scripts/run_rowopt.py big VALUE_OPTIM VALUE_LR [STOP]        part B: B-16M, table in RAM, BIG's arguments
-  python scripts/run_rowopt.py b4g VALUE_LR MICRO_BS [probe]          step 19: B-4M on the card (probe: 20 steps)
+  python scripts/run_rowopt.py b4g VALUE_LR MICRO_BS [probe]          step 20: B-4M on the card (probe: 20 steps)
+  python scripts/run_rowopt.py fast CONFIG                            step 21: part B's run to 20 M with HOT / GACC
+                                                                      (CONFIG: gacc, hot5-gacc, hot10, hot5)
   python scripts/run_rowopt.py --smoke DIR screen                     part A on 1 M tokens into DIR, no ntfy
 
 Part A: B-1M-sparse as in runs/hampter (Triton, table LR 2.4e-3 for Adam), but a full schedule over 50 M tokens, no
@@ -40,7 +42,14 @@ BIG = ["--model", "B-16M-sparse", "--value_device", "host", "--value_state", "fp
        "--eval_every_tokens", "10e6", "--data_seed", "1234", "--seq_len", "1024", "--batch_seqs", "32", "--lr", "6e-4",
        "--weight_decay", "0.1", "--no_save"]
 BIG_ADAM = {1525: 58.056, 3050: 37.433}            # runs/big_home/B-16M-host-s0 (Adam, table in RAM), val PPL
-# step 19: the arguments of the H200 run runs/cloud/B-4M-s0, stopped after the evaluation at step 3050
+# step 21: GACC capacity = the most distinct rows per step in step 5's recorded lookups (4.99 M; 4.26 M without the
+# 5 % most-read rows) plus 5 %; HOT profile = read counts of the H200 run with the same seed and data
+PROFILE = os.path.join(ROOT, "runs", "cloud", "B-16M-s0", "mem_access_train.npy")
+FAST = {"gacc": ["--step_rows", "5.24e6"],
+        "hot5-gacc": ["--hot_rows", PROFILE, "--hot_frac", "0.05", "--step_rows", "4.47e6"],
+        "hot10": ["--hot_rows", PROFILE, "--hot_frac", "0.10"],
+        "hot5": ["--hot_rows", PROFILE, "--hot_frac", "0.05"]}
+# step 20: the arguments of the H200 run runs/cloud/B-4M-s0, stopped after the evaluation at step 3050
 B4G = ["--model", "B-4M-sparse", "--mem_impl", "triton", "--seed", "0", "--data", "wikipedia", "--tokens", "500e6",
        "--extra_val", "wikitext103", "--eval_every_tokens", "10e6", "--data_seed", "1234", "--seq_len", "1024",
        "--batch_seqs", "32", "--lr", "6e-4", "--weight_decay", "0.1", "--no_save", "--value_optim", "rowrms",
@@ -92,7 +101,15 @@ def main():
             "--stop_after_tokens", "99.9e6"]
         run_shape.COMMON = B4G + ["--value_lr", lr, "--micro_bs", mb] + stop
         run_shape.EST_H = {name: 1.0}
-        run_shape.log(f"step 19 start: {name}")
+        run_shape.log(f"step 20 start: {name}")
+        result = run_shape.run(name, [], None)
+        run_shape.log(f"QUEUE DONE | {name} {result}")
+    elif len(argv) == 2 and argv[0] == "fast" and argv[1] in FAST:
+        name = f"B-16M-host-rowrms-2.4e-3-{argv[1]}-s0"
+        run_shape.COMMON = BIG + ["--stop_after_tokens", "1e6" if run_shape.SMOKE else "19.9e6", "--value_optim",
+                                  "rowrms", "--value_lr", "2.4e-3", "--fused_ce", *FAST[argv[1]]]
+        run_shape.EST_H = {name: 1.0}
+        run_shape.log(f"step 21 start: {name}")
         result = run_shape.run(name, [], None)
         run_shape.log(f"QUEUE DONE | {name} {result}")
     else:
