@@ -43,7 +43,8 @@ here. The full lab notebook with every criterion, every number and every mishap 
   needs about half the repetitions again.
 - **Training the 16.8M table on a gaming card:** with the table and its optimizer state in 128 GB of RAM, my 16 GB
   RX 9070 trained B-16M for 100M tokens and ended 0.2% from the H200 run, which had needed 101 GB of GPU memory. It
-  took 7.7 times as long.
+  took 7.7 times as long. With one optimizer number per table row instead of Adam's two per value it needs half the
+  RAM (52 GiB) and ended 1.9% better ([below](#training-the-168m-table-on-my-pc)).
 - **Generating text doesn't need the table in VRAM:** from RAM or straight off an NVMe SSD the model still writes
   114 to 154 tokens/s on my PC, with the same output. Reading long prompts is a different story.
 - **Portable kernels:** the same hand-written Triton kernels run on three very different GPUs and give the same
@@ -321,6 +322,23 @@ host`, a small C loop over the rows). Same arguments as the H200 run, stopped af
 - **The cost is time:** 4.3 hours for 100M tokens; the full 500M would take about 21 hours. The GPU mostly waits for
   the CPU, which moves and updates millions of rows per step.
 
+**One optimizer number per table row** (step 18 in the [report](REPORT.md), criteria written before the runs). Adam
+keeps two numbers for every table value, 51.5 GB for B-16M. `--value_optim rowrms` keeps one per row instead (Adam
+without momentum, with one second moment per row: 134 MB). I picked its learning rate on B-1M, then repeated the run
+above with it:
+
+| | Adam | rowrms |
+|---|---:|---:|
+| Val PPL after 100M tokens | 37.43 | 36.73 (−1.9%) |
+| RAM (peak) | ~100.6 GiB | 52.3 GiB |
+| Tokens/s | 7,050 | 7,250 |
+
+- **Better and half the RAM:** by my criteria "better than Adam". The lead shrank over the run though, from 6.7%
+  after 10M tokens to 1.9%, and it's one seed.
+- **Barely faster:** the update itself takes half the time, but with rowrms the model reads more of its table (84% of
+  the rows on the validation text against 76%). More different rows per step means more to copy, and copying is what
+  costs the time.
+
 ### Adding a table to Qwen3.5-0.8B
 
 **Setup:**
@@ -403,6 +421,15 @@ Set up the venv as in [Try it](#try-it), then:
 
 **Table outside the GPU:** `scripts/convert_table.py` turns a checkpoint into bf16 / 4-bit table files, and
 `scripts/bench_offload.py` runs the measurements above.
+
+**Training at home:**
+- `--value_device host` keeps the table in RAM. `--value_optim rowrms` (or `rowadagrad`) keeps one optimizer number
+  per table row instead of Adam's two per value. B-16M then needs ~52 GiB of RAM instead of ~100.
+- `scripts/heim.py -- <smlm.train arguments>` trains in the background and pauses while a game runs (it watches the
+  GPU's graphics engine and Steam, or `touch ~/.smlm-pause`). The run writes a checkpoint into `/dev/shm` and continues
+  bit for bit later. So far I've only tried it with `glxgears`, not with a real game.
+- `--hot_rows` / `--step_rows` keep the most-read rows on the GPU and sum a step's gradients there. Both are built and
+  tested against the plain path, but not measured on a full run yet.
 
 **Qwen experiment:**
 - Separate environment: `pip install -r requirements-qwen.txt`.
