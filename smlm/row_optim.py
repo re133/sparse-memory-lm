@@ -120,6 +120,22 @@ class RowWiseOptimizer(torch.optim.Optimizer):
                     g = g * scale
                     v, k = self._update_state(group, state, r, g.square().mean(1))
                     p.index_copy_(0, r, p.index_select(0, r) - self._scale(group, v, k)[:, None] * g)
+        spilled = sr.spilled()
+        if spilled is not None:
+            # rows read after all slots were taken (StepRows overflow): summed in RAM, never also in a slot
+            from .host_optim import rows_library
+            lib = rows_library()
+            r, g = spilled
+            count = state.get("n")
+            if lib is not None:
+                lib.host_rows_rowwise(p.data_ptr(), None, g.data_ptr(), state["v"].data_ptr(),
+                                      0 if count is None else count.data_ptr(), None, r.data_ptr(), r.numel(),
+                                      p.shape[1], scale, group["beta2"], group["eps"], group["lr"],
+                                      KINDS.index(self.kind), torch.get_num_threads())
+            else:
+                g = g * scale
+                v, k = self._update_state(group, state, r, g.square().mean(1))
+                p.index_copy_(0, r, p.index_select(0, r) - self._scale(group, v, k)[:, None] * g)
         sr.reset()
         st.grad_scale = 1.0
 

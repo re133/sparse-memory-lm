@@ -252,22 +252,35 @@ class HotRows:
 
 class StepRows:
     """GACC: gradient sums of the host-table rows read in the current step, on the GPU. A row gets the next free
-    slot when it is first read in the step; every later read (other layers, micro-batches) adds into that slot."""
+    slot when it is first read in the step; every later read (other layers, micro-batches) adds into that slot.
+    Once all slots are taken, the gradients of rows without a slot go to RAM (overflow) and are summed per row
+    before the optimizer step, so a step that reads more rows than the capacity is slower, not wrong."""
 
     def __init__(self, num_rows, dim, capacity, device):
         self.slot = torch.full((num_rows,), -1, dtype=torch.int32, device=device)
         self.rows = torch.empty(capacity, dtype=torch.int64, device=device)
         self.acc = torch.zeros(capacity, dim, dtype=torch.float32, device=device)
-        self.n = self.peak = 0
+        self.n = 0
+        self.peak = 0                      # most distinct rows read in one step so far, overflow included
+        self.spilled_steps = 0             # steps with an overflow
+        self._spill = []                   # (rows, gradients) on the CPU, a row may appear in several parts
+        self._summed = None
 
     def add(self, rows, gradient):
         """rows: distinct row ids on the device, gradient: one row each."""
         slots = self.slot[rows]
         new = (slots < 0).nonzero().squeeze(1)
+        free = self.rows.numel() - self.n
+        if new.numel() > free:
+            out = new[free:]
+            self._spill.append((rows.index_select(0, out).cpu(), gradient.index_select(0, out).cpu()))
+            self._summed = None
+            new = new[:free]
+            keep = torch.ones_like(slots, dtype=torch.bool)
+            keep[out] = False
+        else:
+            keep = None
         k = new.numel()
-        if self.n + k > self.rows.numel():
-            raise RuntimeError(f"GACC: {self.n + k} rows read in this step, capacity {self.rows.numel()} "
-                               "(raise --step_rows, or keep more rows hot)")
         if k:
             ids = torch.arange(self.n, self.n + k, dtype=torch.int32, device=rows.device)
             fresh = rows.index_select(0, new)
@@ -276,9 +289,28 @@ class StepRows:
             slots[new] = ids
             self.n += k
             self.peak = max(self.peak, self.n)
+        if keep is not None:
+            slots, gradient = slots[keep], gradient[keep]
         self.acc.index_add_(0, slots.long(), gradient)
 
+    def spilled(self):
+        """(rows, gradient sums) of the overflow on the CPU, each row once; None without an overflow."""
+        if not self._spill:
+            return None
+        if self._summed is None:
+            rows = torch.cat([r for r, _ in self._spill])
+            unique, inverse = torch.unique(rows, sorted=True, return_inverse=True)
+            sums = torch.zeros(unique.numel(), self.acc.shape[1], dtype=torch.float32)
+            sums.index_add_(0, inverse, torch.cat([g for _, g in self._spill]))
+            self._summed = (unique, sums)
+            self.peak = max(self.peak, self.n + unique.numel())
+        return self._summed
+
     def reset(self):
+        if self._spill:
+            self.spilled()                 # counts the step's overflow rows in peak
+            self.spilled_steps += 1
+            self._spill, self._summed = [], None
         self.slot[self.rows[:self.n]] = -1
         self.acc[:self.n].zero_()
         self.n = 0
@@ -295,6 +327,9 @@ class StepStore:
         parts = [self.steprows.acc[:self.steprows.n].norm()]
         if self.hot is not None:
             parts.append(self.hot.acc.norm())
+        spilled = self.steprows.spilled()
+        if spilled is not None:
+            parts.append(spilled[1].norm().to(parts[0].device))
         return torch.linalg.vector_norm(torch.stack(parts)).cpu()
 
     def reset(self, rows=None):

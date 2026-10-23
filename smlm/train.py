@@ -343,7 +343,7 @@ def main():
     ap.add_argument("--hot_frac", type=float, default=0.1)
     ap.add_argument("--step_rows", type=float, default=0, help="with --value_device host and a row-wise --value_optim: "
                     "sum each step's row gradients on the GPU in up to this many rows (GACC, smlm/host_values.py) "
-                    "instead of a table-sized accumulator in RAM; same math")
+                    "instead of a table-sized accumulator in RAM; same math (rows beyond it are summed in RAM)")
     ap.add_argument("--value_device", choices=["gpu", "host"], default="gpu",
                     help="keep PKM tables and lazy Adam state in host RAM (requires row_sparse PKM)")
     ap.add_argument("--weight_decay", type=float, default=0.1)
@@ -595,6 +595,7 @@ def main():
             m.record = True
         if args.step_rows:                       # how full the GACC accumulator got in the fullest step so far
             info["step_rows_peak"] = max(m.values.step_rows.peak for m in mems)
+            info["step_rows_spilled_steps"] = max(m.values.step_rows.spilled_steps for m in mems)
         row = {
             "step": step, "tokens": step * stream.tokens_per_step, "epoch": round(step / stream.steps_per_epoch, 4),
             "lr_mult": lr_multiplier(max(0, step - 1), total_steps, warmup_steps, args.min_lr_ratio) if step else 0.0,

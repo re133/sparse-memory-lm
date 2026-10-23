@@ -264,7 +264,7 @@ def test_pause_and_resume_equals_uninterrupted(tiny_setup, monkeypatch, extra):
 
 
 @pytest.mark.parametrize("fast", [("--hot_frac", "0.25"), ("--hot_frac", "0.25", "--step_rows", "64"),
-                                  ("--hot_frac", "0", "--step_rows", "64")])
+                                  ("--hot_frac", "0", "--step_rows", "64"), ("--hot_frac", "0.25", "--step_rows", "8")])
 def test_hot_rows_train_and_resume_like_rows_in_ram(tiny_setup, monkeypatch, fast):
     """--hot_rows / --step_rows: same run within float rounding as all rows in RAM; paused and resumed, bit for bit
     as unpaused."""
@@ -275,6 +275,8 @@ def test_hot_rows_train_and_resume_like_rows_in_ram(tiny_setup, monkeypatch, fas
     hot = host + ("--hot_rows", str(reads)) + fast
     run(monkeypatch, tiny_setup / "ram", extra=host)
     run(monkeypatch, tiny_setup / "hot", extra=hot)
+    if "8" in fast:                                     # 8 slots: most steps overflow into RAM
+        assert json.loads((tiny_setup / "hot" / "run-info.json").read_text())["step_rows_spilled_steps"] > 0
     sa = torch.load(tiny_setup / "ram" / "model.pt", weights_only=True)["state_dict"]
     sb = torch.load(tiny_setup / "hot" / "model.pt", weights_only=True)["state_dict"]
     for k in sa:

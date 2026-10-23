@@ -89,15 +89,17 @@ def make_gacc(initial, device, hot_frac=None, reads=None, capacity=150):
 @pytest.mark.parametrize("device", DEVICES)
 @pytest.mark.parametrize("hot_frac", [None, 0.3])
 @pytest.mark.parametrize("c", ["1", "0"])
-def test_gacc_trains_like_rows_in_ram(device, hot_frac, c, monkeypatch):
-    """GACC (gradient sums per step on the device, no host accumulator), with and without hot rows, C and torch."""
+@pytest.mark.parametrize("capacity", [150, 20])
+def test_gacc_trains_like_rows_in_ram(device, hot_frac, c, capacity, monkeypatch):
+    """GACC (gradient sums per step on the device, no host accumulator), with and without hot rows, C and torch;
+    capacity 20 is smaller than the rows of a step, the rest goes through the overflow in RAM."""
     import smlm.row_optim as row_optim
     monkeypatch.setenv("SMLM_HOST_C", c)
     monkeypatch.setattr(row_optim, "CHUNK_ROWS", 7)          # several chunks of 14 rows, two pinned buffers in turn
     gen = torch.Generator().manual_seed(1)
     initial = torch.randn(200, 16, generator=gen)
     reads = torch.randint(0, 1000, (200,), generator=gen)
-    (plain, opt_a), (gacc, opt_b) = make(initial, device), make_gacc(initial, device, hot_frac, reads)
+    (plain, opt_a), (gacc, opt_b) = make(initial, device), make_gacc(initial, device, hot_frac, reads, capacity)
     st = row_store(gacc.values.weight)
     assert getattr(st, "steprows", None) is not None and not hasattr(st, "acc")   # no table-sized accumulator
     for step in range(4):
@@ -111,7 +113,8 @@ def test_gacc_trains_like_rows_in_ram(device, hot_frac, c, monkeypatch):
         opt_a.step()
         opt_b.step()
         assert st.steprows.n == 0
-    assert st.steprows.peak > 14                                # more rows than one chunk in a step
+    assert st.steprows.peak > 20                                # more rows than one chunk / the small capacity
+    assert st.steprows.spilled_steps == (4 if capacity == 20 else 0)
     torch.testing.assert_close(gacc.state_dict()["values.weight"], plain.values.weight.detach(), rtol=1e-5,
                                atol=1e-6)
     sa, sb = opt_a.state_dict()["state"][0], opt_b.state_dict()["state"][0]
@@ -119,8 +122,18 @@ def test_gacc_trains_like_rows_in_ram(device, hot_frac, c, monkeypatch):
     assert torch.equal(sb["n"], sa["n"])
 
 
-def test_gacc_full_is_an_error():
-    model, _ = make_gacc(torch.randn(50, 8), "cpu", capacity=3)
-    out = model.values.bag(torch.tensor([[1, 2, 3, 4]]), torch.ones(1, 4, requires_grad=True))
-    with pytest.raises(RuntimeError, match="capacity 3"):
-        out.sum().backward()
+def test_gacc_overflow_sums_a_row_read_twice():
+    """A row read again after the slots are full is summed over both reads, and only in the overflow."""
+    model, opt = make_gacc(torch.randn(50, 8), "cpu", capacity=3)
+    ref, opt_ref = make(model.values.weight.detach().clone(), "cpu")
+    for m in (model, ref):
+        for idx in ([[1, 2, 3, 4]], [[4, 5, 1]]):
+            m.values.bag(torch.tensor(idx), torch.ones(1, len(idx[0]), requires_grad=True)).square().sum().backward()
+    sr = row_store(model.values.weight).steprows
+    rows, sums = sr.spilled()
+    assert sr.n == 3 and rows.tolist() == [4, 5] and sr.peak == 5
+    torch.testing.assert_close(sums, row_store(ref.values.weight).acc[[4, 5]])
+    opt.step()
+    opt_ref.step()
+    torch.testing.assert_close(model.values.weight.detach(), ref.values.weight.detach())
+    assert sr.spilled() is None and sr.spilled_steps == 1

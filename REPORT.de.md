@@ -4379,6 +4379,20 @@ Wohin die Zeit geht (s pro Schritt; Kopieren und Addieren passieren innerhalb vo
 - **Der Lauf selbst passte nicht mehr vor Mittag** und kommt in einer späteren Nacht, mit der schnellsten Konfiguration
   hier (rowrms + HOT 5 % + GACC). Vorher prüfe ich die GACC-Kapazität unter rowrms.
 
+### Schritt 21, eine Änderung vor dem Lauf (2026-10-23, nachmittags)
+
+Der GACC-Puffer auf der Karte fasst eine feste Zahl von Zeilen (hier 4,47 Mio.), und bisher beendete ein Schritt, der
+mehr Zeilen las, den Lauf mit einem Fehler. Die Kapazität stammt aus einem Adam-Lauf, und mit rowrms liest das Modell
+mehr von seiner Tabelle, ich konnte also nicht sicher sein, dass sie reicht. Statt das erst zu messen, gehen Zeilen,
+die im Puffer keinen freien Platz finden, jetzt in den RAM: ihre Gradienten werden dorthin kopiert, vor dem
+Optimizer-Schritt pro Zeile summiert und wie die anderen aktualisiert. Gleiche Mathematik; ein Schritt mit Überlauf ist
+nur langsamer. Gegen den alten Weg getestet (`tests/test_hot_rows.py`, auch mit einem Puffer, der kleiner ist als die
+Zeilen eines Schritts, und `tests/test_resume.py` mit Pause und Fortsetzen). Der Lauf hält fest, wie viele
+verschiedene Zeilen ein Schritt höchstens las und in wie vielen Schritten der Puffer überlief (`run-info.json`).
+
+Alles andere wie oben festgelegt: rowrms + HOT 5 % + GACC mit 4,47 Mio. Zeilen, dieselben Kriterien. Nur die
+Zeitgrenze ändert sich: der Lauf muss heute vor 19:30 enden.
+
 ## Schritt 22: Fakten in anderen Worten geschrieben, mit den üblichen gefragt (EINP3, Kriterien vor dem Lauf festgelegt, 2026-10-23)
 
 **Frage:** Die Schritte 14 bis 16 schrieben den Artikel jeder neuen Person genau im Trainingsformat, und die Frage war

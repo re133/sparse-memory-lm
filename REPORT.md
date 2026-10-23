@@ -4156,6 +4156,19 @@ Where the time goes (s per step; copying and adding happen inside forward/backwa
 - **The run itself didn't fit before noon** and comes in a later night, with the fastest configuration here
   (rowrms + HOT 5% + GACC). Before that I'll check the GACC capacity under rowrms.
 
+### Step 21, a change before the run (2026-10-23, afternoon)
+
+The GACC buffer on the card holds a fixed number of rows (4.47 M here), and so far a step that read more rows ended
+the run with an error. The capacity comes from an Adam run, and with rowrms the model reads more of its table, so I
+couldn't be sure it was enough. Instead of measuring that first, rows that find no free place in the buffer now go to
+RAM: their gradients are copied there, summed per row before the optimizer step and updated like the others. Same
+math; a step with an overflow is only slower. Tested against the old path (`tests/test_hot_rows.py`, also with a buffer
+smaller than the rows of a step, and `tests/test_resume.py` with pause and resume). The run records the most distinct
+rows read in one step and the number of steps with an overflow (`run-info.json`).
+
+Everything else as fixed above: rowrms + HOT 5% + GACC with 4.47 M rows, the same criteria. Only the time limit
+changes: the run has to end before 19:30 today.
+
 ## Step 22: facts written in other words, asked in the usual ones (EINP3, criteria fixed before the run, 2026-10-23)
 
 **Why:** Steps 14 to 16 wrote each new person's article in the exact training format, and the question was the start
