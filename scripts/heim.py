@@ -16,7 +16,9 @@ SIGINT, e.g. `systemctl --user stop`) pauses the run first, so nothing is lost. 
 end (NTFY_TOPIC or ~/smlm-cloud-kit/cloud.env); log in <out_dir>/heim.log, the run's output in <out_dir>/stdout.log.
 
 A pause costs one checkpoint write and the steps since the last log row (--log_every, default 10). Checkpoint size:
-B-1M ~5 GB with Adam, ~3.4 GB with rowrms; B-16M with its table in RAM ~77 GB with Adam, ~26 GB with rowrms.
+B-1M ~5 GB with Adam, ~3.4 GB with rowrms; B-16M with its table in RAM ~77 GB with Adam, ~26 GB with rowrms. The
+checkpoint goes to /dev/shm/smlm-heim/<run> (RAM, not the SSD; --ckpt_dir overrides it), so while paused it holds
+that much RAM, and a reboot during a pause loses the run's progress since its start.
 """
 import os
 import re
@@ -200,6 +202,8 @@ def main():
     train_args = argv[1:]
     out_dir = os.path.abspath(train_args[train_args.index("--out_dir") + 1])
     cmd = [sys.executable, "-m", "smlm.train", *train_args] + ([] if "--resume" in train_args else ["--resume"])
+    if "--ckpt_dir" not in train_args:
+        cmd += ["--ckpt_dir", os.path.join("/dev/shm", "smlm-heim", os.path.basename(out_dir))]
     topic = ntfy_topic()
 
     def notify(msg):

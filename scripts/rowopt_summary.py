@@ -4,6 +4,8 @@
                                               the table LR part B uses
   python scripts/rowopt_summary.py b NAME     part B (B-16M, table in RAM, run runs/rowopt/NAME) against step 8
   python scripts/rowopt_summary.py b NAME --peak BYTES   with the peak RAM of the run's systemd unit
+  python scripts/rowopt_summary.py b4g NAME   step 20: B-4M on the card (runs/rowopt/NAME) against the H200 run
+  python scripts/rowopt_summary.py fast NAME REF [--peak BYTES]   step 21: B-16M with HOT/GACC against part B (REF)
 """
 import csv
 import json
@@ -107,11 +109,57 @@ def part_b(name, peak):
     print(json.dumps(out["part_b"], indent=1))
 
 
+def b4g(name):
+    m, h = metrics(os.path.join(RUNS, name)), metrics(os.path.join(ROOT, "runs", "cloud", "B-4M-s0"))
+    p, ref = float(m[3050]["val_ppl"]), float(h[3050]["val_ppl"])
+    rel = p / ref - 1
+    verdict = ("B-4M trains on the gaming card as on the H200" if abs(rel) <= 0.01 else "better" if rel < 0 else
+               "a bit worse" if rel <= 0.03 else "worse")
+    steps = [k for k in sorted(m) if k and k in h]
+    tok = [float(m[k]["train_tok_s"]) for k in steps]
+    i = info(name)
+    out = load()
+    out["b4g"] = {"run": name, "val_ppl": p, "h200_val_ppl": ref, "rel": rel, "verdict": verdict,
+                  "curve": {k: [float(m[k]["val_ppl"]), float(h[k]["val_ppl"])] for k in steps},
+                  "train_tok_s_mean": sum(tok) / len(tok), "h200_train_tok_s_mean":
+                      sum(float(h[k]["train_tok_s"]) for k in steps) / len(steps),
+                  "peak_vram_gib": max(float(m[k]["peak_vram_gib"]) for k in steps),
+                  "hours_for_500M_at_this_speed": 500e6 / (sum(tok) / len(tok)) / 3600,
+                  "wall_time_s": float(m[3050]["wall_time_s"]), "train_config": {
+                      k: i.get("train_config", {}).get(k) for k in ("value_optim", "value_lr", "micro_bs", "fused_ce")},
+                  "val2_ppl": i.get("results", {}).get("val2_ppl"), "commit": i.get("git", {}).get("commit"),
+                  "dirty": i.get("git", {}).get("dirty")}
+    write_json(OUT, out, indent=1)
+    print(json.dumps(out["b4g"], indent=1))
+
+
+def fast(name, ref, peak):
+    m, r = metrics(os.path.join(RUNS, name)), metrics(os.path.join(RUNS, ref))
+    rel = {k: float(m[k]["val_ppl"]) / float(r[k]["val_ppl"]) - 1 for k in (305, 610)}
+    verdict = "same training" if all(abs(x) <= 0.01 for x in rel.values()) else "differs"
+    i = info(name)
+    out = load()
+    out["fast"] = {"run": name, "reference": ref, "rel": rel, "verdict": verdict,
+                   "val_ppl": {k: [float(m[k]["val_ppl"]), float(r[k]["val_ppl"])] for k in (305, 610)},
+                   "train_tok_s": {k: [float(m[k]["train_tok_s"]), float(r[k]["train_tok_s"])] for k in (305, 610)},
+                   "speed_ratio": {k: float(m[k]["train_tok_s"]) / float(r[k]["train_tok_s"]) for k in (305, 610)},
+                   "peak_vram_gib": float(m[610]["peak_vram_gib"]), "peak_ram_bytes": peak,
+                   "step_rows_peak": i.get("step_rows_peak"), "train_config": {
+                       k: i.get("train_config", {}).get(k) for k in ("hot_rows", "hot_frac", "step_rows", "fused_ce")},
+                   "commit": i.get("git", {}).get("commit"), "dirty": i.get("git", {}).get("dirty")}
+    write_json(OUT, out, indent=1)
+    print(json.dumps(out["fast"], indent=1))
+
+
 if __name__ == "__main__":
     a = sys.argv[1:]
     if a == ["a"]:
         part_a()
     elif len(a) in (2, 4) and a[0] == "b":
         part_b(a[1], int(a[3]) if len(a) == 4 and a[2] == "--peak" else None)
+    elif len(a) == 2 and a[0] == "b4g":
+        b4g(a[1])
+    elif len(a) in (3, 5) and a[0] == "fast":
+        fast(a[1], a[2], int(a[4]) if len(a) == 5 and a[3] == "--peak" else None)
     else:
         sys.exit(__doc__)

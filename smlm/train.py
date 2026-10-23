@@ -374,6 +374,8 @@ def main():
     ap.add_argument("--resume", action="store_true", help="continue from ckpt.pt in --out_dir if there is one "
                     "(same training arguments required), otherwise start from scratch")
     ap.add_argument("--keep_ckpt", action="store_true", help="keep ckpt.pt when the run is done")
+    ap.add_argument("--ckpt_dir", default=None, help="where ckpt.pt lives (default --out_dir); scripts/heim.py puts "
+                    "it on /dev/shm, so a pause writes RAM and not the SSD")
     ap.add_argument("--weights_every_tokens", type=float, default=0, help="also save the weights alone as "
                     "weights/<tokens>.pt every this many tokens (rounded to whole steps; a trajectory for analysis, "
                     "never deleted, the time it takes is left out of the throughput); 0 = never")
@@ -392,11 +394,13 @@ def main():
     if (args.hot_rows or args.step_rows) and (args.value_device != "host" or args.value_optim == "adam"):
         ap.error("--hot_rows and --step_rows need --value_device host and a row-wise --value_optim")
 
-    os.makedirs(args.out_dir, exist_ok=True)
-    for f in os.listdir(args.out_dir):
-        # half-written files of a killed earlier start (smlm/atomic.py names them <file>.tmp<pid>)
-        if ".tmp" in f and f.rsplit(".tmp", 1)[1].isdigit():
-            os.remove(os.path.join(args.out_dir, f))
+    ckpt_dir = args.ckpt_dir or args.out_dir
+    for d in {args.out_dir, ckpt_dir}:
+        os.makedirs(d, exist_ok=True)
+        for f in os.listdir(d):
+            # half-written files of a killed earlier start (smlm/atomic.py names them <file>.tmp<pid>)
+            if ".tmp" in f and f.rsplit(".tmp", 1)[1].isdigit():
+                os.remove(os.path.join(d, f))
     t_start = time.time()
     meta = load_meta(args.data)
     stream = TrainStream(args.seq_len, args.batch_seqs, args.data_seed, dataset=args.data)
@@ -412,7 +416,7 @@ def main():
     # checkpoints only right after an evaluation: the interval losses are reset there, metrics.csv is complete
     ckpt_every = (max(1, int(round(args.ckpt_every_tokens / stream.tokens_per_step / eval_every))) * eval_every
                   if args.ckpt_every_tokens else 0)
-    ckpt_path = os.path.join(args.out_dir, CKPT)
+    ckpt_path = os.path.join(ckpt_dir, CKPT)
     weights_every = (max(1, int(round(args.weights_every_tokens / stream.tokens_per_step)))
                      if args.weights_every_tokens else 0)
     resume_config = {**{k: getattr(args, k) for k in RESUME_KEYS}, "total_steps": total_steps, "micro_bs": micro_bs}

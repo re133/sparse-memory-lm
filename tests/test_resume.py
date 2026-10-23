@@ -226,12 +226,14 @@ def test_weights_trajectory(tiny_setup, monkeypatch):
 
 
 @pytest.mark.parametrize("extra", [(), ("--value_optim", "rowrms"), ("--value_device", "host"),
-                                   ("--value_device", "host", "--value_optim", "rowrms")])
+                                   ("--value_device", "host", "--value_optim", "rowrms"), ("--ckpt_dir", "CKPT")])
 def test_pause_and_resume_equals_uninterrupted(tiny_setup, monkeypatch, extra):
     """SIGUSR1 (scripts/heim.py): checkpoint at the next log row, exit 75; --resume ends like a run that never paused,
     also between two checkpoints of --ckpt_every_tokens and with a row-wise table optimizer."""
     import signal
     a, b = tiny_setup / "a", tiny_setup / "b"
+    ckpt_dir = tiny_setup / "shm"
+    extra = tuple(str(ckpt_dir) if x == "CKPT" else x for x in extra)
     run(monkeypatch, a, extra=extra)
     real_batch = smlm_data.TrainStream.batch
 
@@ -245,10 +247,13 @@ def test_pause_and_resume_equals_uninterrupted(tiny_setup, monkeypatch, extra):
     assert e.value.code == train.PAUSED
     info = json.loads((b / "run-info.json").read_text())
     assert info["status"] == "paused" and info["checkpoint"]["step"] == 8 and info["pauses"][0]["at_step"] == 8
+    if "--ckpt_dir" in extra:                         # the checkpoint is there, not in the run's folder
+        assert (ckpt_dir / train.CKPT).exists() and not (b / train.CKPT).exists()
     monkeypatch.setattr(smlm_data.TrainStream, "batch", real_batch)
     run(monkeypatch, b, extra=extra)
     info_a, info_b = (json.loads((x / "run-info.json").read_text()) for x in (a, b))
     assert info_b["status"] == "done" and info_b["resumes"][0]["at_step"] == 8 and len(info_b["pauses"]) == 1
+    assert not (ckpt_dir / train.CKPT).exists()
     assert info_a["results"]["val_loss"] == info_b["results"]["val_loss"]
     sa = torch.load(a / "model.pt", weights_only=True)["state_dict"]
     sb = torch.load(b / "model.pt", weights_only=True)["state_dict"]
