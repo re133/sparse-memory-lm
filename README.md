@@ -7,8 +7,8 @@
 > **No time? [Here's the two-minute version →](https://re133.github.io/sparse-memory-lm/)**
 >
 > New (23 Oct 2026): with one optimizer number per table row, B-16M trains at home in half the RAM and B-4M fits
-> entirely on my 16 GB gaming card. Keeping the most-read rows on the GPU makes the B-16M training 1.4 times as fast,
-> in 30 GiB of RAM.
+> entirely on my 16 GB gaming card. Summing each step's gradients on the GPU and keeping the most-read rows there
+> made a 20M-token B-16M run 1.4 times as fast, in 30 GiB of RAM; whether the curve stays the same isn't settled yet.
 
 What happens if you give a tiny language model a really big lookup table?
 
@@ -357,7 +357,8 @@ don't repeat bit for bit.
 
 **Letting B-4M grow** (step 23): the same run, but six of the twelve plain blocks sleep for the first 40M tokens and
 then wake up as identities (output projections at zero, so the model computes the same as before). It didn't pay off:
-the small phase was only 18% faster, because the output layer, the attention and the three table reads stay. At the
+the small phase was only 18% faster, probably because the output layer, the attention and the three table reads
+stay. At the
 training time the normal run needed for 100M tokens, the grown run was 0.7% behind (37.91 against 37.63), which my
 rule counts as no measurable difference.
 

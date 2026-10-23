@@ -4303,8 +4303,8 @@ other common way copies existing blocks); only B-4M. Training time on the same P
   grown run has val PPL 37.91 against 37.63 (+0.7%, interpolated between its evaluations at 100 and 110 M tokens; by
   then it had seen 105.6 M tokens).
 - **The small phase was only 18% faster:** 47,650 tokens/s before the growth, 40,390 after (step 20: 40,590). The six
-  skipped blocks are a small part of the work; the output layer over 50,304 tokens, the attention of the other six
-  blocks and the three table reads stay. So the 40 M tokens of the small phase saved 140 s, 5.7% of the time to 100 M.
+  skipped blocks are probably a small part of the work; the output layer over 50,304 tokens, the attention of the
+  other six blocks and the three table reads stay (not timed separately). So the 40 M tokens of the small phase saved 140 s, 5.7% of the time to 100 M.
 - **At the same tokens** the grown model is behind: 3.3% worse at 100 M tokens (38.87 against 37.63), after 5.7% less
   training time.
 - **WikiText-103 at the same time point:** 128.27 against 132.33 (−3.1%), reported without a verdict.
@@ -4376,7 +4376,8 @@ are short one-sentence texts about the same three attributes, so this is a narro
   usual question, against 49.6% (+24.9 points [20.2; 29.8]). Per wording: T2 94.3% (step 22: 84.9%), T1 74.7%
   (37.3%), T3 51.8% (22.7%). With their own written sentence 88.4% (step 22: 71.1%). Lift over the unwritten people
   0.474 [0.442; 0.506] (step 22: 0.275).
-- **Less damage from the writes:** the known people lose 0.073 [0.084; 0.061] through the writes instead of 0.095;
+- **Less damage from the writes:** the known people change by −0.073 [−0.084; −0.061] through the writes instead of
+  −0.095;
   paired difference +0.022 [0.010; 0.034].
 - **But the fine-tuning itself did more damage than any write:** before any write, the 600 known people of the
   measurement have a mean probability of 0.542 for their true values instead of 0.917, and 79.7% right instead of

@@ -4536,8 +4536,8 @@ Stunden nach dem Lauf aus Schritt 20.
   (2.462,8 s), hat der gewachsene Lauf eine Val-PPL von 37,91 gegen 37,63 (+0,7 %, interpoliert zwischen seinen
   Auswertungen bei 100 und 110 Mio. Tokens; bis dahin hatte er 105,6 Mio. Tokens gesehen).
 - **Die kleine Phase war nur 18 % schneller:** 47.650 Tokens/s vor dem Wachsen, 40.390 danach (Schritt 20: 40.590). Die
-  sechs übersprungenen Blöcke sind ein kleiner Teil der Arbeit; die Ausgabeschicht über 50.304 Tokens, die Attention
-  der anderen sechs Blöcke und die drei Tabellen-Lesungen bleiben. Die 40 Mio. Tokens der kleinen Phase sparten also
+  sechs übersprungenen Blöcke sind wohl ein kleiner Teil der Arbeit; die Ausgabeschicht über 50.304 Tokens, die
+  Attention der anderen sechs Blöcke und die drei Tabellen-Lesungen bleiben (nicht einzeln gemessen). Die 40 Mio. Tokens der kleinen Phase sparten also
   140 s, 5,7 % der Zeit bis 100 Mio.
 - **Bei gleichen Tokens** liegt das gewachsene Modell zurück: 3,3 % schlechter bei 100 Mio. Tokens (38,87 gegen 37,63),
   nach 5,7 % weniger Trainingszeit.
@@ -4619,8 +4619,8 @@ ist also eine enge Art der Verallgemeinerung.
   üblichen Frage zurück, gegen 49,6 % (+24,9 Punkte [20,2; 29,8]). Pro Formulierung: T2 94,3 % (Schritt 22: 84,9 %), T1
   74,7 % (37,3 %), T3 51,8 % (22,7 %). Mit dem eigenen geschriebenen Satz 88,4 % (Schritt 22: 71,1 %). Lift gegenüber
   den nicht geschriebenen Personen 0,474 [0,442; 0,506] (Schritt 22: 0,275).
-- **Weniger Schaden durch das Schreiben:** die bekannten Personen verlieren durch das Schreiben 0,073 [0,084; 0,061]
-  statt 0,095; gepaarter Unterschied +0,022 [0,010; 0,034].
+- **Weniger Schaden durch das Schreiben:** die bekannten Personen ändern sich durch das Schreiben um −0,073 [−0,084;
+  −0,061] statt −0,095; gepaarter Unterschied +0,022 [0,010; 0,034].
 - **Aber das Nachtraining selbst schadete mehr als jedes Schreiben:** schon vor dem Schreiben haben die 600 bekannten
   Personen der Messung im Mittel eine Wahrscheinlichkeit von 0,542 für ihre wahren Werte statt 0,917, und 79,7 %
   richtig statt 99,8 %. Am meisten verloren die am seltensten gesehenen (16-mal gesehen: 0,426 statt 0,840; 64-mal:

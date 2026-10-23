@@ -96,7 +96,7 @@ up.</p>
   I can't tell yet whether that's more than noise.</p>
   <p><strong>Letting the model grow didn't pay off.</strong> I started the 4M-table model with half of its plain
   layers asleep and woke them up after 40M tokens, so that they start out changing nothing. The small model was only
-  18% faster, because the output layer, the table reads and the remaining layers still cost the same. At the same
+  18% faster, probably because the output layer, the table reads and the remaining layers still cost the same. At the same
   training time the grown model ended up where the normal one did (0.7% behind).</p>
   <p><strong>Teaching the model to be written into works, but so far it costs too much.</strong> In 150 short
   episodes I wrote made-up people into the table and trained the rest of the model to answer questions about them.
