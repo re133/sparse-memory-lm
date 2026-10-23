@@ -102,7 +102,9 @@ up.</p>
   episodes I wrote made-up people into the table and trained the rest of the model to answer questions about them.
   Afterwards, facts written in wordings it had never seen came back right 74% of the time instead of 50%. But the
   training itself made the model forget part of what it knew (people it had learned: 80% right instead of almost
-  100%), and normal text got 4.4% worse. Next I'll try the same with much gentler training.</p>
+  100%), and normal text got 4.4% worse. With five times gentler training the text stayed the same, but most of the
+  gain was gone (55% instead of 50%) and the model still forgot part of what it knew. So the gain and the forgetting
+  seem to come together; next I'd change something narrower than the whole model.</p>
 </div>
 
 <h2>Training at home with less memory</h2>

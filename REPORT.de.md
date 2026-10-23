@@ -4671,3 +4671,29 @@ Nur wenn es vor 19:30 enden kann.
 
 **Was das nicht zeigen kann:** wie in Schritt 24; und eine weitere Einstellung zeigt noch nicht, wie viel Nachtraining
 richtig ist.
+
+### Ergebnis von Schritt 25 (2026-10-23, RX 9070 mit der Tabelle im RAM, `scripts/einpm.py --variant einpm2` → `report/einpm2/summary.json`)
+
+- **Urteil: „a trade-off“**, nach der vorher festgelegten Regel: „carries over better“ und „text unchanged“, aber
+  „forgets what it knew“ und „more damage“.
+- **Überträgt etwas besser:** 55,3 % der geschriebenen Werte kommen mit der üblichen Frage zurück, gegen 49,6 % in
+  Schritt 22 (+5,8 Punkte [2,0; 9,8]); Schritt 24 hatte 74,4 %. Pro Formulierung T2 86,8 %, T1 42,0 %, T3 34,0 %. Lift
+  0,324 [0,292; 0,358].
+- **Text unverändert:** Val-PPL 20,18 gegen 20,07 (+0,5 %).
+- **Vergisst trotzdem:** vor jedem Schreiben ändern sich die 600 bekannten Personen der Messung gegen das Original um
+  −0,221 [−0,231; −0,211] (0,696 statt 0,917; 96,7 % richtig statt 99,8 %). Auch die 300 bekannten Personen, die im
+  Verlust waren, gingen von 0,923 auf 0,795 (weiter 100 % richtig). Ihr Trainingsverlust stieg über die Episoden, von
+  0,11 (Episoden 1 bis 10) auf 0,26 (141 bis 150): selbst mit ihnen in jedem Schritt entfernte sich der Kern von ihnen.
+- **Mehr Schaden, gegen das Original gemessen:** nach dem Schreiben stehen die bekannten Personen bei −0,172 [−0,182;
+  −0,162] gegenüber dem Stand nach dem Schreiben in Schritt 22 (92,3 % richtig gegen 98,6 %). Vom eigenen Start des nachtrainierten
+  Modells aus, wie in Schritt 24, kostet das Schreiben sie nur −0,045 statt −0,095.
+- **Was das heißt:** eine fünfmal kleinere Lernrate hielt den Text, aber nicht die bekannten Fakten, und der Gewinn
+  beim Übertragen ist größtenteils weg. Mit dieser Art Episoden scheinen Gewinn und Vergessen zusammen zu kommen. Um
+  das eine ohne das andere zu bekommen, müsste das Nachtraining etwas Engeres ändern (zum Beispiel nur die Query der
+  lesenden Schichten) oder die bekannten Fakten direkter schützen als über einen Verlust auf 32 von ihnen.
+- **Ein Fehler von mir:** das Training lief durch und speicherte den Kern (`runs/einpm2/core.pt`), aber das Protokoll
+  pro Episode ließ sich nicht schreiben, weil der Ordner noch nicht existierte. `report/einpm2/train.json` enthält die
+  Mittel über je zehn Episoden, die der Lauf ausgab, mit einem Vermerk. Behoben in `923a519`; die Messung nutzte den
+  gespeicherten Kern.
+- **Code:** `scripts/einpm.py` ab Commit `0815e85` für das Training, `923a519` für die Messung (dazwischen nur die
+  Ordner-Korrektur).

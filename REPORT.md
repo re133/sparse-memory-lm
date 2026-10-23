@@ -4424,3 +4424,28 @@ per step instead of 8 (from the same 300), 2 windows of training text instead of
 Only if it can end before 19:30.
 
 **What this can't show:** as in step 24; and one more setting doesn't map out how much fine-tuning is right.
+
+### Result of step 25 (2026-10-23, RX 9070 with the table in RAM, `scripts/einpm.py --variant einpm2` → `report/einpm2/summary.json`)
+
+- **Verdict: "a trade-off"**, by the rule fixed before: "carries over better" and "text unchanged", but "forgets what
+  it knew" and "more damage".
+- **Carries over a little better:** 55.3% of the written values come back with the usual question, against 49.6% in
+  step 22 (+5.8 points [2.0; 9.8]); step 24 had 74.4%. Per wording T2 86.8%, T1 42.0%, T3 34.0%. Lift 0.324 [0.292;
+  0.358].
+- **Text unchanged:** val PPL 20.18 against 20.07 (+0.5%).
+- **Still forgets:** before any write, the 600 known people of the measurement change by −0.221 [−0.231; −0.211]
+  against the original (0.696 instead of 0.917; 96.7% right instead of 99.8%). The 300 known people that were in the
+  loss went from 0.923 to 0.795 too (still 100% right). Their training loss rose over the episodes, from 0.11 (episodes
+  1 to 10) to 0.26 (141 to 150), so even with them in every step the core drifted away from them.
+- **More damage, measured against the original:** after the writes the known people stand at −0.172 [−0.182; −0.162]
+  against where step 22's writes left them (92.3% right against 98.6%). From the fine-tuned model's own start, as in step 24, the
+  writes cost them only −0.045 instead of −0.095.
+- **What it means:** a five times smaller learning rate kept the text but not the known facts, and most of the gain in
+  carrying over is gone. With this kind of episode, the gain and the forgetting seem to come together. To get one
+  without the other, the fine-tuning would need to change something narrower (only the query of the reading layers,
+  for instance) or protect the known facts more directly than by a loss on 32 of them.
+- **A mistake of mine:** the training finished and saved the core (`runs/einpm2/core.pt`), but writing its per-episode
+  log failed because the folder didn't exist yet. `report/einpm2/train.json` holds the means over ten episodes that
+  the run printed, with a note. Fixed in `923a519`; the measurement used the saved core.
+- **Code:** `scripts/einpm.py` as of commit `0815e85` for the training, `923a519` for the measurement (only the
+  folder fix in between).
