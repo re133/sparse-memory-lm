@@ -4032,3 +4032,30 @@ Anteil der späteren Bewegung schon.
 
 **Was das nicht zeigen kann:** ein kleines dichtes Modell, ein Seed, ein Abschnitt des Trainings; ein hoher Anteil ist
 für Training im Unterraum nötig, aber nicht ausreichend.
+
+### Ergebnis von Schritt 17 (2026-10-23, RX 9070, `scripts/pcat.py` → `report/pcat/summary.json`)
+
+- **Urteil nach den Kriterien: „teilweise niedrigdimensional“.** Von der Bewegung zwischen 70 M und 100 M Tokens liegen
+  **13,6 %** in den 38 Richtungen aus 30–70 M (Grenzen: 50 % und 10 %).
+- Der Lauf: A mit seinem 500-M-Plan, angehalten bei 110 M Tokens (Val-PPL 36,9), 91.400 tok/s wie die früheren A-Läufe
+  (das Speichern der Gewichte etwa alle 1 M Tokens hat nicht gebremst); 39 Gewichtsvektoren zwischen 30,5 M und
+  69,1 M, 30 zwischen 70,1 M und 99,5 M.
+- **Anteil der späteren Bewegung im Unterraum** (Top 1 / 5 / 10 / 20 / 38 Richtungen): die ganze Bewegung
+  70 M → 100 M 0,7 % / 11,4 % / 12,5 % / 12,8 % / 13,6 %; einzelne Schritte von ~1 M 0,3 % / 1,7 % / 1,8 % / 1,9 % /
+  2,0 %. Ein zufälliger Unterraum gleicher Größe: unter 0,0001 %. Entlang der einen Richtung, in die sich die Gewichte
+  von 30 M bis 70 M bewegt haben: 1,5 %.
+- **Erklärte Varianz im Fenster, zum Vergleich:** 80 % mit einer Richtung, 96 % mit fünf. Für sich genommen hätte sie
+  einen winzigen Unterraum nahegelegt; die spätere Bewegung sagt etwas anderes.
+- **Eine Korrektur vor dem Aufschreiben:** Die erste Analyse hat die Einbettung doppelt gezählt (die Ausgabeschicht ist
+  an sie gebunden und steht in den gespeicherten Gewichten zweimal), 59,9 M Zahlen statt 40,6 M. Mit jedem Parameter
+  einmal, wie es in den Kriterien steht: 13,6 % statt 15,9 %, dasselbe Urteil.
+
+**Wie ich es lese:**
+- Die Bahn ist weit weg von Zufall (13,6 % gegen praktisch 0), aber das meiste, was zwischen 70 M und 100 M passiert,
+  passiert in neuen Richtungen. Ein Sprachmodell, das ständig neuen Text liest, bewegt sich ständig woandershin.
+- Für die Idee dahinter, nur in wenigen festen Richtungen zu trainieren, ist das an dieser Stelle ein Nein: Ein
+  38-dimensionaler Unterraum aus der Vergangenheit hätte etwa ein Siebtel der späteren Bewegung erfasst, und von jedem
+  einzelnen Schritt nur 2 %. Damit es klappt, müsste man den Unterraum ständig erneuern, und das kostet wieder die
+  vollen Gradienten.
+- **Was das nicht zeigen kann:** ein kleines dichtes Modell, ein Seed, ein Abschnitt des Trainings (30–100 M von
+  500 M); später im Training, bei kleiner Lernrate, kann das Bild anders sein.

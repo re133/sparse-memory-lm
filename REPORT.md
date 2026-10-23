@@ -3824,3 +3824,28 @@ share of later movement can.
 
 **What this can't show:** one small dense model, one seed, one stretch of training; a high share is necessary for
 subspace training, not sufficient.
+
+### Result of step 17 (2026-10-23, RX 9070, `scripts/pcat.py` → `report/pcat/summary.json`)
+
+- **Verdict by the criteria: "partly low-dimensional".** Of the movement from 70 M to 100 M tokens, **13.6%** lies in
+  the 38 directions from 30–70 M (limits: 50% and 10%).
+- The run: A's 500 M schedule, stopped at 110 M tokens (val PPL 36.9), 91,400 tok/s like the earlier A runs (saving
+  the weights every ~1 M tokens didn't slow it down); 39 weight vectors between 30.5 M and 69.1 M, 30 between 70.1 M
+  and 99.5 M.
+- **Share of the later movement inside the subspace** (top 1 / 5 / 10 / 20 / 38 directions): the whole movement
+  70 M → 100 M 0.7% / 11.4% / 12.5% / 12.8% / 13.6%; single ~1 M steps 0.3% / 1.7% / 1.8% / 1.9% / 2.0%. A random
+  subspace of the same size: under 0.0001%. Along the one direction the weights moved from 30 M to 70 M: 1.5%.
+- **Explained variance inside the window, for comparison:** 80% with one direction, 96% with five. Taken alone it would
+  have suggested a tiny subspace; the later movement says otherwise.
+- **A correction before writing this up:** the first analysis counted the embedding twice (the output layer is tied to
+  it and appears twice in the saved weights), 59.9 M numbers instead of 40.6 M. With each parameter once, as the
+  criteria say: 13.6% instead of 15.9%, the same verdict.
+
+**How I read it:**
+- The path is far from random (13.6% against practically 0), but most of what happens between 70 M and 100 M happens
+  in new directions. A language model that keeps reading new text keeps moving somewhere new.
+- For the idea behind it, training only inside a few fixed directions, that's a no at this point: a 38-dimensional
+  subspace from the past would have held about a seventh of the later movement, and only 2% of each step. To make it
+  work one would have to keep renewing the subspace, which costs the full gradients again.
+- **What this can't show:** one small dense model, one seed, one stretch of training (30–100 M of 500 M); later in
+  training, at a low learning rate, the picture may differ.

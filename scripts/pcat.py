@@ -28,7 +28,12 @@ FIT, TEST = (30e6, 70e6), (70e6, 100e6)
 
 def flat(path, keys=None):
     sd = torch.load(path, map_location="cpu", weights_only=False)["state_dict"]
-    keys = keys or sorted(k for k, v in sd.items() if v.is_floating_point())
+    if keys is None:                                     # each parameter once: the tied output weight is the embedding
+        seen, keys = set(), []
+        for k in sorted(sd):
+            if sd[k].is_floating_point() and sd[k].data_ptr() not in seen:
+                seen.add(sd[k].data_ptr())
+                keys.append(k)
     return torch.cat([sd[k].float().reshape(-1) for k in keys]).numpy(), keys
 
 
